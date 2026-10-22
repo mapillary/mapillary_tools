@@ -7,6 +7,7 @@ import functools
 import json
 import os
 import re
+import shutil
 import subprocess
 import tempfile
 from pathlib import Path
@@ -17,6 +18,8 @@ import pytest
 
 from .fixtures import (
     assert_contains_image_descs,
+    EXIFTOOL_EXECUTABLE,
+    pytest_skip_if_not_exiftool_installed,
     pytest_skip_if_not_ffmpeg_installed,
     run_command,
     run_process_for_descs,
@@ -429,6 +432,42 @@ def test_video_process_by_distance_with_an_untidy_gpx(setup_data: py.path.local)
     capture_times = sorted(desc["MAPCaptureTime"] for desc in descs)
     assert "2025_03_14_07_00_00_000" <= capture_times[0], capture_times
     assert capture_times[-1] < "2025_03_14_07_00_06_000", capture_times
+
+
+def test_video_process_by_distance_with_an_exiftool_xml_pattern(
+    setup_data: py.path.local, tmp_path: Path
+):
+    """
+    The pattern names the XML after the video. The frames were looked up by
+    their own names instead, and none was found in the XML.
+    """
+    pytest_skip_if_not_ffmpeg_installed()
+    pytest_skip_if_not_exiftool_installed()
+
+    video_dir = tmp_path / "videos"
+    video_dir.mkdir()
+    video_path = video_dir / "max-360mode.mp4"
+    shutil.copyfile(
+        str(setup_data.join("gopro_data").join("max-360mode.mp4")), video_path
+    )
+    with open(video_dir / "max-360mode.xml", "wb") as fp:
+        subprocess.run(
+            [EXIFTOOL_EXECUTABLE, "-ee", "-n", "-X", str(video_path)],
+            stdout=fp,
+            check=True,
+        )
+
+    descs = run_video_process_for_descs(
+        [
+            "--video_sample_distance=6",
+            *["--geotag_source", '{"source": "exiftool_xml", "pattern": "%g.xml"}'],
+            str(video_path),
+            str(tmp_path / "samples"),
+        ]
+    )
+
+    assert descs
+    assert all("error" not in desc for desc in descs), descs
 
 
 def test_video_process_processes_the_videos_that_sampled(setup_data: py.path.local):
