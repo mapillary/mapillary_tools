@@ -82,6 +82,11 @@ _parse_filesize = functools.partial(
 ###################
 USER_DATA_DIR = appdirs.user_data_dir(appname="mapillary_tools", appauthor="Mapillary")
 PROMPT_DISABLED: bool = _yes_or_no(os.getenv(_ENV_PREFIX + "PROMPT_DISABLED", "NO"))
+# In seconds. Consecutive points of a GPX or NMEA track further apart than
+# this leave a gap that no position is interpolated across, such as a GPS
+# logger switched off between trips: the time inside it is outside the track,
+# like the time before its start or after its end
+MAX_GPX_GAP_SECONDS = float(os.getenv(_ENV_PREFIX + "MAX_GPX_GAP_SECONDS", 3600))
 
 
 ############################

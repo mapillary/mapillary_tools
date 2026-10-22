@@ -327,7 +327,10 @@ mapillary_tools upload MY_SAMPLES --desc_path=/tmp/mapillary_description.json
 If you use external GPS devices for mapping, you will need to geotag your captures with the external GPS tracks.
 
 To geotag images with a GPX file, the capture time (extracted from EXIF tag "Date/Time Original" or "GPS Date/Time") is minimally required.
-It is used to locate the images along the GPS tracks.
+It is used to locate the images along the GPS tracks. Images captured before the track starts, after it ends, or in a
+gap of more than an hour between two of its points (such as between two trips in one GPX file) fall outside the track,
+and are not geotagged from it. The same applies to videos. To allow longer gaps, set the environment variable
+`MAPILLARY_TOOLS_MAX_GPX_GAP_SECONDS` (3600 by default).
 
 ```sh
 mapillary_tools process MY_IMAGE_DIR --geotag_source "gpx" --geotag_source_path MY_EXTERNAL_GPS.gpx

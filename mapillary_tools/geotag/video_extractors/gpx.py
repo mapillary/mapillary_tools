@@ -23,7 +23,7 @@ if sys.version_info >= (3, 12):
 else:
     from typing_extensions import override
 
-from ... import exceptions, geo, telemetry, types, utils
+from ... import constants, exceptions, geo, telemetry, types, utils
 from ...camm import camm_parser
 from ...mp4 import construct_mp4_parser as cparser, simple_mp4_parser as sparser
 from ...mp4.mp4_sample_parser import MovieBoxParser
@@ -374,7 +374,10 @@ class GPXVideoExtractor(BaseVideoExtractor):
         A track that misses the video has no position for any moment of it, so
         it raises when its placement says so: the clock it was placed by, or
         --interpolation_offset_time. A track that covers only part of the video
-        warns, and one that covers all of it is silent.
+        warns, and one that covers all of it is silent. The video can fall
+        between the ends of the track and still miss it, or part of it, in a
+        gap of more than constants.MAX_GPX_GAP_SECONDS between two of its
+        points.
 
         Without the duration of the video, the video is known only up to its
         last GPS point, and a track that starts after it may still overlap the
@@ -395,6 +398,18 @@ class GPXVideoExtractor(BaseVideoExtractor):
 
         gpx_first = min(p.time for p in gpx_points)
         gpx_last = max(p.time for p in gpx_points)
+        # The gaps of the track, and its parts between them, in video seconds
+        gap_points = track_gaps(
+            sorted(gpx_points, key=lambda p: p.time),
+            constants.MAX_GPX_GAP_SECONDS / rate,
+        )
+        gaps = [(before.time, after.time) for before, after in gap_points]
+        parts = list(
+            zip(
+                [gpx_first, *(end for _, end in gaps)],
+                [*(start for start, _ in gaps), gpx_last],
+            )
+        )
         offset_time = (
             0.0 if self.interpolation is None else self.interpolation.offset_time
         )
@@ -421,10 +436,17 @@ class GPXVideoExtractor(BaseVideoExtractor):
             )
 
         # In GPS seconds, which is where clock and time zone mistakes are made
-        gap = max(gpx_first - video_end, -gpx_last) * rate
+        gap = min(max(first - video_end, -last) for first, last in parts) * rate
         if gap <= 0:
             # In video seconds
-            uncovered = max(gpx_first, 0.0) + max(video_end - gpx_last, 0.0)
+            uncovered = (
+                max(gpx_first, 0.0)
+                + max(video_end - gpx_last, 0.0)
+                + sum(
+                    max(min(end, video_end) - max(start, 0.0), 0.0)
+                    for start, end in gaps
+                )
+            )
             if _LOGGER_TOLERANCE_SECONDS < uncovered * rate:
                 LOG.warning(
                     f"{gpx_track} covers only part of {video}{offset_clause}: "
@@ -446,10 +468,33 @@ class GPXVideoExtractor(BaseVideoExtractor):
                 f"Check that the {self.file_format} file belongs to this video, then the camera "
                 f"clock and the time zone of the {self.file_format} timestamps"
             )
-        message = (
-            f"{gpx_track} misses {video} by {_format_duration(gap)}{offset_clause}. "
-            f"{advice}"
+        # Between the ends of the track, the video falls in one of its gaps
+        surrounding_gap = next(
+            (
+                (before, after)
+                for before, after in gap_points
+                if before.time < 0 and video_end < after.time
+            ),
+            None,
         )
+        if surrounding_gap is None:
+            message = (
+                f"{gpx_track} misses {video} by {_format_duration(gap)}{offset_clause}. "
+                f"{advice}"
+            )
+        else:
+            before, after = surrounding_gap
+            # At the Unix times the points were recorded at
+            track_gap = describe_gap(
+                before,
+                after,
+                lookup_start + before.time * rate,
+                lookup_start + after.time * rate,
+            )
+            message = (
+                f"{gpx_track} has {track_gap}, which {video} falls in{offset_clause}. "
+                f"{advice}"
+            )
 
         if (clock is not None or offset_time) and (
             video_duration is not None or _IMPLAUSIBLE_OFFSET_SECONDS < gap
@@ -766,6 +811,46 @@ class GPXVideoExtractor(BaseVideoExtractor):
             if v1 < v2
         ]
         return statistics.median(steps) if steps else None
+
+
+def track_gaps(
+    points: T.Sequence[geo.Point], max_gap: float
+) -> list[tuple[geo.Point, geo.Point]]:
+    """
+    The gaps of a track, sorted by time, between consecutive points more than
+    **max_gap** seconds apart, as the points either side
+
+    >>> track = [geo.Point(time=t, lat=0, lon=0, alt=None, angle=None) for t in (0, 1, 5000, 5001, 9000)]
+    >>> [(before.time, after.time) for before, after in track_gaps(track, 3600)]
+    [(1, 5000), (5001, 9000)]
+    >>> [(before.time, after.time) for before, after in track_gaps(track, 4000)]
+    [(1, 5000)]
+    >>> track_gaps(track[:2], 3600)
+    []
+    """
+    return [
+        (left, right)
+        for left, right in geo.pairwise(points)
+        if max_gap < right.time - left.time
+    ]
+
+
+def describe_gap(
+    before: geo.Point, after: geo.Point, before_time: float, after_time: float
+) -> str:
+    """
+    Describe a gap of a track between the points **before** and **after**,
+    which were recorded at the Unix times **before_time** and **after_time**
+
+    >>> p = lambda lat, lon: geo.Point(time=0, lat=lat, lon=lon, alt=None, angle=None)
+    >>> describe_gap(p(55.174859, 61.256901), p(55.172986, 61.256636), 1739074271, 1739124451)
+    'a gap of 13.9 hours, from 2025-02-09T04:11:11+00:00 at (55.174859, 61.256901) to 2025-02-09T18:07:31+00:00 at (55.172986, 61.256636)'
+    """
+    return (
+        f"a gap of {_format_duration(after_time - before_time)}, "
+        f"from {_isoformat(before_time)} at ({round(before.lat, 7)}, {round(before.lon, 7)}) "
+        f"to {_isoformat(after_time)} at ({round(after.lat, 7)}, {round(after.lon, 7)})"
+    )
 
 
 def _clip_track(

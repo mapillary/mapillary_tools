@@ -5,7 +5,9 @@
 
 from __future__ import annotations
 
+import bisect
 import dataclasses
+import datetime
 import logging
 import sys
 import typing as T
@@ -16,10 +18,11 @@ if sys.version_info >= (3, 12):
 else:
     from typing_extensions import override
 
-from .. import exceptions, geo, types
+from .. import constants, exceptions, geo, types
 from ..serializer.description import build_capture_time
 from .base import GeotagImagesFromGeneric
 from .geotag_images_from_exif import ImageEXIFExtractor
+from .video_extractors.gpx import describe_gap, track_gaps
 
 
 LOG = logging.getLogger(__name__)
@@ -33,12 +36,16 @@ class GeotagImagesFromGPX(GeotagImagesFromGeneric):
         use_image_start_time: bool = False,
         offset_time: float = 0.0,
         num_processes: int | None = None,
+        # Whether an image in a gap of the track longer than
+        # constants.MAX_GPX_GAP_SECONDS is outside it
+        check_gaps: bool = True,
     ):
         super().__init__(num_processes=num_processes)
         self.points = points
         self.use_gpx_start_time = use_gpx_start_time
         self.use_image_start_time = use_image_start_time
         self.offset_time = offset_time
+        self.check_gaps = check_gaps
         # Why the track could not be read, reported for every image instead
         self.track_error: Exception | None = None
 
@@ -46,6 +53,7 @@ class GeotagImagesFromGPX(GeotagImagesFromGeneric):
         self,
         image_metadata: types.ImageMetadata,
         sorted_points: T.Sequence[geo.Point],
+        gaps: T.Sequence[tuple[geo.Point, geo.Point]] = (),
     ) -> types.ImageMetadata:
         assert sorted_points, "must have at least one point"
 
@@ -73,6 +81,28 @@ class GeotagImagesFromGPX(GeotagImagesFromGeneric):
                     image_time=build_capture_time(image_metadata.time),
                     gpx_start_time=gpx_start_time,
                     gpx_end_time=gpx_end_time,
+                )
+
+        # The last gap that starts at or before the image
+        idx = bisect.bisect_right(
+            [before.time for before, _ in gaps], image_metadata.time
+        )
+        if idx:
+            before, after = gaps[idx - 1]
+            delta = min(
+                image_metadata.time - before.time, after.time - image_metadata.time
+            )
+            # with the tolerance of 1ms, as at the ends of the track
+            if 0.001 < delta:
+                captured_at = datetime.datetime.fromtimestamp(
+                    image_metadata.time, tz=datetime.timezone.utc
+                ).isoformat()
+                track_gap = describe_gap(before, after, before.time, after.time)
+                raise exceptions.MapillaryOutsideGPXTrackError(
+                    f"The GPX track has {track_gap}, which the image time {captured_at} falls in",
+                    image_time=build_capture_time(image_metadata.time),
+                    gpx_start_time=build_capture_time(sorted_points[0].time),
+                    gpx_end_time=build_capture_time(sorted_points[-1].time),
                 )
 
         interpolated = geo.interpolate(sorted_points, image_metadata.time)
@@ -158,11 +188,17 @@ class GeotagImagesFromGPX(GeotagImagesFromGeneric):
                 # TODO: this time modification seems to affect final capture times
                 image_metadata.time += image_time_offset
 
+        gaps = (
+            track_gaps(sorted_points, constants.MAX_GPX_GAP_SECONDS)
+            if self.check_gaps
+            else []
+        )
+
         for image_metadata in sorted_image_metadatas:
             try:
                 final_metadatas.append(
                     self._interpolate_image_metadata_along(
-                        image_metadata, sorted_points
+                        image_metadata, sorted_points, gaps
                     )
                 )
             except exceptions.MapillaryOutsideGPXTrackError as ex:
