@@ -62,6 +62,17 @@ def process_geotag_properties(
             raise exceptions.MapillaryFileNotFoundError(
                 f"Import file or directory not found: {path}"
             )
+        # A directory is searched for the files it can process, but a file
+        # named explicitly is skipped only with a word. It is not failed:
+        # callers that pass the files a user selected find the skipped ones in
+        # the process report. A zip file is uploaded as it is, by
+        # process_and_upload too
+        if path.is_file() and not (
+            utils.is_image_file(path)
+            or utils.is_video_file(path)
+            or path.suffix.lower() == ".zip"
+        ):
+            LOG.warning("Skipping %s, which is not a supported image or video", path)
 
     if geotag_source_path is None:
         geotag_source_path = video_import_path

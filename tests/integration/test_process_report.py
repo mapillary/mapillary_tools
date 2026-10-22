@@ -112,3 +112,24 @@ def test_process_without_report_preserves_unsupported_omission(tmpdir: py.path.l
 
     assert json.loads(desc_path.read_text(encoding="utf-8")) == []
     assert not (root / "process-report.json").exists()
+
+
+def test_process_warns_of_an_explicit_unsupported_file(tmpdir: py.path.local):
+    """It was skipped without a word"""
+    root = Path(str(tmpdir))
+    unsupported = root / "unsupported.webp"
+    desc_path = root / "description.json"
+    unsupported.write_bytes(b"not supported")
+
+    result = run_command(
+        ["--desc_path", str(desc_path), str(unsupported)],
+        command="process",
+        capture_output=True,
+        text=True,
+    )
+
+    assert json.loads(desc_path.read_text(encoding="utf-8")) == []
+    assert (
+        f"Skipping {unsupported}, which is not a supported image or video"
+        in result.stderr
+    )
