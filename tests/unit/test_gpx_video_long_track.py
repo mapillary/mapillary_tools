@@ -17,7 +17,12 @@ from pathlib import Path
 
 from mapillary_tools import types
 from mapillary_tools.geotag import factory
-from mapillary_tools.geotag.options import SourceOption, SourcePathOption, SourceType
+from mapillary_tools.geotag.options import (
+    InterpolationOption,
+    SourceOption,
+    SourcePathOption,
+    SourceType,
+)
 from mapillary_tools.geotag.video_extractors.gpx import GPXVideoExtractor, SyncMode
 from mapillary_tools.geotag.video_extractors.native import NativeVideoExtractor
 
@@ -59,10 +64,34 @@ def test_a_track_more_than_twice_as_long_as_the_video_warns(tmp_path, caplog):
 
     [warning] = _warnings(caplog)
     assert "lasts 1.0 minutes and the video" in warning
-    assert "could start anywhere along the track" in warning
+    assert "could start anywhere along the track, and is assumed to start" in warning
     assert "video_process and --video_start_time" in warning
     # and the track is still assumed to start with the video
     assert metadata.points[0].time == 0
+
+
+def test_a_track_looked_up_at_an_offset_names_the_offset(tmp_path, caplog):
+    """
+    The offset, not the assumed start, places the video along the track, and
+    is one way to place it right
+    """
+    gpx = _write_gpx(tmp_path / "track.gpx", seconds=60)
+
+    with caplog.at_level(logging.WARNING):
+        GPXVideoExtractor(
+            NO_GPS_VIDEO, gpx, interpolation=InterpolationOption(offset_time=30)
+        ).extract()
+
+    [warning] = _warnings(caplog)
+    assert "could start anywhere along the track" in warning
+    assert "is assumed to start with it" not in warning
+    assert (
+        "--interpolation_offset_time 30 places its start at "
+        "2025-03-14T07:00:30+00:00 along it" in warning
+    )
+    assert "check that the offset is where the video starts" in warning
+    assert "trim the GPX to the video" in warning
+    assert "video_process and --video_start_time" in warning
 
 
 def test_a_track_up_to_twice_as_long_as_the_video_is_silent(tmp_path, caplog):

@@ -142,8 +142,8 @@ class GPXVideoExtractor(BaseVideoExtractor):
             rate = self._duration_ratio()
             self._apply_offset_time(gpx_points, rate=rate)
             self._check_coverage(gpx_points, gpx_unix_times, [], start_clock, rate)
-            if self.clip_to_video and start_clock is not None:
-                gpx_points = self._clip_to_video(gpx_points)
+            if self.clip_to_video:
+                gpx_points = self._clip_to_video(gpx_points, start_clock)
             return types.VideoMetadata(
                 filename=self.video_path,
                 filesize=utils.get_file_size(self.video_path),
@@ -217,8 +217,8 @@ class GPXVideoExtractor(BaseVideoExtractor):
             None if self.sync_mode is SyncMode.REBASE else clock,
             rate,
         )
-        if self.clip_to_video and clock is not None:
-            gpx_points = self._clip_to_video(gpx_points)
+        if self.clip_to_video:
+            gpx_points = self._clip_to_video(gpx_points, clock)
 
         return dataclasses.replace(native_video_metadata, points=gpx_points)
 
@@ -261,21 +261,27 @@ class GPXVideoExtractor(BaseVideoExtractor):
                 "Replace it with a valid GPX file."
             ) from ex
 
-    def _clip_to_video(self, gpx_points: list[geo.Point]) -> list[geo.Point]:
+    def _clip_to_video(
+        self, gpx_points: list[geo.Point], clock: VideoClock | None
+    ) -> list[geo.Point]:
         """
-        Clip a GPX track to the video when a clock gives its pace along the
-        video, so that where the video ends along it is known: the GPS clock
-        of the video, which places the track too unless
-        --interpolation_use_gpx_start_time starts it with the video, or the
-        --video_start_time of sampling. Its points outside the video are the
-        positions of none of its frames, and a GPX of a longer trip can run on
-        for long after it.
+        Clip a GPX track to the video, from video time 0 to where the video
+        ends along it, which is known when a **clock** gives its pace along
+        the video: the GPS clock of the video, which places the track too
+        unless --interpolation_use_gpx_start_time starts it with the video, or
+        the --video_start_time of sampling. Its points outside the video are
+        the positions of none of its frames, and a GPX of a longer trip can
+        run on for long after it.
 
-        A track that is only assumed to start with a video without a GPS clock
-        is left as it is: it may be that of a timelapse, which runs on past
-        the end of the video at the pace of the GPS clock rather than that of
-        the video.
+        A track placed at the start of a video without a GPS clock, assumed to
+        start with it or by --interpolation_use_gpx_start_time, is clipped
+        only at video time 0, which --interpolation_offset_time may move it
+        past, so that the first frames keep a position. Its end is left as it
+        is: it may be that of a timelapse, which runs on past the end of the
+        video at the pace of the GPS clock rather than that of the video.
         """
+        if clock is None:
+            return _clip_track(gpx_points, None)
         return _clip_track(gpx_points, _video_duration(self.video_path))
 
     def _place_without_video_gps(
@@ -599,20 +605,40 @@ class GPXVideoExtractor(BaseVideoExtractor):
         _check_assumed_start): the video could start anywhere along it. Only
         warn, since the track of a timelapse without a GPS clock of its own
         runs on past the end of the video too.
+
+        With --interpolation_offset_time, it is the offset that places the
+        video along the track, and one way to place it right.
         """
         video_duration = _video_duration(self.video_path)
         if video_duration is None:
             return
 
-        gpx_duration = max(p.time for p in gpx_points) - min(p.time for p in gpx_points)
-        if 2 * video_duration < gpx_duration:
+        gpx_start = min(p.time for p in gpx_points)
+        gpx_duration = max(p.time for p in gpx_points) - gpx_start
+        if gpx_duration <= 2 * video_duration:
+            return
+
+        track = (
+            f"The {self.file_format} track in {self.gpx_path} lasts {_format_duration(gpx_duration)} "
+            f"and the video {self.video_path} only {_format_duration(video_duration)}, "
+            "so the video could start anywhere along the track"
+        )
+        offset_time = (
+            0.0 if self.interpolation is None else self.interpolation.offset_time
+        )
+        if offset_time:
             LOG.warning(
-                f"The {self.file_format} track in {self.gpx_path} lasts {_format_duration(gpx_duration)} "
-                f"and the video {self.video_path} only {_format_duration(video_duration)}, "
-                "so the video could start anywhere along the track, and is assumed to "
-                "start with it. Unless the video is a timelapse of the whole track, "
-                f"trim the {self.file_format} to the video, or sample the video with video_process "
-                "and --video_start_time"
+                f"{track}, and --interpolation_offset_time {offset_time:g} places its "
+                f"start at {_isoformat(gpx_start + offset_time)} along it. Unless the "
+                "video is a timelapse of the track from there, check that the offset "
+                f"is where the video starts along the track, trim the {self.file_format} to the "
+                "video, or sample the video with video_process and --video_start_time"
+            )
+        else:
+            LOG.warning(
+                f"{track}, and is assumed to start with it. Unless the video is a "
+                f"timelapse of the whole track, trim the {self.file_format} to the video, or sample "
+                "the video with video_process and --video_start_time"
             )
 
     def _extract_native_video_metadata(self) -> tuple[types.VideoMetadata, bool]:
