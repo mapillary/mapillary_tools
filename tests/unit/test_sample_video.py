@@ -376,6 +376,141 @@ class TestSampleTimelapseByInterval:
         )
 
 
+class TestSampleNoisyTimelapseByInterval:
+    """
+    GPS rejected as noise gives interval sampling no telemetry to read a clock
+    from, but GPX sync reads one from it. The samples are stamped by that
+    clock, so that the geotagging stage places them along the GPX where GPX
+    sync does
+    """
+
+    GPS_START_TIME = TestSampleTimelapseByInterval.GPS_START_TIME
+
+    @classmethod
+    def _mock_noisy_telemetry(cls, monkeypatch, gps_start_time: float):
+        # One point per second of video, recorded 10 seconds apart
+        points = [
+            telemetry.GPSPoint(
+                time=float(i),
+                lat=40.0,
+                lon=-74.0,
+                alt=None,
+                angle=None,
+                epoch_time=gps_start_time + 10 * i,
+                fix=None,
+                precision=None,
+                ground_speed=None,
+            )
+            for i in range(60)
+        ]
+
+        def reject_as_noise():
+            raise exceptions.MapillaryGPSNoiseError("GPS too noisy")
+
+        monkeypatch.setattr(
+            sample_video,
+            "NativeVideoExtractor",
+            lambda video_path: mock.Mock(extract=reject_as_noise),
+        )
+        monkeypatch.setattr(
+            sample_video.GPXVideoExtractor,
+            "_extract_native_video_metadata",
+            lambda self: (
+                VideoMetadata(
+                    filename=self.video_path,
+                    filetype=FileType.GOPRO,
+                    points=T.cast(T.List[geo.Point], points),
+                ),
+                True,
+            ),
+        )
+
+    def _write_gpx(self, path: Path, start: datetime.datetime) -> Path:
+        # Over the 610 seconds that the 61 seconds of video span
+        trkpts = "".join(
+            f'<trkpt lat="{40.0 + i * 1e-4:.7f}" lon="-74.0"><time>'
+            f"{(start + datetime.timedelta(seconds=10 * i)).strftime('%Y-%m-%dT%H:%M:%SZ')}"
+            "</time></trkpt>"
+            for i in range(62)
+        )
+        path.write_text(
+            '<?xml version="1.0"?><gpx version="1.1" creator="test" '
+            'xmlns="http://www.topografix.com/GPX/1/1">'
+            f"<trk><trkseg>{trkpts}</trkseg></trk></gpx>"
+        )
+        return path
+
+    def _sample(self, tmpdir: py.path.local, **kwargs) -> list[Path]:
+        root = _PWD.joinpath("data/mock_sample_video")
+        sample_dir = tmpdir.mkdir("sampled_video_frames")
+        sample_video.sample_video(
+            root.joinpath("videos"),
+            Path(sample_dir),
+            video_sample_distance=-1,
+            video_sample_interval=2,
+            rerun=True,
+            **kwargs,
+        )
+        return [Path(s) for s in sample_dir.join("hello.mp4").listdir()]
+
+    def test_stamped_by_the_clock_that_syncs_the_gpx(
+        self, tmpdir, setup_mock, monkeypatch
+    ):
+        self._mock_noisy_telemetry(monkeypatch, self.GPS_START_TIME.timestamp())
+        gpx = self._write_gpx(Path(tmpdir) / "track.gpx", self.GPS_START_TIME)
+
+        _validate_interval(
+            self._sample(tmpdir, geotag_source=["gpx"], geotag_source_path=gpx),
+            self.GPS_START_TIME,
+            seconds_per_sample=20,
+        )
+
+    def test_started_with_the_gpx_at_the_pace_of_the_clock(
+        self, tmpdir, setup_mock, monkeypatch
+    ):
+        """
+        With --interpolation_use_gpx_start_time, the clock gives only the pace:
+        the samples were all stamped within the first minute of the track
+        """
+        # A placeholder date, which the GPX start replaces
+        self._mock_noisy_telemetry(
+            monkeypatch,
+            datetime.datetime(2015, 1, 1, tzinfo=datetime.timezone.utc).timestamp(),
+        )
+        gpx_start = self.GPS_START_TIME + datetime.timedelta(minutes=5)
+        gpx = self._write_gpx(Path(tmpdir) / "track.gpx", gpx_start)
+
+        _validate_interval(
+            self._sample(
+                tmpdir,
+                geotag_source=["gpx"],
+                geotag_source_path=gpx,
+                interpolation_use_gpx_start_time=True,
+            ),
+            gpx_start,
+            seconds_per_sample=20,
+        )
+
+    def test_not_by_a_placeholder_clock(self, tmpdir, setup_mock, monkeypatch):
+        """Which GPX sync does not place the GPX by either"""
+        self._mock_noisy_telemetry(
+            monkeypatch,
+            datetime.datetime(2015, 1, 1, tzinfo=datetime.timezone.utc).timestamp(),
+        )
+        gpx = self._write_gpx(Path(tmpdir) / "track.gpx", self.GPS_START_TIME)
+
+        _validate_interval(
+            self._sample(tmpdir, geotag_source=["gpx"], geotag_source_path=gpx),
+            PROBE_START_TIME,
+        )
+
+    def test_not_without_a_gpx(self, tmpdir, setup_mock, monkeypatch):
+        """The video's own GPS geotags the samples, and rejects them"""
+        self._mock_noisy_telemetry(monkeypatch, self.GPS_START_TIME.timestamp())
+
+        _validate_interval(self._sample(tmpdir), PROBE_START_TIME)
+
+
 class TestGPXStartTimeByInterval:
     """
     With --interpolation_use_gpx_start_time, the geotagging stage puts the
