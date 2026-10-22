@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import contextlib
+import datetime
 import sys
 import typing as T
 from pathlib import Path
@@ -15,8 +16,23 @@ if sys.version_info >= (3, 12):
 else:
     from typing_extensions import override
 
-from ... import exceptions, exif_read, geo, types, utils
+from ... import exceptions, exif_read, types, utils
 from .base import BaseImageExtractor
+
+
+def _capture_unix_time(capture_time: datetime.datetime) -> float:
+    """
+    The Unix time of the capture time of an image, assuming that a naive one
+    is in the local timezone. Some cameras write 0001:01:01 00:00:00 for no
+    date, which has no Unix time: raise as for an image with no capture time,
+    rather than let geo.as_unix_time() move it to 1970.
+    """
+    try:
+        return capture_time.timestamp()
+    except (ValueError, OverflowError, OSError):
+        raise exceptions.MapillaryGeoTaggingError(
+            f"Unable to extract timestamp from the image: invalid capture time {capture_time}"
+        )
 
 
 class ImageEXIFExtractor(BaseImageExtractor):
@@ -46,11 +62,12 @@ class ImageEXIFExtractor(BaseImageExtractor):
                 raise exceptions.MapillaryGeoTaggingError(
                     "Unable to extract timestamp from the image"
                 )
+            unix_time = _capture_unix_time(capture_time)
 
             image_metadata = types.ImageMetadata(
                 filename=self.image_path,
                 filesize=utils.get_file_size(self.image_path),
-                time=geo.as_unix_time(capture_time),
+                time=unix_time,
                 lat=lat,
                 lon=lon,
                 alt=exif.extract_altitude(),
