@@ -45,6 +45,18 @@ def eval_frac(value: Ratio) -> float:
 
 
 def gps_to_decimal(values: tuple[Ratio, Ratio, Ratio]) -> float | None:
+    """
+    Convert degrees, minutes and seconds to decimal degrees, or None if they
+    are not a coordinate: a GPS IFD that a camera wrote at bad offsets reads
+    as minutes or seconds of more than 60 (60 itself may be 59.996 rounded)
+
+    >>> gps_to_decimal((Ratio(10, 1), Ratio(22, 1), Ratio(30, 1)))
+    10.375
+    >>> round(gps_to_decimal((Ratio(10, 1), Ratio(22, 1), Ratio(60, 1))), 6)
+    10.383333
+    >>> gps_to_decimal((Ratio(0, 1), Ratio(1, 4), Ratio(381, 5))) is None
+    True
+    """
     try:
         deg, min, sec, *_ = values
     except (TypeError, ValueError):
@@ -60,6 +72,8 @@ def gps_to_decimal(values: tuple[Ratio, Ratio, Ratio]) -> float | None:
         minutes = eval_frac(min)
         seconds = eval_frac(sec)
     except ZeroDivisionError:
+        return None
+    if not (0 <= minutes <= 60 and 0 <= seconds <= 60):
         return None
     return degrees + minutes / 60 + seconds / 3600
 

@@ -366,6 +366,68 @@ class TestExtractGpsDatetimeFromEXIF:
 # Tests for extract_camera_uuid
 
 
+def _read_lon_lat_image(
+    lat: T.Tuple[float, float, float],
+    lon: T.Tuple[float, float, float],
+    lat_ref: T.Optional[str],
+    lon_ref: T.Optional[str],
+) -> ExifRead:
+    """
+    Build an in-memory JPEG with the given GPSLatitude/GPSLongitude (degrees,
+    minutes, seconds) and refs (None for no tag), and read it back.
+    """
+    img = Image.new("RGB", (4, 4), (0, 0, 0))
+    exif = img.getexif()
+    gps = exif.get_ifd(IFD.GPSInfo)
+    gps[GPS.GPSLatitude] = tuple(IFDRational(v) for v in lat)
+    gps[GPS.GPSLongitude] = tuple(IFDRational(v) for v in lon)
+    if lat_ref is not None:
+        gps[GPS.GPSLatitudeRef] = lat_ref
+    if lon_ref is not None:
+        gps[GPS.GPSLongitudeRef] = lon_ref
+    exif[IFD.GPSInfo.value] = gps
+    buf = io.BytesIO()
+    img.save(buf, format="JPEG", exif=exif)
+    return ExifRead(io.BytesIO(buf.getvalue()))
+
+
+class TestExtractLonLatFromEXIF:
+    """Test extract_lon_lat from EXIF tags"""
+
+    def test_valid_coordinates(self):
+        reader = _read_lon_lat_image((56, 54, 20.5), (24, 25, 3.5), "N", "W")
+        lon, lat = reader.extract_lon_lat()
+        assert lat == pytest.approx(56 + 54 / 60 + 20.5 / 3600)
+        assert lon == pytest.approx(-(24 + 25 / 60 + 3.5 / 3600))
+
+    def test_without_refs(self):
+        # Some cameras write no refs, or empty ones, for the northern and
+        # eastern hemispheres
+        for ref in [None, ""]:
+            reader = _read_lon_lat_image((56, 54, 20.5), (24, 25, 3.5), ref, ref)
+            lon, lat = reader.extract_lon_lat()
+            assert lat == pytest.approx(56 + 54 / 60 + 20.5 / 3600)
+            assert lon == pytest.approx(24 + 25 / 60 + 3.5 / 3600)
+
+    def test_accepts_rounded_up_seconds(self):
+        # 59.996 seconds, written rounded to 60.00
+        reader = _read_lon_lat_image((56, 54, 60), (24, 25, 60), "N", "E")
+        lon, lat = reader.extract_lon_lat()
+        assert lat == pytest.approx(56 + 55 / 60)
+        assert lon == pytest.approx(24 + 26 / 60)
+
+    def test_rejects_seconds_out_of_range(self):
+        # What a GPS IFD written at bad offsets reads as (FLIR P60 PAL)
+        reader = _read_lon_lat_image((0, 0.25, 76.2), (0, 0.25, 76.2), "", "")
+        assert reader.extract_lon_lat() is None
+
+    def test_rejects_minutes_out_of_range(self):
+        reader = _read_lon_lat_image(
+            (16777215, 16777215, 167772.15), (24, 25, 3.5), "N", "E"
+        )
+        assert reader.extract_lon_lat() is None
+
+
 class TestExtractCameraUuidFromEXIF:
     """Test extract_camera_uuid from EXIF tags"""
 
