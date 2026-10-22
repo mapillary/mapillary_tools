@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pynmea2
 
-from .. import geo
+from .. import exceptions, geo
 from .geotag_images_from_gpx import GeotagImagesFromGPX
 
 
@@ -22,13 +22,47 @@ class GeotagImagesFromNMEAFile(GeotagImagesFromGPX):
         offset_time: float = 0.0,
         num_processes: int | None = None,
     ):
-        points = get_lat_lon_time_from_nmea(source_path)
+        track_error: Exception | None = None
+        try:
+            points = _read_nmea_points(source_path)
+        except exceptions.MapillaryInvalidGPXError as ex:
+            points, track_error = [], ex
+
         super().__init__(
             points,
             use_gpx_start_time=use_gpx_start_time,
             offset_time=offset_time,
             num_processes=num_processes,
         )
+        self.track_error = track_error
+
+
+def _read_nmea_points(source_path: Path) -> list[geo.Point]:
+    """
+    Read the points of an NMEA file, raising as _read_gpx_points() does for a
+    GPX file
+    """
+    if not source_path.is_file():
+        raise exceptions.MapillaryInvalidGPXError(f"NMEA file not found: {source_path}")
+
+    try:
+        points = get_lat_lon_time_from_nmea(source_path)
+    # OSError: unreadable; ValueError: not text (UnicodeError) or a malformed
+    # sentence (pynmea2.ParseError); TypeError: a sentence without its time or
+    # date; UnboundLocalError: GGA sentences but no RMC sentence to give their
+    # date
+    except (OSError, ValueError, TypeError, UnboundLocalError) as ex:
+        raise exceptions.MapillaryInvalidGPXError(
+            f"{source_path.name} is not a valid NMEA file. "
+            "Replace it with a valid NMEA file."
+        ) from ex
+
+    if not points:
+        raise exceptions.MapillaryInvalidGPXError(
+            f"No timestamped points found in the NMEA file {source_path}"
+        )
+
+    return points
 
 
 def get_lat_lon_time_from_nmea(nmea_file: Path) -> list[geo.Point]:

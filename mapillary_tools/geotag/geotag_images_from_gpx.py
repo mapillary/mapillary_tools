@@ -39,6 +39,8 @@ class GeotagImagesFromGPX(GeotagImagesFromGeneric):
         self.use_gpx_start_time = use_gpx_start_time
         self.use_image_start_time = use_image_start_time
         self.offset_time = offset_time
+        # Why the track could not be read, reported for every image instead
+        self.track_error: Exception | None = None
 
     def _interpolate_image_metadata_along(
         self,
@@ -96,6 +98,14 @@ class GeotagImagesFromGPX(GeotagImagesFromGeneric):
     def to_description(
         self, image_paths: T.Sequence[Path]
     ) -> list[types.ImageMetadataOrError]:
+        if self.track_error is not None:
+            return [
+                types.describe_error_metadata(
+                    self.track_error, image_path, filetype=types.FileType.IMAGE
+                )
+                for image_path in image_paths
+            ]
+
         final_metadatas: list[types.ImageMetadataOrError] = []
 
         image_metadata_or_errors = super().to_description(image_paths)

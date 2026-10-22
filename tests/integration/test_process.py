@@ -429,6 +429,34 @@ def test_geotagging_images_from_gpx(setup_data: py.path.local):
     )
 
 
+def test_geotagging_images_from_malformed_gpx(setup_data: py.path.local):
+    """Every image gets the error, as a video geotagged from the file does."""
+    gpx_file = setup_data.join("test.gpx")
+    gpx_file.write("<gpx><broken>")
+    images = setup_data.join("images")
+
+    descs = run_process_for_descs(
+        [
+            "--file_types=image",
+            "--geotag_source=gpx",
+            "--geotag_source_path",
+            str(gpx_file),
+            str(images),
+        ]
+    )
+
+    assert sorted(Path(desc["filename"]).name for desc in descs) == [
+        "DSC00001.JPG",
+        "DSC00497.JPG",
+        "V0370574.JPG",
+    ]
+    for desc in descs:
+        assert desc["error"] == {
+            "type": "MapillaryInvalidGPXError",
+            "message": "test.gpx is not a valid GPX file. Replace it with a valid GPX file.",
+        }
+
+
 def test_geotagging_images_from_gpx_with_offset(setup_data: py.path.local):
     gpx_file = setup_data.join("test.gpx")
     with gpx_file.open("w") as fp:
