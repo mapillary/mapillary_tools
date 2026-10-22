@@ -68,6 +68,24 @@ def _normalize_path(
     return video_dir, video_list
 
 
+def find_sample_dirs(
+    video_import_path: Path, import_path: Path, skip_subfolders: bool = False
+) -> list[Path]:
+    """
+    The folder in import_path that sample_video() samples each of the videos
+    in video_import_path into
+    """
+    video_dir, video_list = _normalize_path(video_import_path, skip_subfolders)
+    return [
+        _sample_dir(import_path, video_dir, video_path) for video_path in video_list
+    ]
+
+
+def _sample_dir(import_path: Path, video_dir: Path, video_path: Path) -> Path:
+    # need to resolve video_path because video_dir might be absolute
+    return Path(import_path).joinpath(video_path.resolve().relative_to(video_dir))
+
+
 def xor(a: bool, b: bool):
     # xor https://stackoverflow.com/a/433161
     return bool(a) ^ bool(b)
@@ -219,9 +237,7 @@ def sample_video(
             # - video_path: foo/bar/zzz.mp4
             # Then:
             # - sample_dir: mapillary_sampled_video_frames/bar/zzz.mp4/
-            sample_dir = Path(import_path).joinpath(
-                video_path.resolve().relative_to(video_dir)
-            )
+            sample_dir = _sample_dir(import_path, video_dir, video_path)
             LOG.info("Removing the sample directory %s", sample_dir)
             if sample_dir.is_dir():
                 shutil.rmtree(sample_dir)
@@ -238,10 +254,7 @@ def sample_video(
     failures: list[tuple[Path, Exception]] = []
 
     for video_path in video_list:
-        # need to resolve video_path because video_dir might be absolute
-        sample_dir = Path(import_path).joinpath(
-            video_path.resolve().relative_to(video_dir)
-        )
+        sample_dir = _sample_dir(import_path, video_dir, video_path)
         if sample_dir.exists():
             LOG.warning(
                 "Skip sampling video %s as it has been sampled in %s. Specify --rerun to resample it",
