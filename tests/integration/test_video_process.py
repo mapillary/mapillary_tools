@@ -102,6 +102,36 @@ def test_sample_video_by_distance_without_usable_gps(setup_data: py.path.local):
         )
 
 
+@pytest.mark.parametrize(
+    "sampling",
+    [
+        ["--video_sample_distance=6"],
+        ["--video_sample_distance=-1", "--video_sample_interval=1"],
+    ],
+)
+def test_video_process_reports_a_video_cut_short_as_invalid(
+    setup_data: py.path.local, sampling: list[str]
+):
+    """As process does, rather than by the ffprobe command that failed on it"""
+    pytest_skip_if_not_ffmpeg_installed()
+
+    video_path = setup_data.join("videos").join("sample-5s.mp4")
+    # Cut short before its moov box, which follows the media data
+    truncated_path = setup_data.join("truncated.mp4")
+    truncated_path.write_binary(video_path.read_binary()[:100_000])
+
+    with tempfile.TemporaryDirectory() as dir:
+        with pytest.raises(subprocess.CalledProcessError) as ex:
+            run_video_process(
+                [*sampling, str(truncated_path), dir], stderr=subprocess.PIPE
+            )
+        assert 7 == ex.value.returncode, ex.value.stderr
+        stderr = ex.value.stderr.decode("utf-8")
+        # In the summary of the failures by type
+        assert "1 MapillaryInvalidVideoError" in stderr
+        assert "1 FFmpegCalledProcessError" not in stderr
+
+
 def test_video_process_by_distance_with_an_image_only_geotag_source(
     setup_data: py.path.local,
 ):

@@ -40,7 +40,7 @@ from .geotag.options import (
 from .geotag.video_extractors.gpx import GPXVideoExtractor, VideoClock
 from .geotag.video_extractors.native import NativeVideoExtractor
 from .geotag.video_extractors.nmea import NMEAVideoExtractor
-from .mp4 import mp4_sample_parser
+from .mp4 import mp4_sample_parser, simple_mp4_parser as sparser
 from .serializer.description import build_capture_time, parse_capture_time
 
 LOG = logging.getLogger(__name__)
@@ -718,6 +718,27 @@ def _gpx_sync_clock(
     return None
 
 
+def _probe_video(ffmpeg: ffmpeglib.FFMPEG, video_path: Path) -> ffmpeglib.Probe:
+    """
+    Probe the streams of a video with ffprobe. A video that ffprobe fails to
+    read because it has no movie box (moov), such as an MP4 cut short before
+    it, is invalid, as process reports it
+    """
+    try:
+        return ffmpeglib.Probe(ffmpeg.probe_format_and_streams(video_path))
+    except ffmpeglib.FFmpegCalledProcessError as ex:
+        try:
+            with video_path.open("rb") as fp:
+                sparser.parse_box_data_firstx(fp, [b"moov"])
+        except sparser.BoxNotFoundError as box_ex:
+            raise exceptions.MapillaryInvalidVideoError(
+                f"Invalid video: {box_ex}"
+            ) from ex
+        except (OSError, sparser.ParsingError):
+            pass
+        raise ex
+
+
 def _interval_stream_specifier(probe: ffmpeglib.Probe) -> str:
     """
     The video stream to sample by interval: the one with the highest
@@ -782,7 +803,7 @@ def _sample_single_video_by_interval(
     if clock_rate is None and video_sync is not None:
         _check_gpx_start_by_interval(video_path, geotag_options, video_sync)
 
-    probe = ffmpeglib.Probe(ffmpeg.probe_format_and_streams(video_path))
+    probe = _probe_video(ffmpeg, video_path)
 
     if start_time is None:
         if timeline is not None:
@@ -971,7 +992,7 @@ def _sample_single_video_by_distance(
 
     ffmpeg = ffmpeglib.FFMPEG(constants.FFMPEG_PATH, constants.FFPROBE_PATH)
 
-    probe = ffmpeglib.Probe(ffmpeg.probe_format_and_streams(video_path))
+    probe = _probe_video(ffmpeg, video_path)
 
     LOG.info("Extracting video metdata")
 
