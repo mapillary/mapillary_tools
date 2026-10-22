@@ -99,6 +99,9 @@ class VideoClock:
 
 
 class GPXVideoExtractor(BaseVideoExtractor):
+    # The format of the track file, as messages name it
+    file_format = "GPX"
+
     def __init__(
         self,
         video_path: Path,
@@ -174,10 +177,11 @@ class GPXVideoExtractor(BaseVideoExtractor):
                 ):
                     LOG.warning(
                         "The GPS clock of %s, whose GPS was rejected as noise, is %.1f days away from %s. "
-                        "Syncing the GPX from the start of the video instead",
+                        "Syncing the %s from the start of the video instead",
                         self.video_path,
                         abs(offset) / 86400,
                         self.gpx_path,
+                        self.file_format,
                     )
                     clock = None
 
@@ -222,26 +226,21 @@ class GPXVideoExtractor(BaseVideoExtractor):
         """
         Read the points of the GPX file, merged into one track in time order
         """
-        try:
-            gpx_tracks = parse_gpx(self.gpx_path)
-        except (OSError, UnicodeError, gpxpy.gpx.GPXException) as ex:
-            raise exceptions.MapillaryInvalidGPXError(
-                f"{self.gpx_path.name} is not a valid GPX file. "
-                "Replace it with a valid GPX file."
-            ) from ex
+        gpx_tracks = self._parse_tracks()
 
         if 1 < len(gpx_tracks):
             LOG.warning(
-                f"Found {len(gpx_tracks)} tracks in the GPX file {self.gpx_path}. Will merge points in all the tracks as a single track for interpolation"
+                f"Found {len(gpx_tracks)} tracks in the {self.file_format} file {self.gpx_path}. Will merge points in all the tracks as a single track for interpolation"
             )
 
         all_points: list[geo.Point] = sum(gpx_tracks, [])
         gpx_points = [p for p in all_points if _GPS_EPOCH <= p.time]
         if len(gpx_points) < len(all_points):
             LOG.warning(
-                "Ignoring %d of the %d points in the GPX file %s, which are timestamped before 1980",
+                "Ignoring %d of the %d points in the %s file %s, which are timestamped before 1980",
                 len(all_points) - len(gpx_points),
                 len(all_points),
+                self.file_format,
                 self.gpx_path,
             )
 
@@ -249,6 +248,18 @@ class GPXVideoExtractor(BaseVideoExtractor):
         # merged points to be
         gpx_points.sort(key=lambda p: p.time)
         return gpx_points
+
+    def _parse_tracks(self) -> list[list[geo.Point]]:
+        """
+        Parse the tracks of the GPX file, each a list of points with Unix times
+        """
+        try:
+            return parse_gpx(self.gpx_path)
+        except (OSError, UnicodeError, gpxpy.gpx.GPXException) as ex:
+            raise exceptions.MapillaryInvalidGPXError(
+                f"{self.gpx_path.name} is not a valid GPX file. "
+                "Replace it with a valid GPX file."
+            ) from ex
 
     def _clip_to_video(self, gpx_points: list[geo.Point]) -> list[geo.Point]:
         """
@@ -389,7 +400,7 @@ class GPXVideoExtractor(BaseVideoExtractor):
             gpx_unix_times[0] if clock is None else clock.to_unix_time(0)
         ) + offset_time
 
-        gpx_track = f"The GPX track in {self.gpx_path} ({_isoformat(gpx_unix_times[0])} to {_isoformat(gpx_unix_times[1])})"
+        gpx_track = f"The {self.file_format} track in {self.gpx_path} ({_isoformat(gpx_unix_times[0])} to {_isoformat(gpx_unix_times[1])})"
         if clock is None:
             video = f"the video {self.video_path}"
         else:
@@ -420,14 +431,14 @@ class GPXVideoExtractor(BaseVideoExtractor):
             advice = "Check --interpolation_offset_time"
         elif offset_time:
             advice = (
-                "Check --interpolation_offset_time, that the GPX file belongs to "
-                "this video, then the camera clock and the time zone of the GPX "
+                f"Check --interpolation_offset_time, that the {self.file_format} file belongs to "
+                f"this video, then the camera clock and the time zone of the {self.file_format} "
                 "timestamps"
             )
         else:
             advice = (
-                "Check that the GPX file belongs to this video, then the camera "
-                "clock and the time zone of the GPX timestamps"
+                f"Check that the {self.file_format} file belongs to this video, then the camera "
+                f"clock and the time zone of the {self.file_format} timestamps"
             )
         message = (
             f"{gpx_track} misses {video} by {_format_duration(gap)}{offset_clause}. "
@@ -468,7 +479,7 @@ class GPXVideoExtractor(BaseVideoExtractor):
 
         if video_span < excess:
             raise exceptions.MapillaryGPXVideoStartUnknownError(
-                f"The GPX track in {self.gpx_path} lasts {_format_duration(gpx_duration)} "
+                f"The {self.file_format} track in {self.gpx_path} lasts {_format_duration(gpx_duration)} "
                 f"and {self._describe_video_span(video_span, ratio)}, so the video "
                 "could start anywhere along the track. Specify --video_start_time, or "
                 "--interpolation_use_gpx_start_time if the track was started with the "
@@ -477,11 +488,12 @@ class GPXVideoExtractor(BaseVideoExtractor):
 
         if _LOGGER_TOLERANCE_SECONDS < excess:
             LOG.warning(
-                "Assuming that the GPX track in %s starts with the video %s, although "
+                "Assuming that the %s track in %s starts with the video %s, although "
                 "the track lasts %s longer. If it was started first, the frames are "
                 "placed up to that much too early along it. Specify --video_start_time "
                 "to place them exactly, or --interpolation_use_gpx_start_time if the "
                 "track was started with the video",
+                self.file_format,
                 self.gpx_path,
                 self.video_path,
                 _format_duration(excess),
@@ -505,7 +517,7 @@ class GPXVideoExtractor(BaseVideoExtractor):
             return
 
         message = (
-            f"The GPX track in {self.gpx_path} lasts {_format_duration(gpx_duration)} "
+            f"The {self.file_format} track in {self.gpx_path} lasts {_format_duration(gpx_duration)} "
             f"and {self._describe_video_span(video_span, ratio)}, so it runs on long "
             "after the video ends. "
         )
@@ -595,11 +607,11 @@ class GPXVideoExtractor(BaseVideoExtractor):
         gpx_duration = max(p.time for p in gpx_points) - min(p.time for p in gpx_points)
         if 2 * video_duration < gpx_duration:
             LOG.warning(
-                f"The GPX track in {self.gpx_path} lasts {_format_duration(gpx_duration)} "
+                f"The {self.file_format} track in {self.gpx_path} lasts {_format_duration(gpx_duration)} "
                 f"and the video {self.video_path} only {_format_duration(video_duration)}, "
                 "so the video could start anywhere along the track, and is assumed to "
                 "start with it. Unless the video is a timelapse of the whole track, "
-                "trim the GPX to the video, or sample the video with video_process "
+                f"trim the {self.file_format} to the video, or sample the video with video_process "
                 "and --video_start_time"
             )
 
