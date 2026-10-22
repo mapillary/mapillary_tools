@@ -1325,6 +1325,39 @@ class TestExtractGpsTrack:
             pytest.approx(207.0),
         ]
 
+    def test_ligo_gps(self):
+        """
+        Dashcams that write LIGOGPSINFO (GKU, Abask) keep their GPS in the LIGO
+        group, the last path in extract_gps_track. Its times are GPS times in
+        UTC, with or without a Z, not the camera clock in DateTimeOriginal.
+        """
+        xml = """\
+<?xml version='1.0' encoding='UTF-8'?>
+<rdf:RDF xmlns:rdf='http://www.w3.org/1999/02/22-rdf-syntax-ns#'>
+<rdf:Description rdf:about='/tmp/test.mov'
+ xmlns:LIGO='http://ns.exiftool.org/QuickTime/LIGO/1.0/'>
+ <LIGO:GPSDateTime>2025:02:13 09:07:11Z</LIGO:GPSDateTime>
+ <LIGO:GPSLatitude>44.11392</LIGO:GPSLatitude>
+ <LIGO:GPSLongitude>9.8478218</LIGO:GPSLongitude>
+ <LIGO:GPSSpeed>3.735484</LIGO:GPSSpeed>
+ <LIGO:DateTimeOriginal>2025:02:13 01:07:10</LIGO:DateTimeOriginal>
+ <LIGO:GPSDateTime>2025:02:13 09:07:12</LIGO:GPSDateTime>
+ <LIGO:GPSLatitude>44.11392</LIGO:GPSLatitude>
+ <LIGO:GPSLongitude>9.8478371</LIGO:GPSLongitude>
+ <LIGO:GPSSpeed>3.96328</LIGO:GPSSpeed>
+ <LIGO:DateTimeOriginal>2025:02:13 01:07:11</LIGO:DateTimeOriginal>
+</rdf:Description>
+</rdf:RDF>
+"""
+        reader = ExifToolReadVideo(_etree_from_xml(xml))
+        track = reader.extract_gps_track()
+        assert [(p.time, p.lat, p.lon) for p in track] == [
+            (0.0, 44.11392, 9.8478218),
+            (1.0, 44.11392, 9.8478371),
+        ]
+        # 2025-02-13T09:07:11Z
+        assert track[0].epoch_time == pytest.approx(1739437631.0)
+
     def test_empty_gps_track(self):
         """When no GPS data is present, returns empty list."""
         xml = """\
