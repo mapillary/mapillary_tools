@@ -351,7 +351,13 @@ def _run_chain(
 
     def build_video_geotag(option: SourceOption):
         # As the real builder: these sources do not geotag videos
-        if option.source in [SourceType.NMEA, SourceType.EXIF]:
+        if option.source in [
+            SourceType.NMEA,
+            SourceType.EXIF,
+            SourceType.GOPRO,
+            SourceType.BLACKVUE,
+            SourceType.CAMM,
+        ]:
             return None
         return StubGeotag(option.source)
 
@@ -455,6 +461,27 @@ class TestChainedSources:
         result = _only_result(results)
         assert isinstance(result, types.ErrorMetadata)
         assert result.error is NOT_FOUND
+
+    @pytest.mark.parametrize(
+        "sources", [[SourceType.EXIF], [SourceType.EXIF, SourceType.GOPRO]]
+    )
+    def test_video_that_no_source_can_read_is_reported(self, monkeypatch, sources):
+        """It was left out of the results, as if it had not been there"""
+        results, called = _run_chain(monkeypatch, sources, {})
+        result = _only_result(results)
+        assert isinstance(result, types.ErrorMetadata)
+        assert isinstance(result.error, exceptions.MapillaryVideoGPSNotFoundError)
+        names = ", ".join(source.value for source in sources)
+        assert f"{names} cannot geotag videos" in str(result.error)
+        assert called == []
+
+    def test_video_read_by_a_later_source_is_not_reported(self, monkeypatch):
+        results, _ = _run_chain(
+            monkeypatch,
+            [SourceType.EXIF, SourceType.NATIVE],
+            {SourceType.NATIVE: None},
+        )
+        assert isinstance(_only_result(results), types.VideoMetadata)
 
     def test_missing_gpx_does_not_hide_why_gps_was_rejected(self, monkeypatch):
         results, _ = _run_chain(

@@ -604,6 +604,16 @@ def test_process_filetypes(setup_data: py.path.local):
     assert 1 == len(filter_out_errors(descs))
 
 
+def test_process_videos_with_an_image_only_geotag_source(setup_data: py.path.local):
+    """exif cannot geotag videos: they are reported, not left out"""
+    video_dir = setup_data.join("gopro_data")
+    descs = run_process_for_descs(["--geotag_source=exif", str(video_dir)])
+    assert 2 == len(descs)
+    for desc in descs:
+        assert desc["error"]["type"] == "MapillaryVideoGPSNotFoundError"
+        assert desc["error"]["message"] == "The geotag source exif cannot geotag videos"
+
+
 def test_process_unsupported_filetypes(setup_data: py.path.local):
     video_dir = setup_data.join("gopro_data")
     for filetypes in ["blackvue"]:
