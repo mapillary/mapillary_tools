@@ -1402,6 +1402,106 @@ class TestExtractGpsTrackFromQuicktime:
         track = reader._extract_gps_track_from_quicktime(namespace="Insta360")
         assert track == []
 
+    def test_each_point_takes_the_fields_of_its_own_record(self):
+        """
+        A BlackVue writes no GPSTrack while stationary, nor a GPSAltitude in
+        its last record. Neither shifts a later value onto an earlier point,
+        and the copy of the GPS log in the embedded low resolution recording
+        does not double the track.
+        """
+        records = """\
+ <QuickTime:SampleTime>-10799.148</QuickTime:SampleTime>
+ <QuickTime:GPSDateTime>2019:09:02 10:23:28.00Z</QuickTime:GPSDateTime>
+ <QuickTime:GPSLatitude>37.2655468</QuickTime:GPSLatitude>
+ <QuickTime:GPSLongitude>28.213496</QuickTime:GPSLongitude>
+ <QuickTime:GPSTrack>133.46</QuickTime:GPSTrack>
+ <QuickTime:GPSAltitude>402.9</QuickTime:GPSAltitude>
+ <QuickTime:SampleTime>-10798.149</QuickTime:SampleTime>
+ <QuickTime:GPSDateTime>2019:09:02 10:23:29.00Z</QuickTime:GPSDateTime>
+ <QuickTime:GPSLatitude>37.2655468</QuickTime:GPSLatitude>
+ <QuickTime:GPSLongitude>28.213496</QuickTime:GPSLongitude>
+ <QuickTime:GPSAltitude>402.8</QuickTime:GPSAltitude>
+ <QuickTime:SampleTime>-10797.15</QuickTime:SampleTime>
+ <QuickTime:GPSDateTime>2019:09:02 10:23:30.00Z</QuickTime:GPSDateTime>
+ <QuickTime:GPSLatitude>37.2654601</QuickTime:GPSLatitude>
+ <QuickTime:GPSLongitude>28.2136115</QuickTime:GPSLongitude>
+ <QuickTime:GPSTrack>136.76</QuickTime:GPSTrack>
+"""
+        xml = f"""\
+<?xml version='1.0' encoding='UTF-8'?>
+<rdf:RDF xmlns:rdf='http://www.w3.org/1999/02/22-rdf-syntax-ns#'>
+<rdf:Description rdf:about='/tmp/test.mp4'
+ xmlns:QuickTime='http://ns.exiftool.org/QuickTime/QuickTime/1.0/'>
+{records} <QuickTime:OriginalFileName>test_NFS.mp4</QuickTime:OriginalFileName>
+{records}</rdf:Description>
+</rdf:RDF>
+"""
+        reader = ExifToolReadVideo(_etree_from_xml(xml))
+        track = reader._extract_gps_track_from_quicktime()
+        assert [(p.time, p.angle, p.alt) for p in track] == [
+            (0.0, 133.46, 402.9),
+            (1.0, None, 402.8),
+            (2.0, 136.76, None),
+        ]
+
+    def test_a_record_without_a_time_keeps_the_next_time_off_it(self):
+        """
+        Without SampleTime between them, a record that lacks GPSDateTime must
+        not take the time of the next record, which ExifTool lists first in it.
+        """
+        xml = """\
+<?xml version='1.0' encoding='UTF-8'?>
+<rdf:RDF xmlns:rdf='http://www.w3.org/1999/02/22-rdf-syntax-ns#'>
+<rdf:Description rdf:about='/tmp/test.mp4'
+ xmlns:QuickTime='http://ns.exiftool.org/QuickTime/QuickTime/1.0/'>
+ <QuickTime:GPSLatitude>37.1</QuickTime:GPSLatitude>
+ <QuickTime:GPSLongitude>28.1</QuickTime:GPSLongitude>
+ <QuickTime:GPSDateTime>2019:09:02 10:23:29.00Z</QuickTime:GPSDateTime>
+ <QuickTime:GPSLatitude>37.2</QuickTime:GPSLatitude>
+ <QuickTime:GPSLongitude>28.2</QuickTime:GPSLongitude>
+ <QuickTime:GPSDateTime>2019:09:02 10:23:30.00Z</QuickTime:GPSDateTime>
+ <QuickTime:GPSLatitude>37.3</QuickTime:GPSLatitude>
+ <QuickTime:GPSLongitude>28.3</QuickTime:GPSLongitude>
+ <QuickTime:GPSDateTime>2019:09:02 10:23:31.00Z</QuickTime:GPSDateTime>
+ <QuickTime:GPSLatitude>37.4</QuickTime:GPSLatitude>
+ <QuickTime:GPSLongitude>28.4</QuickTime:GPSLongitude>
+</rdf:Description>
+</rdf:RDF>
+"""
+        reader = ExifToolReadVideo(_etree_from_xml(xml))
+        track = reader._extract_gps_track_from_quicktime()
+        assert [(p.time, p.lat, p.lon) for p in track] == [
+            (0.0, 37.2, 28.2),
+            (1.0, 37.3, 28.3),
+            (2.0, 37.4, 28.4),
+        ]
+
+    def test_records_without_sample_times(self):
+        """Insta360 lists its records with no SampleTime between them."""
+        xml = """\
+<?xml version='1.0' encoding='UTF-8'?>
+<rdf:RDF xmlns:rdf='http://www.w3.org/1999/02/22-rdf-syntax-ns#'>
+<rdf:Description rdf:about='/tmp/test.insv'
+ xmlns:Insta360='http://ns.exiftool.org/Trailer/Insta360/1.0/'>
+ <Insta360:GPSDateTime>2023:09:23 08:00:00Z</Insta360:GPSDateTime>
+ <Insta360:GPSLatitude>47.371</Insta360:GPSLatitude>
+ <Insta360:GPSLongitude>8.542</Insta360:GPSLongitude>
+ <Insta360:GPSAltitude>410.0</Insta360:GPSAltitude>
+ <Insta360:GPSDateTime>2023:09:23 08:00:01Z</Insta360:GPSDateTime>
+ <Insta360:GPSLatitude>47.372</Insta360:GPSLatitude>
+ <Insta360:GPSLongitude>8.543</Insta360:GPSLongitude>
+ <Insta360:GPSTrack>45.0</Insta360:GPSTrack>
+ <Insta360:GPSAltitude>411.0</Insta360:GPSAltitude>
+</rdf:Description>
+</rdf:RDF>
+"""
+        reader = ExifToolReadVideo(_etree_from_xml(xml))
+        track = reader._extract_gps_track_from_quicktime(namespace="Insta360")
+        assert [(p.time, p.angle, p.alt) for p in track] == [
+            (0.0, None, 410.0),
+            (1.0, 45.0, 411.0),
+        ]
+
 
 # ---------------------------------------------------------------------------
 # ExifToolReadVideo._extract_gps_track_from_track
