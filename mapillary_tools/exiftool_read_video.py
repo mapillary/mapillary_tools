@@ -30,6 +30,7 @@ EXIFTOOL_NAMESPACES: dict[str, str] = {
     "XMP-aux": "http://ns.exiftool.org/XMP/XMP-aux/1.0/",
     "DJI": "http://ns.exiftool.org/MakerNotes/DJI/1.0/",
     "XMP-drone-dji": "http://ns.exiftool.org/XMP/XMP-drone-dji/1.0/",
+    "LIGO": "http://ns.exiftool.org/QuickTime/LIGO/1.0/",
     **{
         f"Track{track_id}": f"http://ns.exiftool.org/QuickTime/Track{track_id}/1.0/"
         for track_id in range(1, MAX_TRACK_ID + 1)
@@ -548,6 +549,12 @@ class ExifToolReadVideo:
 
         # mostly for gopro
         track_with_fix = self._extract_gps_track_from_track()
+        if track_with_fix:
+            return T.cast(T.List[geo.Point], track_with_fix)
+
+        # dashcams that write LIGOGPSINFO (e.g. GKU, Abask), which ExifTool
+        # decrypts. Its GPS times are in UTC, unlike the clocks of these cameras
+        track_with_fix = self._extract_gps_track_from_quicktime(namespace="LIGO")
         if track_with_fix:
             return T.cast(T.List[geo.Point], track_with_fix)
 
