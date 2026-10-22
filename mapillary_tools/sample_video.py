@@ -272,6 +272,7 @@ def sample_video(
                     sample_distance=video_sample_distance,
                     start_time=video_start_time_dt,
                     geotag_options=geotag_options,
+                    duration_ratio=video_duration_ratio,
                 )
             else:
                 assert 0 < video_sample_interval, (
@@ -918,12 +919,52 @@ def _describe_track_time_range(points: T.Sequence[geo.Point]) -> str:
     return f"which covers {start:.3f} to {end:.3f} seconds of the video"
 
 
+def _warn_of_options_the_clock_overrides(
+    video_path: Path,
+    points: T.Sequence[geo.Point],
+    sample_points: T.Sequence[geo.Point],
+    duration_ratio: float,
+    start_time: datetime.datetime | None,
+) -> None:
+    """
+    Warn of --video_duration_ratio and --video_start_time, which distance
+    sampling ignores for a video sampled by its own GPS, if it has a GPS clock:
+    the clock paces the video, and the frames are stamped with the GPS
+    timestamps of the points they are sampled at (**sample_points**). A frame
+    sampled where the track has no timestamp is stamped from the start time.
+    """
+    if duration_ratio == 1.0 and start_time is None:
+        return
+
+    clock = GPXVideoExtractor._read_video_clock(points)
+    if clock is None:
+        return
+
+    if duration_ratio != 1.0:
+        LOG.warning(
+            "Ignoring --video_duration_ratio %g for %s, whose own GPS clock runs at %.3gx",
+            duration_ratio,
+            video_path.name,
+            clock.rate,
+        )
+
+    if start_time is not None and all(
+        p.get_unix_time() is not None for p in sample_points
+    ):
+        LOG.warning(
+            "Ignoring --video_start_time %s for %s, which has a GPS clock of its own",
+            build_capture_time(start_time),
+            video_path.name,
+        )
+
+
 def _sample_single_video_by_distance(
     video_path: Path,
     sample_dir: Path,
     sample_distance: float,
     start_time: datetime.datetime | None = None,
     geotag_options: T.Sequence[SourceOption] | None = None,
+    duration_ratio: float = 1.0,
 ) -> None:
     if geotag_options is None:
         geotag_options = [SourceOption(SourceType.NATIVE)]
@@ -994,6 +1035,20 @@ def _sample_single_video_by_distance(
     ]
     first_unix_time = min(track_unix_times, default=None)
     last_unix_time = max(track_unix_times, default=None)
+
+    # Read from the video itself, a track with a GPS clock of its own paces the
+    # video, and stamps the frames at its timestamps. A GPX source warns of the
+    # options that its sync ignores itself
+    if not any(
+        option.source in factory.EXTERNAL_GPS_SOURCES for option in geotag_options
+    ):
+        _warn_of_options_the_clock_overrides(
+            video_path,
+            video_metadata.points,
+            [interp for _, interp in sample_points_by_frame_idx.values()],
+            duration_ratio,
+            start_time,
+        )
 
     # Frames at points with an absolute timestamp are timestamped from it
     # below, so only the others need the start time
