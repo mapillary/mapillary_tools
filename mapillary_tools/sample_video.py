@@ -634,6 +634,24 @@ def _gpx_sync_reads_a_clock(extractor: GPXVideoExtractor) -> bool:
     return extractor._read_video_clock(native_video_metadata.points) is not None
 
 
+def _interval_stream_specifier(probe: ffmpeglib.Probe) -> str:
+    """
+    The video stream to sample by interval: the one with the highest
+    resolution, as for sampling by distance. ffmpeg numbers the frames of all
+    the streams it samples in one sequence, so with two (a GoPro MAX .360 video
+    has two) each frame would be numbered, and stamped, as if twice as late.
+    A video with a single video stream is sampled as "v", which names its
+    samples as it always has.
+    """
+    video_streams = probe.probe_video_streams()
+    if len(video_streams) <= 1:
+        return "v"
+
+    video_stream = probe.probe_video_with_max_resolution()
+    assert video_stream is not None
+    return str(video_stream["index"])
+
+
 def _sample_single_video_by_interval(
     video_path: Path,
     sample_dir: Path,
@@ -672,25 +690,29 @@ def _sample_single_video_by_interval(
     if clock_rate is None and video_sync is not None and video_sync.use_gpx_start_time:
         _check_gpx_start_by_interval(video_path, geotag_options, video_sync)
 
+    probe = ffmpeglib.Probe(ffmpeg.probe_format_and_streams(video_path))
+
     if start_time is None:
         if timeline is not None:
             start_time = datetime.datetime.fromtimestamp(
                 timeline.to_unix_time(0.0), tz=datetime.timezone.utc
             )
         else:
-            start_time = _extract_video_start_time(
-                video_path,
-                ffmpeglib.Probe(ffmpeg.probe_format_and_streams(video_path)),
-                telemetry_points,
-            )
+            start_time = _extract_video_start_time(video_path, probe, telemetry_points)
         if start_time is None:
             raise exceptions.MapillaryVideoError(
                 f"Unable to extract video start time from {video_path}"
             )
 
+    stream_specifier = _interval_stream_specifier(probe)
+
     with wip_dir_context(wip_sample_dir(sample_dir), sample_dir) as wip_dir:
-        ffmpeg.extract_frames_by_interval(video_path, wip_dir, sample_interval)
-        frame_samples = ffmpeglib.FFMPEG.sort_selected_samples(wip_dir, video_path)
+        ffmpeg.extract_frames_by_interval(
+            video_path, wip_dir, sample_interval, stream_specifier=stream_specifier
+        )
+        frame_samples = ffmpeglib.FFMPEG.sort_selected_samples(
+            wip_dir, video_path, selected_stream_specifiers=[stream_specifier]
+        )
         for frame_idx_1based, sample_paths in frame_samples:
             assert len(sample_paths) == 1
             if sample_paths[0] is None:
