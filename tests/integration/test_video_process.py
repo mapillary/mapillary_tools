@@ -521,6 +521,107 @@ def test_video_process_skips_the_only_video(setup_data: py.path.local):
     assert [] == descs
 
 
+def test_video_process_skip_subfolders(setup_data: py.path.local):
+    """
+    --skip_subfolders samples only the videos in the given folder, and their
+    samples are processed. Each video is sampled into a folder of its own,
+    which the option hid from processing, so nothing was processed.
+    """
+    pytest_skip_if_not_ffmpeg_installed()
+
+    video = setup_data.join("gopro_data").join("max-360mode.mp4")
+    video_dir = setup_data.join("skip_subfolders")
+    video_dir.ensure("nested", dir=True)
+    video.copy(video_dir.join("max-360mode.mp4"))
+    video.copy(video_dir.join("nested").join("nested-360mode.mp4"))
+    sample_dir = setup_data.join("samples")
+
+    descs = run_video_process_for_descs(
+        [
+            "--video_sample_distance=6",
+            "--skip_subfolders",
+            str(video_dir),
+            str(sample_dir),
+        ]
+    )
+
+    assert descs
+    for desc in descs:
+        assert "error" not in desc, desc
+        assert Path(desc["filename"]).parent == Path(sample_dir, "max-360mode.mp4")
+
+    descs = run_video_process_for_descs(
+        [
+            "--video_sample_distance=6",
+            "--skip_subfolders",
+            str(video),
+            str(setup_data.join("samples_of_one")),
+        ]
+    )
+
+    assert descs
+    assert all("error" not in desc for desc in descs), descs
+
+
+def test_video_process_skip_subfolders_skips_other_subfolders(
+    setup_data: py.path.local,
+):
+    """
+    Of the subfolders of the import path, only the samples of the videos are
+    processed. The description file goes to the import path, as it does
+    without the option.
+    """
+    pytest_skip_if_not_ffmpeg_installed()
+
+    video = setup_data.join("gopro_data").join("max-360mode.mp4")
+    sample_dir = setup_data.join("samples")
+    setup_data.join("images").join("DSC00001.JPG").copy(
+        sample_dir.ensure("photos", dir=True).join("DSC00001.JPG")
+    )
+
+    run_command(
+        ["--video_sample_distance=6", "--skip_subfolders", str(video), str(sample_dir)],
+        "video_process",
+    )
+
+    descs = json.loads(sample_dir.join("mapillary_image_description.json").read())
+    assert descs
+    for desc in descs:
+        assert "error" not in desc, desc
+        assert Path(desc["filename"]).parent == Path(sample_dir, "max-360mode.mp4")
+
+
+def test_video_process_and_upload_skip_subfolders(
+    setup_data: py.path.local, setup_config, setup_upload
+):
+    """
+    The samples are uploaded too, which the option hid from uploading, but
+    not the other subfolders of the import path
+    """
+    pytest_skip_if_not_ffmpeg_installed()
+
+    sample_dir = setup_data.join("samples")
+    setup_data.join("images").join("DSC00001.JPG").copy(
+        sample_dir.ensure("photos", dir=True).join("DSC00001.JPG")
+    )
+
+    run_command(
+        [
+            *["--dry_run", "--user_name", USERNAME],
+            "--video_sample_distance=6",
+            "--skip_subfolders",
+            str(setup_data.join("gopro_data").join("max-360mode.mp4")),
+            str(sample_dir),
+        ],
+        command="video_process_and_upload",
+    )
+    # The samples, in one sequence, and not the photo
+    assert len(setup_upload.listdir("*.jpg")) == len(
+        sample_dir.join("max-360mode.mp4").listdir("*.jpg")
+    )
+    assert len(setup_upload.listdir("*.json")) == 1
+
+
 def test_video_process_and_upload_uploads_nothing_if_a_video_fails(
     setup_data: py.path.local, setup_config, setup_upload
 ):
