@@ -144,6 +144,9 @@ class GeotagImagesFromVideo(GeotagImagesFromGeneric):
                 use_image_start_time=True,
                 offset_time=self.offset_time,
                 num_processes=self.num_processes,
+                # Gaps between trips are those of a GPX file, not of the
+                # video's own track
+                check_gaps=False,
             )
 
             image_metadatas = geotag.to_description(sample_paths)

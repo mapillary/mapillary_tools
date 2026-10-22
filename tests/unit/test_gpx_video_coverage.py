@@ -24,7 +24,7 @@ import typing as T
 from pathlib import Path
 
 import pytest
-from mapillary_tools import exceptions, geo, telemetry, types, uploader
+from mapillary_tools import constants, exceptions, geo, telemetry, types, uploader
 from mapillary_tools.camm import camm_builder
 from mapillary_tools.geotag import factory
 from mapillary_tools.geotag.options import (
@@ -553,3 +553,179 @@ class TestFallThrough:
 
         assert isinstance(metadata, types.ErrorMetadata)
         assert isinstance(metadata.error, exceptions.MapillaryOutsideGPXTrackError)
+
+
+def _write_gpx_parts(path: Path, parts: T.Sequence[tuple[float, float]]) -> Path:
+    """A GPX track of several parts, each (start, seconds) with a point a second"""
+    trkpts = "".join(
+        f'<trkpt lat="37.0" lon="14.0"><time>{_isoformat(start + i)}</time></trkpt>'
+        for start, seconds in parts
+        for i in range(int(seconds) + 1)
+    )
+    path.write_text(
+        '<?xml version="1.0" encoding="UTF-8"?>'
+        '<gpx version="1.1" creator="test" xmlns="http://www.topografix.com/GPX/1/1">'
+        f"<trk><trkseg>{trkpts}</trkseg></trk></gpx>"
+    )
+    return path
+
+
+class TestGapsInTheTrack:
+    """
+    A GPX track can hold several trips, with the GPS logger switched off in
+    between. Nothing can be interpolated across a gap of more than an hour
+    between two of its points, which is outside the track like the time before
+    or after it.
+    """
+
+    def _extract(
+        self,
+        tmp_path: Path,
+        parts: T.Sequence[tuple[float, float]],
+        video_track: T.Sequence[geo.Point] | None = None,
+        duration: float = VIDEO_DURATION,
+        **kwargs,
+    ) -> types.VideoMetadata:
+        video_path = _write_camm_mp4(
+            tmp_path / "video.mp4",
+            _video_track() if video_track is None else video_track,
+            duration,
+        )
+        gpx_path = _write_gpx_parts(tmp_path / "track.gpx", parts)
+        return GPXVideoExtractor(video_path, gpx_path, **kwargs).extract()
+
+    def test_a_video_in_a_gap_misses_the_track(self, tmp_path):
+        """Trips ended 3 hours before the video and started 2 hours after it"""
+        with pytest.raises(exceptions.MapillaryOutsideGPXTrackError) as info:
+            self._extract(
+                tmp_path,
+                [
+                    (A_UNIX_TIME - 3 * 3600 - 60, 60),
+                    (A_UNIX_TIME + VIDEO_DURATION + 2 * 3600, 60),
+                ],
+            )
+        message = str(info.value)
+        # The gap, and the last point before it and the first after it
+        assert (
+            "has a gap of 5.0 hours, from 2026-08-12T05:26:27.979846+00:00 at (37.0, 14.0) "
+            "to 2026-08-12T10:26:39.979846+00:00 at (37.0, 14.0), which the video"
+        ) in message
+        assert "falls in. Check that the GPX file belongs to this video" in message
+        assert info.value.image_time == "2026_08_12_08_26_27_979"
+
+    def test_a_gap_of_less_than_an_hour_is_interpolated(self, tmp_path, caplog):
+        with caplog.at_level(logging.WARNING):
+            self._extract(
+                tmp_path, [(A_UNIX_TIME - 1800, 60), (A_UNIX_TIME + 1500, 60)]
+            )
+        assert not _warnings(caplog)
+
+    def test_a_gap_in_part_of_the_video_warns(self, tmp_path, caplog):
+        """The first trip ends 5 seconds into the video"""
+        with caplog.at_level(logging.WARNING):
+            self._extract(tmp_path, [(A_UNIX_TIME - 60, 65), (A_UNIX_TIME + 7200, 60)])
+        [warning] = _warnings(caplog)
+        assert "7 seconds of the video fall outside the track" in warning
+
+    def test_the_gap_of_a_timelapse_is_in_gps_time(self, tmp_path):
+        """
+        2 hours of GPS time are 8 minutes of a timelapse at 15x, a gap in GPS
+        time, where trips are recorded
+        """
+        rate = 15.0
+        with pytest.raises(exceptions.MapillaryOutsideGPXTrackError) as info:
+            self._extract(
+                tmp_path,
+                [(A_UNIX_TIME - 3600 - 60, 60), (A_UNIX_TIME + 11 * rate + 3600, 60)],
+                video_track=_video_track(rate),
+                duration=11.0,
+            )
+        assert "has a gap of 2.0 hours" in str(info.value)
+
+    def test_a_start_time_in_a_gap_misses_the_track(self, tmp_path):
+        gpx_path = _write_gpx_parts(
+            tmp_path / "track.gpx",
+            [(A_UNIX_TIME - 7200, 60), (A_UNIX_TIME + 7200, 60)],
+        )
+        with pytest.raises(exceptions.MapillaryOutsideGPXTrackError) as info:
+            GPXVideoExtractor(
+                NO_GPS_VIDEO,
+                gpx_path,
+                video_sync=VideoSyncOption(start_time=A_UNIX_TIME),
+            ).extract()
+        assert "has a gap of 4.0 hours" in str(info.value)
+
+    def test_the_limit_can_be_raised(self, tmp_path, caplog, monkeypatch):
+        """By MAPILLARY_TOOLS_MAX_GPX_GAP_SECONDS"""
+        monkeypatch.setattr(constants, "MAX_GPX_GAP_SECONDS", 6 * 3600)
+        with caplog.at_level(logging.WARNING):
+            self._extract(
+                tmp_path,
+                [
+                    (A_UNIX_TIME - 3 * 3600 - 60, 60),
+                    (A_UNIX_TIME + VIDEO_DURATION + 2 * 3600, 60),
+                ],
+            )
+        assert not _warnings(caplog)
+
+    def _process_image(
+        self, tmp_path: Path, parts: T.Sequence[tuple[float, float]]
+    ) -> types.MetadataOrError:
+        image_path = tmp_path / "image.jpg"
+        shutil.copyfile(IMAGE, image_path)
+        gpx_path = _write_gpx_parts(tmp_path / "walk.gpx", parts)
+        [metadata] = factory.process(
+            [image_path],
+            [
+                SourceOption(
+                    SourceType.GPX,
+                    num_processes=0,
+                    source_path=SourcePathOption(source_path=gpx_path),
+                )
+            ],
+        )
+        return metadata
+
+    # The capture time of IMAGE
+    IMAGE_TIME = datetime.datetime(
+        2018, 6, 8, 20, 24, 11, tzinfo=datetime.timezone.utc
+    ).timestamp()
+
+    def test_an_image_in_a_gap_is_outside_the_track(self, tmp_path):
+        metadata = self._process_image(
+            tmp_path, [(self.IMAGE_TIME - 3600, 60), (self.IMAGE_TIME + 600, 60)]
+        )
+        assert isinstance(metadata, types.ErrorMetadata)
+        assert isinstance(metadata.error, exceptions.MapillaryOutsideGPXTrackError)
+        # The gap, and the last point before it and the first after it
+        assert str(metadata.error) == (
+            "The GPX track has a gap of 1.1 hours, from 2018-06-08T19:25:11+00:00 at (37.0, 14.0) "
+            "to 2018-06-08T20:34:11+00:00 at (37.0, 14.0), which the image time "
+            "2018-06-08T20:24:11+00:00 falls in"
+        )
+        assert vars(metadata.error) == {
+            "image_time": "2018_06_08_20_24_11_000",
+            "gpx_start_time": "2018_06_08_19_24_11_000",
+            "gpx_end_time": "2018_06_08_20_35_11_000",
+        }
+
+    def test_the_image_limit_can_be_raised(self, tmp_path, monkeypatch):
+        """By MAPILLARY_TOOLS_MAX_GPX_GAP_SECONDS"""
+        monkeypatch.setattr(constants, "MAX_GPX_GAP_SECONDS", 2 * 3600)
+        metadata = self._process_image(
+            tmp_path, [(self.IMAGE_TIME - 3600, 60), (self.IMAGE_TIME + 600, 60)]
+        )
+        assert isinstance(metadata, types.ImageMetadata)
+
+    def test_an_image_in_a_gap_of_less_than_an_hour_is_interpolated(self, tmp_path):
+        metadata = self._process_image(
+            tmp_path, [(self.IMAGE_TIME - 1800, 60), (self.IMAGE_TIME + 600, 60)]
+        )
+        assert isinstance(metadata, types.ImageMetadata)
+
+    def test_an_image_on_a_point_by_a_gap_is_on_the_track(self, tmp_path):
+        """The last point before the gap is the image's own position"""
+        metadata = self._process_image(
+            tmp_path, [(self.IMAGE_TIME - 60, 60), (self.IMAGE_TIME + 7200, 60)]
+        )
+        assert isinstance(metadata, types.ImageMetadata)
