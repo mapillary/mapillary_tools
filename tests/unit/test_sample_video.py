@@ -29,6 +29,7 @@ from mapillary_tools import (
 )
 from mapillary_tools.geotag.options import (
     InterpolationOption,
+    SourceOption,
     SourceType,
     VideoSyncOption,
 )
@@ -341,6 +342,30 @@ class TestSampleTimelapseByInterval:
                 sample
             ).extract_capture_time() == self.GPS_START_TIME + datetime.timedelta(
                 seconds=10 * video_time + 0.1 * video_time * video_time
+            )
+
+    def test_a_normal_video_follows_its_gps_timestamps(
+        self, tmpdir, setup_mock, monkeypatch
+    ):
+        """
+        Not one second per second from the median of its first timestamps: the
+        first can be stale, and the clock of some cameras gains on the video
+        """
+        # The first timestamp 5 seconds stale, and half a second gained every
+        # 4 seconds
+        self._mock_telemetry(
+            monkeypatch, lambda i: -5 if i == 0 else i + 0.5 * (i // 4)
+        )
+
+        samples = sorted(self._sample(tmpdir))
+
+        assert len(samples) > 2
+        for idx, sample in enumerate(samples):
+            video_time = 2 * idx
+            assert exif_read.ExifRead(
+                sample
+            ).extract_capture_time() == self.GPS_START_TIME + datetime.timedelta(
+                seconds=video_time + 0.5 * (video_time // 4)
             )
 
     def test_from_the_given_start_time(self, tmpdir, setup_mock, timelapse_telemetry):
@@ -1336,12 +1361,15 @@ class TestSampleVideoDistanceIntegration:
         video_path: Path,
         num_gps_points: int = 10,
         gps_points: T.Sequence[geo.Point] | None = None,
+        sample_times: T.Sequence[float] | None = None,
     ) -> dict[str, T.Any]:
         """Set up all the mocks needed for _sample_single_video_by_distance."""
         probe_output = _load_probe_output()
         if gps_points is None:
             gps_points = _make_gps_points(num_gps_points, time_step=1.0)
         num_gps_points = len(gps_points)
+        if sample_times is None:
+            sample_times = [float(i) for i in range(num_gps_points)]
 
         video_metadata = VideoMetadata(
             filename=video_path,
@@ -1351,7 +1379,7 @@ class TestSampleVideoDistanceIntegration:
             model="TestModel",
         )
 
-        video_samples = [_make_sample(float(i)) for i in range(num_gps_points)]
+        video_samples = [_make_sample(time) for time in sample_times]
 
         mock_track_parser = mock.MagicMock(spec=mp4_sample_parser.TrackBoxParser)
         mock_track_parser.extract_samples.return_value = iter(video_samples)
@@ -1691,6 +1719,163 @@ class TestSampleVideoDistanceIntegration:
             assert exif_read.ExifRead(frame).extract_capture_time() == (
                 gps_start_time + datetime.timedelta(seconds=idx)
             )
+
+    def test_timestamps_along_the_gps_timestamps(self, tmp_path: Path) -> None:
+        """
+        As interval samples are stamped: without a stale first timestamp, which
+        is 5 seconds early
+        """
+        video_dir = tmp_path / "videos"
+        video_dir.mkdir()
+        video_file = video_dir / "test.mp4"
+        video_file.touch()
+        output_dir = tmp_path / "output"
+
+        gps_start_time = datetime.datetime(
+            2021, 8, 10, 6, 38, 6, tzinfo=datetime.timezone.utc
+        )
+        gps_points = [
+            telemetry.GPSPoint(
+                time=p.time,
+                lat=p.lat,
+                lon=p.lon,
+                alt=p.alt,
+                angle=p.angle,
+                epoch_time=gps_start_time.timestamp() + (p.time or -5),
+                fix=None,
+                precision=None,
+                ground_speed=None,
+            )
+            for p in _make_gps_points(10, time_step=1.0)
+        ]
+        mocks = self._setup_mocks(tmp_path, video_file, gps_points=gps_points)
+
+        with (
+            mocks["patches"]["ffmpeg_cls"],
+            mocks["patches"]["geotag_cls"],
+            mocks["patches"]["moov_parse"],
+        ):
+            sample_video.sample_video(
+                video_import_path=video_file,
+                import_path=output_dir,
+                video_sample_distance=0.0,
+            )
+
+        frames = sorted((output_dir / "test.mp4").glob("*.jpg"))
+        assert len(frames) == 10
+        for idx, frame in enumerate(frames):
+            assert exif_read.ExifRead(frame).extract_capture_time() == (
+                gps_start_time + datetime.timedelta(seconds=idx)
+            )
+
+    @pytest.mark.parametrize("source", [SourceType.NATIVE, SourceType.GPX])
+    def test_a_short_timelapse_at_its_timestamps(
+        self, tmp_path: Path, source: SourceType
+    ) -> None:
+        """
+        Over a second of a 12.4x timelapse, too short to measure its rate, the
+        rate is 1. Its track, from its own GPS or from a GPX that the straight
+        clock of a noisy GoPro MAX placed, still stamps the frames at its
+        timestamps, not all within the last second of it
+        """
+        video_file = tmp_path / "test.mp4"
+        video_file.touch()
+        sample_dir = tmp_path / "output" / "test.mp4"
+
+        gps_start_time = datetime.datetime(
+            2021, 8, 10, 6, 38, 6, tzinfo=datetime.timezone.utc
+        )
+        video_times = [seconds / 12.4 for seconds in range(13)]
+        gps_points = [
+            telemetry.GPSPoint(
+                time=video_time,
+                lat=40.0 + seconds * 0.0001,
+                lon=-74.0,
+                alt=None,
+                angle=None,
+                epoch_time=gps_start_time.timestamp() + seconds,
+                fix=None,
+                precision=None,
+                ground_speed=None,
+            )
+            for seconds, video_time in enumerate(video_times)
+        ]
+        mocks = self._setup_mocks(
+            tmp_path, video_file, gps_points=gps_points, sample_times=video_times
+        )
+
+        with (
+            mocks["patches"]["ffmpeg_cls"],
+            mocks["patches"]["geotag_cls"],
+            mocks["patches"]["moov_parse"],
+        ):
+            sample_video._sample_single_video_by_distance(
+                video_file,
+                sample_dir,
+                sample_distance=0.0,
+                geotag_options=[SourceOption(source)],
+            )
+
+        frames = sorted(sample_dir.glob("*.jpg"))
+        capture_times = [
+            exif_read.ExifRead(frame).extract_capture_time() for frame in frames
+        ]
+        assert capture_times == [
+            gps_start_time + datetime.timedelta(seconds=seconds)
+            for seconds in range(13)
+        ]
+
+    def test_a_gpx_track_at_its_timestamps(self, tmp_path: Path) -> None:
+        """
+        GPX sync placed the track along the video's clock, which gains a
+        second over the first half second of video here. Its first timestamp
+        is no stale one of the video's own GPS
+        """
+        video_file = tmp_path / "test.mp4"
+        video_file.touch()
+        sample_dir = tmp_path / "output" / "test.mp4"
+
+        gps_start_time = datetime.datetime(
+            2021, 8, 10, 6, 38, 6, tzinfo=datetime.timezone.utc
+        )
+        video_times = [0.0, 0.5, 1.5, 2.5, 3.5, 4.5]
+        gps_points = [
+            telemetry.GPSPoint(
+                time=video_time,
+                lat=40.0 + seconds * 0.0001,
+                lon=-74.0,
+                alt=None,
+                angle=None,
+                epoch_time=gps_start_time.timestamp() + seconds,
+                fix=None,
+                precision=None,
+                ground_speed=None,
+            )
+            for seconds, video_time in enumerate(video_times)
+        ]
+        mocks = self._setup_mocks(
+            tmp_path, video_file, gps_points=gps_points, sample_times=video_times
+        )
+
+        with (
+            mocks["patches"]["ffmpeg_cls"],
+            mocks["patches"]["geotag_cls"],
+            mocks["patches"]["moov_parse"],
+        ):
+            sample_video._sample_single_video_by_distance(
+                video_file,
+                sample_dir,
+                sample_distance=0.0,
+                geotag_options=[SourceOption(SourceType.GPX)],
+            )
+
+        frames = sorted(sample_dir.glob("*.jpg"))
+        capture_times = [
+            exif_read.ExifRead(frame).extract_capture_time() for frame in frames
+        ]
+        assert capture_times == [
+            gps_start_time + datetime.timedelta(seconds=seconds) for seconds in range(6)
+        ]
 
     def test_timelapse_frames_past_the_end_are_stamped_within_the_track(
         self, tmp_path: Path

@@ -29,7 +29,6 @@ from . import (
 )
 from .exif_write import ExifEdit
 from .geotag import factory
-from .geotag.geotag_images_from_video import GPSTimeline
 from .geotag.options import (
     InterpolationOption,
     SourceOption,
@@ -37,7 +36,7 @@ from .geotag.options import (
     SourceType,
     VideoSyncOption,
 )
-from .geotag.video_extractors.gpx import GPXVideoExtractor, VideoClock
+from .geotag.video_extractors.gpx import GPSTimeline, GPXVideoExtractor, VideoClock
 from .geotag.video_extractors.native import NativeVideoExtractor
 from .geotag.video_extractors.nmea import NMEAVideoExtractor
 from .mp4 import mp4_sample_parser, simple_mp4_parser as sparser
@@ -795,7 +794,7 @@ def _sample_single_video_by_interval(
                 video_path.name,
                 clock_rate,
             )
-        if clock_rate != 1.0 and gpx_clock is None:
+        if gpx_clock is None:
             # As distance samples are stamped, and as the geotagging stage
             # times the video's track to place the samples along it
             timeline = GPSTimeline.read(telemetry_points, clock_rate)
@@ -1058,8 +1057,11 @@ def _sample_single_video_by_distance(
     last_unix_time = max(track_unix_times, default=None)
 
     # Read from the video itself, a track with a GPS clock of its own paces the
-    # video, and stamps the frames at its timestamps. A GPX source warns of the
-    # options that its sync ignores itself
+    # video, and stamps the frames along its timeline, as interval samples are.
+    # A GPX source warns of the options that its sync ignores itself, and its
+    # sync placed the track along the video's clock already: its timestamps
+    # stamp the frames as they are
+    track_timeline: GPSTimeline | None = None
     if not any(
         option.source in factory.EXTERNAL_GPS_SOURCES for option in geotag_options
     ):
@@ -1070,12 +1072,19 @@ def _sample_single_video_by_distance(
             duration_ratio,
             start_time,
         )
+        track_clock = GPXVideoExtractor._read_video_clock(video_metadata.points)
+        if track_clock is not None:
+            track_timeline = GPSTimeline.read(video_metadata.points, track_clock.rate)
 
-    # Frames at points with an absolute timestamp are timestamped from it
-    # below, so only the others need the start time
-    if start_time is None and any(
-        interp.get_unix_time() is None
-        for _, interp in sample_points_by_frame_idx.values()
+    # Frames along the timeline, or at points with an absolute timestamp, are
+    # timestamped from it below, so only the others need the start time
+    if (
+        start_time is None
+        and track_timeline is None
+        and any(
+            interp.get_unix_time() is None
+            for _, interp in sample_points_by_frame_idx.values()
+        )
     ):
         start_time = _gps_clock_start_time(video_metadata.points)
         if start_time is None:
@@ -1119,8 +1128,11 @@ def _sample_single_video_by_distance(
                 f"interpolated time {interp.time} should match the video sample time {video_sample.exact_composition_time}"
             )
 
-            # Try to use the GPS timestamp if available (for timelapse videos)
-            gps_unix_time = interp.get_unix_time()
+            gps_unix_time = (
+                interp.get_unix_time()
+                if track_timeline is None
+                else track_timeline.to_unix_time(interp.time)
+            )
             if gps_unix_time is not None:
                 assert first_unix_time is not None and last_unix_time is not None
                 # Frames up to 1 ms of video past either end of the track are

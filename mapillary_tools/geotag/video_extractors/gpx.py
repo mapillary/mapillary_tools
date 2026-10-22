@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import bisect
 import dataclasses
 import datetime
 import enum
@@ -61,6 +62,14 @@ _GPS_EPOCH = datetime.datetime(1980, 1, 6, tzinfo=datetime.timezone.utc).timesta
 # second off at each end.
 _LOGGER_TOLERANCE_SECONDS = 2.0
 
+# The first GPS timestamps of a recording can be stale: GoPro stamps its first
+# block of points up to 3 seconds before the rest place the start of the video,
+# and a PANOX V2 its first fix 7.6 seconds before. The step from a stale
+# timestamp to the next runs this much faster than the median step of the rest.
+# Further on, steps that fast are kept: a LabPano Pilot One gains on the video
+# in steps of a second per half second, 2 minutes over a 14-minute video
+_STALE_STEP_RATE = 1.5
+
 
 class SyncMode(enum.Enum):
     # Sync by video GPS timestamps if found, otherwise rebase
@@ -96,6 +105,160 @@ class VideoClock:
 
     def to_unix_time(self, video_time: float) -> float:
         return self.unix_time + (video_time - self.video_time) * self.rate
+
+
+@dataclasses.dataclass(frozen=True)
+class GPSTimeline:
+    """
+    The Unix time of the video's GPS clock along the video: interpolated
+    between its GPS timestamps, and extrapolated beyond them at the clock's
+    rate. A straight clock does not follow them: the clock of a timelapse
+    drifts from its rate over the video, the first timestamp of a GoPro MAX
+    timelapse can be seconds early, and some cameras gain on the video in
+    steps.
+
+    >>> timeline = GPSTimeline((0.0, 1.0, 2.0), (100.0, 104.0, 114.0), rate=10.0)
+    >>> timeline.to_unix_time(0.5)
+    102.0
+    >>> timeline.to_unix_time(3.0)
+    124.0
+    >>> timeline.to_video_time(109.0)
+    1.5
+    >>> timeline.to_video_time(95.0)
+    -0.5
+    >>> timeline.starting_at(1.0, 200.0).to_unix_time(2.0)
+    210.0
+    """
+
+    video_times: tuple[float, ...]
+    unix_times: tuple[float, ...]
+    # GPS seconds per video second beyond the timestamps
+    rate: float
+
+    @classmethod
+    def read(cls, points: T.Sequence[geo.Point], rate: float) -> GPSTimeline | None:
+        """
+        Read the timeline from the GPS timestamps of the points, or None if they
+        have none. Leave out the timestamps that the others show to be wrong:
+        those out of order, those before a jump of days (from a placeholder
+        date to the GPS time), and stale first ones.
+        """
+        pairs: list[tuple[float, float]] = []
+        for p in points:
+            unix_time = p.get_unix_time()
+            if unix_time is None:
+                continue
+            if pairs and unix_time == pairs[-1][1]:
+                # GoPro GPS5 stamps a whole block (~1s) of points with one
+                # timestamp. Keep the first point of the block
+                continue
+            if pairs and p.time <= pairs[-1][0]:
+                # Two timestamps at one video time
+                continue
+            pairs.append((p.time, unix_time))
+
+        # A timestamp out of order with the others is wrong, and could not be
+        # interpolated back to the video
+        pairs = _increasing_subsequence(pairs)
+        if not pairs:
+            return None
+
+        # GoPro stamps a placeholder date until the GPS acquires the time
+        start = 0
+        for idx in range(1, len(pairs)):
+            (v0, u0), (v1, u1) = pairs[idx - 1], pairs[idx]
+            if _IMPLAUSIBLE_OFFSET_SECONDS < (u1 - u0) - (v1 - v0) * rate:
+                start = idx
+
+        # Stale first timestamps (see _STALE_STEP_RATE). Judged by the steps of
+        # the rest, not by the rate: that is 1 for timestamps over less than a
+        # second of video, as those of a short timelapse, too few to measure it
+        pace = GPXVideoExtractor._median_step_rate(pairs[start + 1 :])
+        while pace is not None and start + 1 < len(pairs):
+            (v0, u0), (v1, u1) = pairs[start], pairs[start + 1]
+            if (u1 - u0) <= (v1 - v0) * pace * _STALE_STEP_RATE:
+                break
+            start += 1
+
+        return cls(
+            video_times=tuple(v for v, _ in pairs[start:]),
+            unix_times=tuple(u for _, u in pairs[start:]),
+            rate=rate,
+        )
+
+    def to_unix_time(self, video_time: float) -> float:
+        return _interpolate_line(
+            self.video_times, self.unix_times, video_time, self.rate
+        )
+
+    def to_video_time(self, unix_time: float) -> float:
+        return _interpolate_line(
+            self.unix_times, self.video_times, unix_time, 1 / self.rate
+        )
+
+    def starting_at(self, video_time: float, unix_time: float) -> GPSTimeline:
+        """
+        The timeline shifted to be at **unix_time** at **video_time**: at the
+        pace of the GPS clock, from a start that the clock does not tell
+        """
+        shift = unix_time - self.to_unix_time(video_time)
+        return dataclasses.replace(
+            self, unix_times=tuple(u + shift for u in self.unix_times)
+        )
+
+
+def _interpolate_line(
+    xs: T.Sequence[float], ys: T.Sequence[float], x: float, slope: float
+) -> float:
+    """
+    Interpolate y at x along the line through the points (xs, ys), xs in
+    increasing order, and extrapolate it beyond them at **slope**
+    """
+    idx = bisect.bisect_right(xs, x)
+    if 0 < idx < len(xs):
+        x0, x1 = xs[idx - 1], xs[idx]
+        y0, y1 = ys[idx - 1], ys[idx]
+        return y0 + (y1 - y0) * (x - x0) / (x1 - x0)
+
+    # Before the first point or after the last
+    anchor = 0 if idx == 0 else -1
+    return ys[anchor] + (x - xs[anchor]) * slope
+
+
+def _increasing_subsequence(
+    pairs: T.Sequence[tuple[float, float]],
+) -> list[tuple[float, float]]:
+    """
+    The longest subsequence of the (video time, Unix time) pairs whose Unix
+    times increase
+
+    >>> _increasing_subsequence([(0, 10), (1, 50), (2, 12), (3, 13), (4, 11)])
+    [(0, 10), (2, 12), (3, 13)]
+    >>> _increasing_subsequence([])
+    []
+    """
+    # tails[k]: the index of the pair that ends the increasing subsequence of
+    # length k + 1 with the smallest Unix time found so far
+    tails: list[int] = []
+    tail_unix_times: list[float] = []
+    previous: list[int] = []
+    for idx, (_, unix_time) in enumerate(pairs):
+        k = bisect.bisect_left(tail_unix_times, unix_time)
+        previous.append(tails[k - 1] if k else -1)
+        if k == len(tails):
+            tails.append(idx)
+            tail_unix_times.append(unix_time)
+        else:
+            tails[k] = idx
+            tail_unix_times[k] = unix_time
+
+    subsequence: list[tuple[float, float]] = []
+    idx = tails[-1] if tails else -1
+    while 0 <= idx:
+        subsequence.append(pairs[idx])
+        idx = previous[idx]
+    subsequence.reverse()
+    return subsequence
 
 
 class GPXVideoExtractor(BaseVideoExtractor):
@@ -152,7 +315,9 @@ class GPXVideoExtractor(BaseVideoExtractor):
             )
 
         video_clock = self._read_video_clock(native_video_metadata.points)
-        clock = self._sync_clock(video_clock, gpx_points, noisy)
+        clock: VideoClock | GPSTimeline | None = self._sync_clock(
+            video_clock, gpx_points, noisy
+        )
         if video_clock is not None and clock is None:
             LOG.warning(
                 "The GPS clock of %s, whose GPS was rejected as noise, is %.1f days away from %s. "
@@ -162,14 +327,22 @@ class GPXVideoExtractor(BaseVideoExtractor):
                 self.gpx_path,
                 self.file_format,
             )
+        if clock is not None and not noisy:
+            # Through the GPS timestamps of the video, which no straight clock
+            # follows. GPS rejected as noise gives the clock only
+            timeline = GPSTimeline.read(native_video_metadata.points, clock.rate)
+            assert timeline is not None, "a GPS clock is read from GPS timestamps"
+            clock = timeline
         if clock is not None and gpx_points and self.sync_mode is SyncMode.REBASE:
-            # Distance sampling reads the frames by their composition times:
-            # start the track at that of the first frame
-            clock = dataclasses.replace(clock, video_time=self._gpx_start_video_time())
+            # At the pace of the GPS clock from the start of the track, which
+            # distance sampling, reading the frames by their composition times,
+            # puts at that of the first frame
+            clock = self._start_with_the_video(clock, gpx_points[0].time)
 
         if clock is None:
             # Its GPS has no clock to sync with, as if it had no GPS
             clock = self._place_without_video_gps(gpx_points)
+            self._apply_offset_time(gpx_points, rate=self._duration_ratio())
         else:
             if self._duration_ratio() != 1.0:
                 LOG.warning(
@@ -191,11 +364,12 @@ class GPXVideoExtractor(BaseVideoExtractor):
                     clock.rate,
                     self.gpx_path,
                 )
+            # In GPS seconds, before the clock places the track
+            self._apply_offset_time(gpx_points)
             for p in gpx_points:
                 p.time = clock.to_video_time(p.time)
 
         rate = self._duration_ratio() if clock is None else clock.rate
-        self._apply_offset_time(gpx_points, rate=rate)
         # Started with the video, the track is checked against it as one that
         # no clock placed: the clock gave it only its pace
         self._check_coverage(
@@ -250,7 +424,7 @@ class GPXVideoExtractor(BaseVideoExtractor):
             ) from ex
 
     def _clip_to_video(
-        self, gpx_points: list[geo.Point], clock: VideoClock | None
+        self, gpx_points: list[geo.Point], clock: VideoClock | GPSTimeline | None
     ) -> list[geo.Point]:
         """
         Clip a GPX track to the video, from video time 0 to where the video
@@ -312,6 +486,20 @@ class GPXVideoExtractor(BaseVideoExtractor):
         self._rebase_times(gpx_points, rate=ratio)
         return None
 
+    def _start_with_the_video(
+        self, clock: VideoClock | GPSTimeline, gpx_start_time: float
+    ) -> VideoClock | GPSTimeline:
+        """
+        The **clock** moved to start the track, at **gpx_start_time**, with
+        the video, as --interpolation_use_gpx_start_time says it does
+        """
+        video_time = self._gpx_start_video_time()
+        if isinstance(clock, GPSTimeline):
+            return clock.starting_at(video_time, gpx_start_time)
+        return VideoClock(
+            video_time=video_time, unix_time=gpx_start_time, rate=clock.rate
+        )
+
     def _gpx_start_video_time(self) -> float:
         """
         The video time that --interpolation_use_gpx_start_time starts the GPX
@@ -369,7 +557,7 @@ class GPXVideoExtractor(BaseVideoExtractor):
         gpx_points: T.Sequence[geo.Point],
         gpx_unix_times: tuple[float, float] | None,
         video_gps_points: T.Sequence[geo.Point],
-        clock: VideoClock | None,
+        clock: VideoClock | GPSTimeline | None,
         rate: float,
     ) -> None:
         """

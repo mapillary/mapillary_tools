@@ -25,7 +25,11 @@ from mapillary_tools.geotag.options import (
     SourceType,
     VideoSyncOption,
 )
-from mapillary_tools.geotag.video_extractors.gpx import GPXVideoExtractor, SyncMode
+from mapillary_tools.geotag.video_extractors.gpx import (
+    GPSTimeline,
+    GPXVideoExtractor,
+    SyncMode,
+)
 from mapillary_tools.geotag.video_extractors.native import NativeVideoExtractor
 
 _DATA = Path(__file__).resolve().parent.parent.joinpath("data")
@@ -40,11 +44,13 @@ GPS_VIDEO_DURATION = 12.137125
 
 
 def _gps_video_start() -> float:
-    """The Unix time of the first frame of GPS_VIDEO, by its GPS clock"""
+    """The Unix time of the first frame of GPS_VIDEO, by its GPS timestamps"""
     points = NativeVideoExtractor(GPS_VIDEO).extract().points
     clock = GPXVideoExtractor._read_video_clock(points)
     assert clock is not None
-    return clock.to_unix_time(0)
+    timeline = GPSTimeline.read(points, clock.rate)
+    assert timeline is not None
+    return timeline.to_unix_time(0)
 
 
 def _write_gpx(path: Path, start: float, seconds: int) -> Path:
@@ -113,8 +119,9 @@ class TestClockPlacedTrack:
 
     def test_started_with_the_video_is_clipped(self, tmp_path):
         """
-        --interpolation_use_gpx_start_time places the track, and the GPS clock
-        gives its pace
+        --interpolation_use_gpx_start_time places the track, and the GPS
+        timestamps of the video give its pace, a second per second give or
+        take their jitter
         """
         metadata = GPXVideoExtractor(
             GPS_VIDEO,
@@ -124,7 +131,7 @@ class TestClockPlacedTrack:
         ).extract()
 
         times = _times(metadata)
-        assert times[:-1] == [float(t) for t in range(13)]
+        assert times[:-1] == pytest.approx([float(t) for t in range(13)], abs=0.05)
         assert times[-1] == pytest.approx(GPS_VIDEO_DURATION)
 
     def test_the_gpx_source_clips_it(self, tmp_path):

@@ -5,7 +5,6 @@
 
 from __future__ import annotations
 
-import bisect
 import dataclasses
 import logging
 import sys
@@ -21,72 +20,10 @@ from .. import geo, types, utils
 from .base import GeotagImagesFromGeneric
 from .geotag_images_from_gpx import GeotagImagesFromGPX
 from .geotag_videos_from_video import GeotagVideosFromVideo
-from .video_extractors.gpx import GPXVideoExtractor
+from .video_extractors.gpx import GPSTimeline, GPXVideoExtractor
 
 
 LOG = logging.getLogger(__name__)
-
-
-@dataclasses.dataclass(frozen=True)
-class GPSTimeline:
-    """
-    The Unix time of the video's GPS clock along the video: interpolated
-    between its GPS timestamps, and extrapolated beyond them at the clock's
-    rate. A timelapse captured its frames at those times, which one rate from
-    one of them does not follow: the rate drifts from them over the video, and
-    the first timestamp of a GoPro MAX timelapse can be seconds early.
-
-    >>> timeline = GPSTimeline((0.0, 1.0, 2.0), (100.0, 104.0, 114.0), rate=10.0)
-    >>> timeline.to_unix_time(0.5)
-    102.0
-    >>> timeline.to_unix_time(3.0)
-    124.0
-    """
-
-    video_times: tuple[float, ...]
-    unix_times: tuple[float, ...]
-    # GPS seconds per video second beyond the timestamps
-    rate: float
-
-    @classmethod
-    def read(cls, points: T.Sequence[geo.Point], rate: float) -> GPSTimeline | None:
-        """
-        Read the timeline from the GPS timestamps of the points, or None if they
-        have none
-        """
-        pairs: list[tuple[float, float]] = []
-        for p in points:
-            unix_time = p.get_unix_time()
-            if unix_time is None:
-                continue
-            if pairs and unix_time == pairs[-1][1]:
-                # GoPro GPS5 stamps a whole block (~1s) of points with one
-                # timestamp. Keep the first point of the block
-                continue
-            pairs.append((p.time, unix_time))
-
-        if not pairs:
-            return None
-
-        return cls(
-            video_times=tuple(v for v, _ in pairs),
-            unix_times=tuple(u for _, u in pairs),
-            rate=rate,
-        )
-
-    def to_unix_time(self, video_time: float) -> float:
-        idx = bisect.bisect_right(self.video_times, video_time)
-        if 0 < idx < len(self.video_times):
-            v0, v1 = self.video_times[idx - 1], self.video_times[idx]
-            u0, u1 = self.unix_times[idx - 1], self.unix_times[idx]
-            return u0 + (u1 - u0) * (video_time - v0) / (v1 - v0)
-
-        # Before the first timestamp or after the last
-        anchor = 0 if idx == 0 else -1
-        return (
-            self.unix_times[anchor]
-            + (video_time - self.video_times[anchor]) * self.rate
-        )
 
 
 class GeotagImagesFromVideo(GeotagImagesFromGeneric):
@@ -172,12 +109,12 @@ class GeotagImagesFromVideo(GeotagImagesFromGeneric):
     ) -> T.Sequence[geo.Point]:
         """
         Time the video's GPS points in GPS seconds from the start of the video,
-        like the samples, which are stamped with their capture times. A
-        timelapse packs several into each second of video, as many as its GPS
-        timestamps tell.
+        like the samples, which are stamped with their capture times, as its
+        GPS timestamps tell: a timelapse packs several into each second of
+        video, and some clocks gain on the video.
         """
         clock = GPXVideoExtractor._read_video_clock(points)
-        if clock is None or clock.rate == 1.0:
+        if clock is None:
             return points
 
         timeline = GPSTimeline.read(points, clock.rate)

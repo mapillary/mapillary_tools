@@ -761,7 +761,7 @@ def test_process_video_geotag_source_with_gpx_outside_video(
     assert descs[0]["error"]["vars"] == {
         # Its first GPS timestamp is 23:44:42.590, a second before the rest
         # place the start of the video
-        "image_time": "2019_11_18_23_44_43_613",
+        "image_time": "2019_11_18_23_44_43_624",
         "gpx_start_time": "2025_03_14_07_00_00_000",
         "gpx_end_time": "2025_03_14_07_01_33_624",
     }
@@ -775,7 +775,7 @@ def test_process_video_from_gpx_with_interpolation_options(
     images. They were ignored for videos.
     """
     video_path = setup_data.join("gopro_data").join("max-360mode.mp4")
-    # 3.613 seconds before the GPS clock of the video starts
+    # 3.624 seconds before the GPS timestamps of the video place its start
     start = datetime.datetime(2019, 11, 18, 23, 44, 40, tzinfo=datetime.timezone.utc)
     points = "".join(
         f'<trkpt lat="{37.0 + i * 0.0001:.7f}" lon="-122.0">'
@@ -809,19 +809,20 @@ def test_process_video_from_gpx_with_interpolation_options(
         [point] = [p for p in describe(*options)["MAPGPSTrack"] if p[5] == recorded]
         return point[0]
 
+    # In ms of video, which the GPS timestamps of the video pace at a second
+    # per second, give or take their jitter of some 40 ms
     synced = video_time_of_recorded()
-    assert synced == pytest.approx(10000 - 3613, abs=1)
+    assert synced == pytest.approx(10000 - 3624, abs=50)
 
-    assert video_time_of_recorded("--interpolation_use_gpx_start_time") == 10000
-    assert (
-        video_time_of_recorded(
-            "--interpolation_use_gpx_start_time", "--interpolation_offset_time=2.5"
-        )
-        == 7500
+    assert video_time_of_recorded("--interpolation_use_gpx_start_time") == (
+        pytest.approx(10000, abs=50)
     )
+    assert video_time_of_recorded(
+        "--interpolation_use_gpx_start_time", "--interpolation_offset_time=2.5"
+    ) == pytest.approx(7500, abs=50)
 
     shifted = video_time_of_recorded("--interpolation_offset_time=2")
-    assert shifted == pytest.approx(synced - 2000, abs=1)
+    assert shifted == pytest.approx(synced - 2000, abs=50)
 
     # an offset that moves the track off the video fails it, as it does a
     # track placed by the clock of the video
