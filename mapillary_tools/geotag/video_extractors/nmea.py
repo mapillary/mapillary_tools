@@ -30,11 +30,10 @@ class NMEAVideoExtractor(GPXVideoExtractor):
     def _parse_tracks(self) -> list[list[geo.Point]]:
         try:
             points = get_lat_lon_time_from_nmea(self.gpx_path)
-        # OSError: unreadable; ValueError: not text (UnicodeError) or a
-        # malformed sentence (pynmea2.ParseError); TypeError: a sentence
-        # without its time or date; UnboundLocalError: GGA sentences, and no
-        # RMC sentence in the file to give their date
-        except (OSError, ValueError, TypeError, UnboundLocalError) as ex:
+        # OSError: unreadable; ValueError: not text (UnicodeError), a
+        # malformed sentence (pynmea2.ParseError) or position; TypeError: a
+        # malformed time, which pynmea2 leaves a string
+        except (OSError, ValueError, TypeError) as ex:
             raise exceptions.MapillaryInvalidGPXError(
                 f"{self.gpx_path.name} is not a valid NMEA file. "
                 "Replace it with a valid NMEA file."

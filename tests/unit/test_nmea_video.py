@@ -11,6 +11,7 @@ are. NMEA files geotagged no videos: the videos got no description at all.
 from __future__ import annotations
 
 import datetime
+import logging
 from pathlib import Path
 
 import pynmea2
@@ -152,10 +153,9 @@ class TestInvalidNMEAFile:
             b"\xca\xfe\xba\xbe" * 100,
             # a wrong checksum
             b"$GPRMC,024636.00,A,3735.30670,N,12220.25810,W,0.0,0.0,221222,,,A*00\r\n",
-            # a GGA sentence, and no RMC sentence to give its date
-            b"$GPGGA,024636.00,3735.30670,N,12220.25810,W,1,08,1.0,0.0,M,0.0,M,,*4F\r\n",
-            # an RMC sentence cut short, with no date
-            b"$GPRMC,024636.00,A,3735.30670,N,12220.25810,W,0.0*07\r\n",
+            # a malformed time
+            b"$GPRMC,024636.00,A,3735.30670,N,12220.25810,W,0.0,0.0,221222,,,A*47\r\n"
+            b"$GPGGA,0246,3735.30670,N,12220.25810,W,1,08,1.0,0.0,M,0.0,M,,*64\r\n",
         ],
     )
     def test_it_is_reported_as_invalid(self, tmp_path, content):
@@ -166,6 +166,33 @@ class TestInvalidNMEAFile:
             NMEAVideoExtractor(GPS_VIDEO, nmea).extract()
 
         assert "track.nmea is not a valid NMEA file" in str(excinfo.value)
+
+
+class TestNMEAFileWithoutDatedFixes:
+    @pytest.mark.parametrize(
+        "content, warning",
+        [
+            # a GGA sentence, and no RMC sentence to give its date
+            (
+                b"$GPGGA,024636.00,3735.30670,N,12220.25810,W,1,08,1.0,0.0,M,0.0,M,,*4F\r\n",
+                "as no RMC sentence gives their date",
+            ),
+            # an RMC sentence cut short, with no date, which is skipped
+            (b"$GPRMC,024636.00,A,3735.30670,N,12220.25810,W,0.0*07\r\n", None),
+        ],
+    )
+    def test_no_points_are_read(self, tmp_path, caplog, content, warning):
+        nmea = tmp_path / "track.nmea"
+        nmea.write_bytes(content)
+
+        with caplog.at_level(logging.WARNING):
+            points = NMEAVideoExtractor(GPS_VIDEO, nmea)._read_gpx_points()
+
+        assert points == []
+        if warning is None:
+            assert not caplog.text
+        else:
+            assert warning in caplog.text
 
 
 class TestGeotagVideosFromNMEA:
