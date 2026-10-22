@@ -1,0 +1,207 @@
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+#
+# This source code is licensed under the BSD license found in the
+# LICENSE file in the root directory of this source tree.
+
+"""
+Geotagging videos from NMEA files, which are placed on the videos as GPX files
+are. NMEA files geotagged no videos: the videos got no description at all.
+"""
+
+from __future__ import annotations
+
+import datetime
+from pathlib import Path
+
+import pynmea2
+import pytest
+from mapillary_tools import exceptions, types
+from mapillary_tools.geotag import factory
+from mapillary_tools.geotag.geotag_videos_from_nmea import GeotagVideosFromNMEA
+from mapillary_tools.geotag.options import (
+    InterpolationOption,
+    SourceOption,
+    SourcePathOption,
+    SourceType,
+    VideoSyncOption,
+)
+from mapillary_tools.geotag.video_extractors.gpx import GPXVideoExtractor
+from mapillary_tools.geotag.video_extractors.nmea import NMEAVideoExtractor
+
+_DATA = Path(__file__).resolve().parent.parent.joinpath("data")
+
+# No GPS of its own, and 5.76 seconds long
+NO_GPS_VIDEO = _DATA.joinpath("videos", "sample-5s.mp4")
+# GPS of its own, recorded from 2019-11-18T23:44:42.59Z to 23:44:54.64Z
+GPS_VIDEO = _DATA.joinpath("gopro_data", "max-360mode.mp4")
+
+# Shortly before the GPS track of GPS_VIDEO starts
+START = datetime.datetime(2019, 11, 18, 23, 44, 40, tzinfo=datetime.timezone.utc)
+
+
+def _track(seconds: int, start: datetime.datetime):
+    """A point every second, heading north at 10 m/s, 12 m high"""
+    for i in range(seconds + 1):
+        yield start + datetime.timedelta(seconds=i), 37.0 + i * 10 / 111_320, 12.0
+
+
+def _write_gpx(path: Path, seconds: int, start: datetime.datetime = START) -> Path:
+    points = "".join(
+        f'<trkpt lat="{lat:.9f}" lon="-122.0"><ele>{alt}</ele>'
+        f"<time>{time.strftime('%Y-%m-%dT%H:%M:%SZ')}</time></trkpt>"
+        for time, lat, alt in _track(seconds, start)
+    )
+    path.write_text(
+        '<?xml version="1.0"?>\n'
+        '<gpx version="1.1" creator="test" xmlns="http://www.topografix.com/GPX/1/1">'
+        f"<trk><trkseg>{points}</trkseg></trk></gpx>\n"
+    )
+    return path
+
+
+def _write_nmea(path: Path, seconds: int, start: datetime.datetime = START) -> Path:
+    """The track of _write_gpx(), as RMC and GGA sentences"""
+    lines = []
+    for time, lat, alt in _track(seconds, start):
+        hhmmss = time.strftime("%H%M%S.00")
+        lat_field = f"{int(lat):02d}{(lat - int(lat)) * 60:010.7f}"
+        lon_field = "12200.0000000"
+        lines.append(
+            pynmea2.RMC(
+                "GP",
+                "RMC",
+                (hhmmss, "A", lat_field, "N", lon_field, "W", "19.4", "0.0")
+                + (time.strftime("%d%m%y"), "", "", "A"),
+            )
+        )
+        lines.append(
+            pynmea2.GGA(
+                "GP",
+                "GGA",
+                (hhmmss, lat_field, "N", lon_field, "W", "1", "08", "1.0")
+                + (f"{alt:.1f}", "M", "0.0", "M", "", ""),
+            )
+        )
+    path.write_text("".join(f"{line}\r\n" for line in lines))
+    return path
+
+
+def _points(extractor: GPXVideoExtractor):
+    return [
+        (p.time, p.lat, p.lon, p.alt, p.get_unix_time())
+        for p in extractor.extract().points
+    ]
+
+
+class TestPlacedAsAGPX:
+    @pytest.mark.parametrize(
+        "video, seconds, kwargs",
+        [
+            # synced by the GPS clock of the video, and clipped to it, in process
+            (GPS_VIDEO, 20, {"clip_to_video": True}),
+            # started with the video
+            (
+                GPS_VIDEO,
+                20,
+                {"interpolation": InterpolationOption(use_gpx_start_time=True)},
+            ),
+            # moved by the offset
+            (GPS_VIDEO, 20, {"interpolation": InterpolationOption(offset_time=2)}),
+            # assumed to start with a video without GPS
+            (NO_GPS_VIDEO, 6, {}),
+            # placed by the start time of a video without GPS, in sampling
+            (
+                NO_GPS_VIDEO,
+                60,
+                {
+                    "video_sync": VideoSyncOption(
+                        start_time=START.timestamp() + 30, duration_ratio=2
+                    )
+                },
+            ),
+        ],
+    )
+    def test_the_track_is_placed_as_from_a_gpx(self, tmp_path, video, seconds, kwargs):
+        gpx = _write_gpx(tmp_path / "track.gpx", seconds)
+        nmea = _write_nmea(tmp_path / "track.nmea", seconds)
+
+        from_gpx = _points(GPXVideoExtractor(video, gpx, **kwargs))
+        from_nmea = _points(NMEAVideoExtractor(video, nmea, **kwargs))
+
+        assert from_nmea
+        assert len(from_nmea) == len(from_gpx)
+        for nmea_point, gpx_point in zip(from_nmea, from_gpx):
+            assert nmea_point == pytest.approx(gpx_point, abs=1e-6)
+
+    def test_messages_name_the_nmea_file(self, tmp_path):
+        nmea = _write_nmea(tmp_path / "track.nmea", seconds=60)
+
+        with pytest.raises(exceptions.MapillaryGPXVideoStartUnknownError) as excinfo:
+            NMEAVideoExtractor(
+                NO_GPS_VIDEO, nmea, video_sync=VideoSyncOption()
+            ).extract()
+
+        assert str(excinfo.value).startswith(f"The NMEA track in {nmea} lasts")
+
+
+class TestInvalidNMEAFile:
+    @pytest.mark.parametrize(
+        "content",
+        [
+            # not text
+            b"\xca\xfe\xba\xbe" * 100,
+            # a wrong checksum
+            b"$GPRMC,024636.00,A,3735.30670,N,12220.25810,W,0.0,0.0,221222,,,A*00\r\n",
+            # a GGA sentence, and no RMC sentence to give its date
+            b"$GPGGA,024636.00,3735.30670,N,12220.25810,W,1,08,1.0,0.0,M,0.0,M,,*4F\r\n",
+            # an RMC sentence cut short, with no date
+            b"$GPRMC,024636.00,A,3735.30670,N,12220.25810,W,0.0*07\r\n",
+        ],
+    )
+    def test_it_is_reported_as_invalid(self, tmp_path, content):
+        nmea = tmp_path / "track.nmea"
+        nmea.write_bytes(content)
+
+        with pytest.raises(exceptions.MapillaryInvalidGPXError) as excinfo:
+            NMEAVideoExtractor(GPS_VIDEO, nmea).extract()
+
+        assert "track.nmea is not a valid NMEA file" in str(excinfo.value)
+
+
+class TestGeotagVideosFromNMEA:
+    def test_the_nmea_file_beside_the_video_is_found(self, tmp_path):
+        video = tmp_path / "video.mp4"
+        video.write_bytes(GPS_VIDEO.read_bytes())
+        _write_nmea(tmp_path / "video.nmea", seconds=20)
+
+        [metadata] = GeotagVideosFromNMEA(num_processes=0).to_description([video])
+
+        assert isinstance(metadata, types.VideoMetadata)
+        assert metadata.points
+
+    def test_a_missing_nmea_file_is_reported(self, tmp_path):
+        video = tmp_path / "video.mp4"
+        video.write_bytes(GPS_VIDEO.read_bytes())
+
+        [metadata] = GeotagVideosFromNMEA(num_processes=0).to_description([video])
+
+        assert isinstance(metadata, types.ErrorMetadata)
+        assert isinstance(metadata.error, exceptions.MapillaryVideoGPSNotFoundError)
+        assert str(metadata.error) == "NMEA file not found for video"
+
+    def test_process_geotags_videos_from_nmea(self, tmp_path):
+        nmea = _write_nmea(tmp_path / "track.nmea", seconds=20)
+
+        [metadata] = factory.process(
+            [GPS_VIDEO],
+            [
+                SourceOption(
+                    SourceType.NMEA,
+                    source_path=SourcePathOption(source_path=nmea),
+                    num_processes=0,
+                )
+            ],
+        )
+
+        assert isinstance(metadata, types.VideoMetadata)
+        assert metadata.points

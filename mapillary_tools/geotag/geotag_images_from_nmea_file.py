@@ -66,7 +66,10 @@ def _read_nmea_points(source_path: Path) -> list[geo.Point]:
 
 
 def get_lat_lon_time_from_nmea(nmea_file: Path) -> list[geo.Point]:
-    with nmea_file.open("r") as f:
+    # NMEA sentences are ASCII. Decode them as UTF-8 on every platform, so
+    # that a file that is not text fails to read, not only where UTF-8 is the
+    # default encoding
+    with nmea_file.open("r", encoding="utf-8") as f:
         lines = f.readlines()
         lines = [line.rstrip("\n\r") for line in lines]
 

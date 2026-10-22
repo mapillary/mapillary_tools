@@ -462,6 +462,8 @@ with a GPX file called `foo.gpx`.
 ```sh
 mapillary_tools process --video_geotag_source gpx VIDEO_DIR/
 ```
+NMEA files work the same way with `--video_geotag_source nmea`, which associates `foo.mp4` with `foo.nmea`. What
+follows about GPX tracks applies to NMEA tracks too.
 
 #### Insta360 stitched videos
 

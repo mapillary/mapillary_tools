@@ -799,6 +799,58 @@ def test_process_video_from_gpx_with_interpolation_options(
     assert "by 40 seconds, as --interpolation_offset_time 60 " in error["message"]
 
 
+def test_process_video_from_nmea(setup_data: py.path.local):
+    """
+    A video is geotagged from an NMEA file as from a GPX file of the same
+    track. It got no description at all.
+    """
+    video_path = setup_data.join("gopro_data").join("max-360mode.mp4")
+    start = datetime.datetime(2019, 11, 18, 23, 44, 40, tzinfo=datetime.timezone.utc)
+    trkpts = []
+    sentences = []
+    for i in range(21):
+        time = start + datetime.timedelta(seconds=i)
+        trkpts.append(
+            f'<trkpt lat="{37.0 + i / 6000:.9f}" lon="-122.0">'
+            f"<time>{time.isoformat()}</time></trkpt>"
+        )
+        hhmmss = time.strftime("%H%M%S.00")
+        position = f"3700.{i * 100:04d},N,12200.0000,W"
+        for body in [
+            f"GPRMC,{hhmmss},A,{position},0.0,0.0,{time.strftime('%d%m%y')},,,A",
+            f"GPGGA,{hhmmss},{position},1,08,1.0,,M,,M,,",
+        ]:
+            checksum = 0
+            for char in body:
+                checksum ^= ord(char)
+            sentences.append(f"${body}*{checksum:02X}\r\n")
+    gpx_file = setup_data.join("track.gpx")
+    gpx_file.write(
+        '<?xml version="1.0"?>\n'
+        '<gpx version="1.1" creator="test" xmlns="http://www.topografix.com/GPX/1/1">'
+        f"<trk><trkseg>{''.join(trkpts)}</trkseg></trk></gpx>\n"
+    )
+    nmea_file = setup_data.join("track.nmea")
+    nmea_file.write("".join(sentences))
+
+    def track(source: str, source_path: py.path.local):
+        [desc] = run_process_for_descs(
+            [
+                *["--geotag_source", source],
+                *["--geotag_source_path", str(source_path)],
+                str(video_path),
+            ]
+        )
+        return desc["MAPGPSTrack"]
+
+    from_nmea = track("nmea", nmea_file)
+    from_gpx = track("gpx", gpx_file)
+
+    assert len(from_nmea) == len(from_gpx) > 0
+    for nmea_point, gpx_point in zip(from_nmea, from_gpx):
+        assert nmea_point == pytest.approx(gpx_point, abs=1e-6)
+
+
 def test_process_geotag_with_gpx_pattern_not_found(setup_data: py.path.local):
     video_path = setup_data.join("gopro_data").join("max-360mode.mp4")
 

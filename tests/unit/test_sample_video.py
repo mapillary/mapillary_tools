@@ -16,6 +16,7 @@ from pathlib import Path
 from unittest import mock
 
 import py.path
+import pynmea2
 import pytest
 from mapillary_tools import (
     exceptions,
@@ -436,6 +437,33 @@ class TestGPXStartTimeByInterval:
         )
 
         sample_video._check_gpx_start_by_interval(self.VIDEO, options, video_sync)
+
+    def test_an_nmea_track_is_checked_as_a_gpx_track(self, tmp_path):
+        start = datetime.datetime(2025, 3, 14, 7, 0, 0, tzinfo=datetime.timezone.utc)
+        nmea = tmp_path / "track.nmea"
+        lines = []
+        for i in range(61):
+            hhmmss = (start + datetime.timedelta(seconds=i)).strftime("%H%M%S.00")
+            position = (f"3700.{i:04d}", "N", "12200.0000", "W")
+            rmc = (hhmmss, "A", *position, "0.0", "0.0", "140325", "", "", "A")
+            gga = (hhmmss, *position, "1", "08", "1.0", "0.0", "M", "0.0", "M", "", "")
+            lines.append(str(pynmea2.RMC("GP", "RMC", rmc)))
+            lines.append(str(pynmea2.GGA("GP", "GGA", gga)))
+        nmea.write_text("".join(f"{line}\r\n" for line in lines))
+        video_sync = VideoSyncOption()
+        options = sample_video._parse_geotag_options(
+            ["nmea"],
+            nmea,
+            None,
+            tmp_path,
+            video_sync,
+            InterpolationOption(use_gpx_start_time=True),
+        )
+
+        with pytest.raises(exceptions.MapillaryGPXVideoStartUnknownError) as excinfo:
+            sample_video._check_gpx_start_by_interval(self.VIDEO, options, video_sync)
+
+        assert str(excinfo.value).startswith(f"The NMEA track in {nmea} lasts")
 
     def test_gps_rejected_as_noise_still_has_a_clock(self, tmp_path, monkeypatch):
         """
@@ -1822,18 +1850,25 @@ class TestGeotagSourceReachesDistanceSampling:
 
 class TestSourcesThatCannotReadVideos:
     """
-    exif, nmea and the legacy gopro/blackvue/camm sources have no video
-    extractor, so process() returned no metadata for the video and the sampler
-    failed an assert, for a video it used to sample by its own GPS.
+    exif and the legacy gopro/blackvue/camm sources have no video extractor,
+    so process() returned no metadata for the video and the sampler failed an
+    assert, for a video it used to sample by its own GPS.
     """
 
-    @pytest.mark.parametrize("source", ["exif", "nmea", "gopro", "blackvue", "camm"])
+    @pytest.mark.parametrize("source", ["exif", "gopro", "blackvue", "camm"])
     def test_sampling_falls_back_to_the_video_gps(self, source):
         options = sample_video._parse_geotag_options(
             [source], Path("/data/track"), None, Path("/data/v.mp4")
         )
 
         assert [option.source for option in options] == [SourceType.NATIVE]
+
+    def test_nmea_reads_videos(self):
+        options = sample_video._parse_geotag_options(
+            ["nmea"], Path("/data/track.nmea"), None, Path("/data/v.mp4")
+        )
+
+        assert [option.source for option in options] == [SourceType.NMEA]
 
     def test_they_are_dropped_from_a_chain(self):
         options = sample_video._parse_geotag_options(

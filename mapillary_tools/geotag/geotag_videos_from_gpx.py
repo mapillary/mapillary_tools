@@ -25,6 +25,10 @@ LOG = logging.getLogger(__name__)
 
 
 class GeotagVideosFromGPX(GeotagVideosFromGeneric):
+    # Reads the track file of each video, and where to find it by default
+    extractor_class: type[GPXVideoExtractor] = GPXVideoExtractor
+    default_pattern = "%g.gpx"
+
     def __init__(
         self,
         source_path: options.SourcePathOption | None = None,
@@ -34,7 +38,7 @@ class GeotagVideosFromGPX(GeotagVideosFromGeneric):
     ):
         super().__init__(num_processes=num_processes)
         if source_path is None:
-            source_path = options.SourcePathOption(pattern="%g.gpx")
+            source_path = options.SourcePathOption(pattern=self.default_pattern)
         self.source_path = source_path
         self.video_sync = video_sync
         self.interpolation = interpolation
@@ -48,7 +52,7 @@ class GeotagVideosFromGPX(GeotagVideosFromGeneric):
             source_path = self.source_path.resolve(video_path)
             if source_path.is_file():
                 results.append(
-                    GPXVideoExtractor(
+                    self.extractor_class(
                         video_path,
                         source_path,
                         video_sync=self.video_sync,
@@ -62,7 +66,7 @@ class GeotagVideosFromGPX(GeotagVideosFromGeneric):
                 results.append(
                     types.describe_error_metadata(
                         exceptions.MapillaryVideoGPSNotFoundError(
-                            "GPX file not found for video"
+                            f"{self.extractor_class.file_format} file not found for video"
                         ),
                         filename=video_path,
                         filetype=types.FileType.VIDEO,

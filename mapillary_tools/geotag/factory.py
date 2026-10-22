@@ -22,6 +22,7 @@ from . import (
     geotag_images_from_video,
     geotag_videos_from_exiftool,
     geotag_videos_from_gpx,
+    geotag_videos_from_nmea,
     geotag_videos_from_video,
 )
 from .options import (
@@ -38,8 +39,7 @@ LOG = logging.getLogger(__name__)
 _ALL_VIDEO_TYPES = {types.FileType.VIDEO, *types.NATIVE_VIDEO_FILETYPES}
 
 # Sources that read a GPS track from outside the video file, as opposed to
-# re-reading the telemetry embedded in it. (NMEA cannot geotag videos yet: it
-# skips them, and they keep the error they had)
+# re-reading the telemetry embedded in it
 EXTERNAL_GPS_SOURCES = frozenset({SourceType.GPX, SourceType.NMEA})
 
 
@@ -145,6 +145,8 @@ def can_geotag_videos(option: SourceOption) -> bool:
 
     Examples:
         >>> can_geotag_videos(SourceOption(SourceType.GPX))
+        True
+        >>> can_geotag_videos(SourceOption(SourceType.NMEA))
         True
         >>> can_geotag_videos(SourceOption(SourceType.EXIF))
         False
@@ -478,8 +480,9 @@ def _build_video_geotag(option: SourceOption) -> base.GeotagVideosFromGeneric | 
         'GeotagVideosFromGPX'
 
         >>> opt = SourceOption(SourceType.NMEA, source_path=Path("/tmp/test.nmea"))
-        >>> _build_video_geotag(opt) is None
-        True
+        >>> geotagger = _build_video_geotag(opt)
+        >>> geotagger.__class__.__name__
+        'GeotagVideosFromNMEA'
 
         >>> opt = SourceOption(SourceType.EXIF)
         >>> _build_video_geotag(opt) is None
@@ -523,8 +526,12 @@ def _build_video_geotag(option: SourceOption) -> base.GeotagVideosFromGeneric | 
         )
 
     elif option.source is SourceType.NMEA:
-        # TODO: geotag videos from NMEA
-        return None
+        return geotag_videos_from_nmea.GeotagVideosFromNMEA(
+            source_path=option.source_path,
+            num_processes=option.num_processes,
+            video_sync=option.video_sync,
+            interpolation=option.interpolation,
+        )
 
     elif option.source is SourceType.EXIF:
         # Legacy image-specific geotag types

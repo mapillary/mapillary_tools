@@ -29,26 +29,40 @@ def parse_gpx(gpx_file: Path) -> list[Track]:
             tracks.append([])
             for point in segment.points:
                 if point.time is not None:
-                    unix_time = geo.as_unix_time(point.time)
                     tracks[-1].append(
-                        telemetry.CAMMGPSPoint(
-                            time=unix_time,
+                        track_point(
+                            geo.as_unix_time(point.time),
                             lat=point.latitude,
                             lon=point.longitude,
                             alt=point.elevation,
-                            angle=None,
-                            epoch_time=unix_time,
-                            gps_fix_type=3 if point.elevation is not None else 2,
-                            horizontal_accuracy=0.0,
-                            vertical_accuracy=0.0,
-                            velocity_east=0.0,
-                            velocity_north=0.0,
-                            velocity_up=0.0,
-                            speed_accuracy=0.0,
                         )
                     )
 
     return tracks
+
+
+def track_point(
+    unix_time: float, lat: float, lon: float, alt: float | None
+) -> telemetry.CAMMGPSPoint:
+    """
+    A point of a track read from a file beside a video (GPX or NMEA), at its
+    Unix time, as it is written to the CAMM track uploaded with the video
+    """
+    return telemetry.CAMMGPSPoint(
+        time=unix_time,
+        lat=lat,
+        lon=lon,
+        alt=alt,
+        angle=None,
+        epoch_time=unix_time,
+        gps_fix_type=3 if alt is not None else 2,
+        horizontal_accuracy=0.0,
+        vertical_accuracy=0.0,
+        velocity_east=0.0,
+        velocity_north=0.0,
+        velocity_up=0.0,
+        speed_accuracy=0.0,
+    )
 
 
 def index_rdf_description_by_path(xml_paths: T.Sequence[Path]) -> dict[str, ET.Element]:

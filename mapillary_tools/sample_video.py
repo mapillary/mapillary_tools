@@ -39,6 +39,7 @@ from .geotag.options import (
 )
 from .geotag.video_extractors.gpx import GPXVideoExtractor
 from .geotag.video_extractors.native import NativeVideoExtractor
+from .geotag.video_extractors.nmea import NMEAVideoExtractor
 from .mp4 import mp4_sample_parser
 from .serializer.description import build_capture_time, parse_capture_time
 
@@ -132,8 +133,8 @@ def _parse_video_sources(
             if option.source_path is None:
                 option.source_path = SourcePathOption(source_path=video_import_path)
 
-    # exif, nmea and the legacy gopro/blackvue/camm sources have nothing to read
-    # a video with; in video_process they are there to geotag the frames. Sample
+    # exif and the legacy gopro/blackvue/camm sources have nothing to read a
+    # video with; in video_process they are there to geotag the frames. Sample
     # by the sources that can read videos, or by the video's own GPS, as before,
     # if none of them can
     video_options = [option for option in options if factory.can_geotag_videos(option)]
@@ -607,27 +608,35 @@ def _extract_video_start_time(
     return _creation_time_to_start_time(video_path, probe)
 
 
+# The sources that place a track file on a video, by the extractor that reads it
+_TRACK_FILE_EXTRACTORS: dict[SourceType, type[GPXVideoExtractor]] = {
+    SourceType.GPX: GPXVideoExtractor,
+    SourceType.NMEA: NMEAVideoExtractor,
+}
+
+
 def _check_gpx_start_by_interval(
     video_path: Path,
     geotag_options: T.Sequence[SourceOption],
     video_sync: VideoSyncOption,
 ) -> None:
     """
-    Check the GPX tracks that --interpolation_use_gpx_start_time says started
-    with a video without a GPS clock, as distance sampling does. The geotagging
-    stage puts the first frame at the start of the track and the others at
-    --video_duration_ratio, so a track that runs on long after the video was
-    not recorded for it alone, or needs the ratio.
+    Check the GPX (or NMEA) tracks that --interpolation_use_gpx_start_time says
+    started with a video without a GPS clock, as distance sampling does. The
+    geotagging stage puts the first frame at the start of the track and the
+    others at --video_duration_ratio, so a track that runs on long after the
+    video was not recorded for it alone, or needs the ratio.
     """
     for option in geotag_options:
-        if option.source is not SourceType.GPX or option.source_path is None:
+        extractor_class = _TRACK_FILE_EXTRACTORS.get(option.source)
+        if extractor_class is None or option.source_path is None:
             continue
         if option.interpolation is None or not option.interpolation.use_gpx_start_time:
             continue
         gpx_path = option.source_path.resolve(video_path)
         if not gpx_path.is_file():
             continue
-        extractor = GPXVideoExtractor(
+        extractor = extractor_class(
             video_path,
             gpx_path,
             video_sync=video_sync,
