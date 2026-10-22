@@ -947,3 +947,31 @@ def test_process_geotag_with_exiftool_xml_pattern_fallback(
 
     assert len(descs) == 1
     assert descs[0]["error"]["type"] == "MapillaryVideoGPSNotFoundError"
+
+
+def test_process_video_with_a_gpx_far_longer_than_it_warns(
+    setup_data: py.path.local,
+):
+    """
+    Without a GPS clock or a start time, the video is assumed to start with
+    the track, which runs on for long after it: process warns, and goes on.
+    """
+    video_path = setup_data.join("videos").join("sample-5s.mp4")
+    # 93 seconds of track for 5.76 seconds of video
+    gpx_file = setup_data.join("gpx").join("sf_30km_h.gpx")
+
+    result = run_command(
+        [
+            *["--geotag_source", "gpx"],
+            *["--geotag_source_path", str(gpx_file)],
+            *["--desc_path", "-"],
+            str(video_path),
+        ],
+        command="process",
+        capture_output=True,
+        text=True,
+    )
+
+    assert "could start anywhere along the track" in result.stderr
+    [desc] = json.loads(result.stdout)
+    assert desc["MAPGPSTrack"][0][0] == 0
