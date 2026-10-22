@@ -310,6 +310,121 @@ def _aggregate_gps_track(
     return track
 
 
+def _group_gps_records(
+    elements: T.Iterable[ET.Element],
+    tags: T.Collection[str],
+    record_start_tag: str | None = None,
+    first_tag: str | None = None,
+) -> T.Generator[dict[str, str], None, None]:
+    """
+    Group the tags that ExifTool lists for one GPS record after another, one
+    dict per record from tag (expanded) to text. A record starts at
+    **record_start_tag**, at **first_tag**, which ExifTool lists first in a
+    record that has it, or at a tag that the record so far already has.
+
+    A tag that a record does not have is left out of its dict, rather than
+    taken from a later record: a BlackVue writes no GPSTrack while stationary.
+
+    >>> elements = []
+    >>> for tag, text in [
+    ...     ("SampleTime", "0"), ("GPSLatitude", "1"), ("GPSTrack", "90"),
+    ...     ("SampleTime", "1"), ("GPSLatitude", "2"),
+    ...     ("GPSLatitude", "3"), ("GPSTrack", "180"),
+    ... ]:
+    ...     elements.append(ET.Element(expand_tag(f"QuickTime:{tag}")))
+    ...     elements[-1].text = text
+    >>> records = _group_gps_records(
+    ...     elements,
+    ...     ["QuickTime:GPSLatitude", "QuickTime:GPSTrack"],
+    ...     record_start_tag="QuickTime:SampleTime",
+    ... )
+    >>> [sorted(record.values()) for record in records]
+    [['1', '90'], ['2'], ['180', '3']]
+    """
+    expanded_tags = {expand_tag(tag) for tag in tags}
+    expanded_record_start_tag = (
+        expand_tag(record_start_tag) if record_start_tag is not None else None
+    )
+    expanded_first_tag = expand_tag(first_tag) if first_tag is not None else None
+
+    record: dict[str, str] = {}
+    for element in elements:
+        if element.tag == expanded_record_start_tag:
+            if record:
+                yield record
+            record = {}
+        elif element.tag in expanded_tags and element.text is not None:
+            if record and (element.tag in record or element.tag == expanded_first_tag):
+                yield record
+                record = {}
+            record[element.tag] = element.text
+    if record:
+        yield record
+
+
+def _aggregate_gps_track_by_record(
+    elements: T.Iterable[ET.Element],
+    time_tag: str,
+    lon_tag: str,
+    lat_tag: str,
+    alt_tag: str,
+    direction_tag: str,
+    record_start_tag: str | None = None,
+) -> list[GPSPoint]:
+    """
+    Aggregate the GPS records that ExifTool lists one after another, each with
+    its GPS time in **time_tag**, into a track whose times start at 0. Every
+    point takes its altitude and direction from its own record.
+    """
+    expanded_time_tag = expand_tag(time_tag)
+    expanded_lon_tag = expand_tag(lon_tag)
+    expanded_lat_tag = expand_tag(lat_tag)
+    expanded_alt_tag = expand_tag(alt_tag)
+    expanded_direction_tag = expand_tag(direction_tag)
+
+    track: list[GPSPoint] = []
+    for record in _group_gps_records(
+        elements,
+        [time_tag, lon_tag, lat_tag, alt_tag, direction_tag],
+        record_start_tag=record_start_tag,
+        first_tag=time_tag,
+    ):
+        time_text = record.get(expanded_time_tag)
+        dt = exif_read.parse_gps_datetime(time_text) if time_text is not None else None
+        timestamp = geo.as_unix_time(dt) if dt is not None else None
+        lon = _maybe_float(record.get(expanded_lon_tag))
+        lat = _maybe_float(record.get(expanded_lat_tag))
+        if timestamp is None or lon is None or lat is None:
+            continue
+
+        track.append(
+            GPSPoint(
+                time=timestamp,
+                lon=lon,
+                lat=lat,
+                alt=_maybe_float(record.get(expanded_alt_tag)),
+                angle=_maybe_float(record.get(expanded_direction_tag)),
+                epoch_time=timestamp,
+                fix=None,
+                precision=None,
+                ground_speed=None,
+            )
+        )
+
+    track.sort(key=lambda point: point.time)
+
+    # A BlackVue video holds a copy of its GPS log in the low resolution
+    # recording embedded in it, which ExifTool lists as well
+    track = _deduplicate_gps_points(track, same_gps_point=_same_gps_point)
+
+    if track:
+        first_time = track[0].time
+        for point in track:
+            point.time = point.time - first_time
+
+    return track
+
+
 def _aggregate_samples(
     elements: T.Iterable[ET.Element],
     sample_time_tag: str,
@@ -585,12 +700,16 @@ class ExifToolReadVideo:
         ):
             return []
 
-        return _aggregate_gps_track(
-            self._texts_by_tag,
+        root = self.etree.getroot()
+        if root is None:
+            raise ValueError("ElementTree root is None")
+
+        return _aggregate_gps_track_by_record(
+            root,
             time_tag=f"{namespace}:GPSDateTime",
             lon_tag=f"{namespace}:GPSLongitude",
             lat_tag=f"{namespace}:GPSLatitude",
             alt_tag=f"{namespace}:GPSAltitude",
-            gps_time_tag=f"{namespace}:GPSDateTime",
             direction_tag=f"{namespace}:GPSTrack",
+            record_start_tag=f"{namespace}:SampleTime",
         )
