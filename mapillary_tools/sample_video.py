@@ -159,6 +159,12 @@ def sample_video(
             f"Expect either non-negative video_sample_distance or positive video_sample_interval but got {video_sample_distance} and {video_sample_interval} respectively"
         )
 
+    # Written as a negated comparison so that NaN is rejected too
+    if not 0 < video_duration_ratio:
+        raise exceptions.MapillaryBadParameterError(
+            f"Expect a positive video_duration_ratio but got {video_duration_ratio}"
+        )
+
     video_start_time_dt: datetime.datetime | None = None
     if video_start_time is not None:
         try:
@@ -177,6 +183,7 @@ def sample_video(
         ),
         offset_time=interpolation_offset_time,
         use_gpx_start_time=interpolation_use_gpx_start_time,
+        duration_ratio=video_duration_ratio,
     )
 
     geotag_options = _parse_geotag_options(
@@ -246,6 +253,8 @@ def sample_video(
                     sample_interval=video_sample_interval,
                     duration_ratio=video_duration_ratio,
                     start_time=video_start_time_dt,
+                    geotag_options=geotag_options,
+                    video_sync=video_sync,
                 )
         except ffmpeglib.FFmpegNotFoundError as ex:
             # fatal error
@@ -582,12 +591,57 @@ def _extract_video_start_time(
     return _creation_time_to_start_time(video_path, probe)
 
 
+def _check_gpx_start_by_interval(
+    video_path: Path,
+    geotag_options: T.Sequence[SourceOption],
+    video_sync: VideoSyncOption,
+) -> None:
+    """
+    Check the GPX tracks that --interpolation_use_gpx_start_time says started
+    with a video without a GPS clock, as distance sampling does. The geotagging
+    stage puts the first frame at the start of the track and the others at
+    --video_duration_ratio, so a track that runs on long after the video was
+    not recorded for it alone, or needs the ratio.
+    """
+    for option in geotag_options:
+        if option.source is not SourceType.GPX or option.source_path is None:
+            continue
+        gpx_path = option.source_path.resolve(video_path)
+        if not gpx_path.is_file():
+            continue
+        extractor = GPXVideoExtractor(video_path, gpx_path, video_sync=video_sync)
+        if _gpx_sync_reads_a_clock(extractor):
+            continue
+        gpx_points = extractor._read_gpx_points()
+        if gpx_points:
+            extractor._check_given_start(gpx_points, video_sync.duration_ratio)
+
+
+def _gpx_sync_reads_a_clock(extractor: GPXVideoExtractor) -> bool:
+    """
+    Whether GPX sync, in distance sampling and process, reads a GPS clock from
+    the video. It reads one from GPS rejected as noise too, which interval
+    sampling has no telemetry from, and syncs the GPX at that clock's pace
+    """
+    try:
+        native_video_metadata, _ = extractor._extract_native_video_metadata()
+    except exceptions.MapillaryVideoGPSUnusableError:
+        return False
+    except Exception:
+        # Telemetry that fails to parse is warned about by _read_telemetry(),
+        # and must not stop the video from being sampled
+        return False
+    return extractor._read_video_clock(native_video_metadata.points) is not None
+
+
 def _sample_single_video_by_interval(
     video_path: Path,
     sample_dir: Path,
     sample_interval: float,
     duration_ratio: float,
     start_time: datetime.datetime | None = None,
+    geotag_options: T.Sequence[SourceOption] = (),
+    video_sync: VideoSyncOption | None = None,
 ) -> None:
     ffmpeg = ffmpeglib.FFMPEG(constants.FFMPEG_PATH, constants.FFPROBE_PATH)
 
@@ -614,6 +668,9 @@ def _sample_single_video_by_interval(
             # As distance samples are stamped, and as the geotagging stage
             # times the video's track to place the samples along it
             timeline = GPSTimeline.read(telemetry_points, clock_rate)
+
+    if clock_rate is None and video_sync is not None and video_sync.use_gpx_start_time:
+        _check_gpx_start_by_interval(video_path, geotag_options, video_sync)
 
     if start_time is None:
         if timeline is not None:

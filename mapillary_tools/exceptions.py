@@ -91,8 +91,9 @@ class MapillaryStationaryVideoError(MapillaryDescriptionError):
 
 class MapillaryGPXVideoStartUnknownError(MapillaryDescriptionError):
     """
-    Nothing says where along a GPX track a video without GPS starts, and the
-    track is too long to assume that it starts with the video.
+    Nothing says how a GPX track lines up with a video without a GPS clock:
+    the track is too long either to assume that it starts with the video, or,
+    when it is said to, to end with it at the rate the video is said to run.
     """
 
 

@@ -24,7 +24,11 @@ from mapillary_tools.geotag.options import (
     SourceType,
     VideoSyncOption,
 )
-from mapillary_tools.geotag.video_extractors.gpx import GPXVideoExtractor, VideoClock
+from mapillary_tools.geotag.video_extractors.gpx import (
+    GPXVideoExtractor,
+    SyncMode,
+    VideoClock,
+)
 
 _DATA = Path(__file__).resolve().parent.parent.joinpath("data")
 
@@ -89,6 +93,123 @@ class TestVideoWithoutGPS:
             _extract(NO_GPS_VIDEO, gpx, VideoSyncOption())
 
         assert "--video_start_time" in str(excinfo.value)
+        assert "--video_duration_ratio" in str(excinfo.value)
+
+    def test_gpx_start_time_on_a_track_far_longer_than_the_video_is_refused(
+        self, tmp_path
+    ):
+        """
+        It was not recorded for the video alone, or the video is a timelapse,
+        and nothing says how fast it runs through the track.
+        """
+        gpx = _write_gpx(tmp_path / "track.gpx", seconds=60)
+
+        with pytest.raises(exceptions.MapillaryGPXVideoStartUnknownError) as excinfo:
+            GPXVideoExtractor(
+                NO_GPS_VIDEO, gpx, SyncMode.REBASE, video_sync=VideoSyncOption()
+            ).extract()
+
+        message = str(excinfo.value)
+        assert "--video_duration_ratio" in message
+        # For a logger left running, ready to paste: the track starts at GPX_START
+        assert (
+            "started with the video and left running, specify --video_start_time "
+            "2025_03_14_07_00_00_000, when the track starts"
+        ) in message
+        # Not for a track of more than this video, which the start of the track
+        # would put on the wrong part of it
+        assert "covers more than this video, specify the time the video started" in (
+            message
+        )
+
+    def test_gpx_start_time_on_a_log_of_days_offers_no_start_time(self, tmp_path):
+        """
+        A track of several days is a log of several trips, and its start that
+        of the first: placed there, the video would land on the wrong trip.
+        """
+        gpx = _write_gpx_tracks(
+            tmp_path / "track.gpx",
+            [
+                ["2025-03-14T07:00:00Z", "2025-03-14T07:00:01Z"],
+                ["2025-03-16T07:00:00Z", "2025-03-16T07:00:01Z"],
+            ],
+        )
+
+        with pytest.raises(exceptions.MapillaryGPXVideoStartUnknownError) as excinfo:
+            GPXVideoExtractor(
+                NO_GPS_VIDEO, gpx, SyncMode.REBASE, video_sync=VideoSyncOption()
+            ).extract()
+
+        message = str(excinfo.value)
+        assert "specify the time the video started as --video_start_time" in message
+        assert "2025_03_14" not in message
+        assert "left running" not in message
+        assert "--video_duration_ratio" not in message
+
+    def test_gpx_start_time_on_a_track_as_long_as_the_video_is_silent(
+        self, tmp_path, caplog
+    ):
+        gpx = _write_gpx(tmp_path / "track.gpx", seconds=6)
+
+        with caplog.at_level(logging.WARNING):
+            GPXVideoExtractor(
+                NO_GPS_VIDEO, gpx, SyncMode.REBASE, video_sync=VideoSyncOption()
+            ).extract()
+
+        assert not caplog.text
+
+    def test_the_duration_ratio_paces_a_track_placed_by_the_start_time(self, tmp_path):
+        """
+        One GPX can serve many videos, each placed by its start time, and a
+        timelapse runs through it at its ratio.
+        """
+        gpx = _write_gpx(tmp_path / "track.gpx", seconds=600)
+        video_start = GPX_START + datetime.timedelta(seconds=300)
+
+        metadata = _extract(
+            NO_GPS_VIDEO,
+            gpx,
+            VideoSyncOption(start_time=video_start.timestamp(), duration_ratio=10),
+        )
+
+        assert metadata.points[300].time == pytest.approx(0)
+        assert metadata.points[310].time == pytest.approx(1)
+        # the absolute times, which the frames are stamped with, are untouched
+        assert metadata.points[310].get_unix_time() == pytest.approx(
+            video_start.timestamp() + 10
+        )
+
+    @pytest.mark.parametrize("sync_mode", [SyncMode.SYNC, SyncMode.REBASE])
+    def test_the_duration_ratio_spreads_a_track_over_the_video(
+        self, tmp_path, caplog, sync_mode
+    ):
+        """
+        The 5.76s video spans 57.6s of GPS time at 10 seconds per second, so a
+        track of 57s starts and ends with it.
+        """
+        gpx = _write_gpx(tmp_path / "track.gpx", seconds=57)
+
+        with caplog.at_level(logging.WARNING):
+            metadata = GPXVideoExtractor(
+                NO_GPS_VIDEO,
+                gpx,
+                sync_mode,
+                video_sync=VideoSyncOption(duration_ratio=10),
+            ).extract()
+
+        assert metadata.points[0].time == 0
+        assert metadata.points[-1].time == pytest.approx(5.7)
+        assert not caplog.text
+
+    def test_a_track_too_long_even_at_the_duration_ratio_is_refused(self, tmp_path):
+        gpx = _write_gpx(tmp_path / "track.gpx", seconds=600)
+
+        with pytest.raises(exceptions.MapillaryGPXVideoStartUnknownError) as excinfo:
+            _extract(NO_GPS_VIDEO, gpx, VideoSyncOption(duration_ratio=10))
+
+        assert "which at --video_duration_ratio 10 span 57.6 seconds" in str(
+            excinfo.value
+        )
 
     def test_a_track_a_little_longer_than_the_video_warns(self, tmp_path, caplog):
         gpx = _write_gpx(tmp_path / "track.gpx", seconds=9)
@@ -110,13 +231,18 @@ class TestVideoWithoutGPS:
         assert metadata.points[0].time == 0
         assert not caplog.text
 
-    def test_process_still_assumes_the_track_starts_with_the_video(self, tmp_path):
+    @pytest.mark.parametrize("sync_mode", [SyncMode.SYNC, SyncMode.REBASE])
+    def test_process_still_assumes_the_track_starts_with_the_video(
+        self, tmp_path, caplog, sync_mode
+    ):
         """process has no --video_start_time to offer as a way out."""
         gpx = _write_gpx(tmp_path / "track.gpx", seconds=3600)
 
-        metadata = _extract(NO_GPS_VIDEO, gpx, video_sync=None)
+        with caplog.at_level(logging.WARNING):
+            metadata = GPXVideoExtractor(NO_GPS_VIDEO, gpx, sync_mode).extract()
 
         assert metadata.points[0].time == 0
+        assert "timelapse" not in caplog.text
 
     def test_the_refusal_is_not_handed_on_to_the_next_source(self, tmp_path):
         """
@@ -162,6 +288,23 @@ class TestVideoWithGPS:
             p.time for p in synced.points
         ]
 
+    def test_the_video_gps_clock_wins_over_the_duration_ratio(self, tmp_path, caplog):
+        """
+        The ratio is for the videos without a GPS clock, which a batch of
+        videos may mix with videos that have one.
+        """
+        gpx = _write_gpx(
+            tmp_path / "track.gpx",
+            seconds=30,
+            start=_GPS_VIDEO_START,
+        )
+
+        synced = _extract(GPS_VIDEO, gpx, video_sync=None)
+        with_ratio = _extract(GPS_VIDEO, gpx, VideoSyncOption(duration_ratio=10))
+
+        assert [p.time for p in with_ratio.points] == [p.time for p in synced.points]
+        assert "Ignoring --video_duration_ratio 10 for" in caplog.text
+
 
 class TestInterpolationOptions:
     """
@@ -206,10 +349,10 @@ class TestInterpolationOptions:
 
     def test_use_gpx_start_time_starts_the_track_with_the_video(self, tmp_path):
         """
-        Whatever the start time says, and however long the track: the user
-        has said that the two started together.
+        Whatever the start time says: the user has said that the two started
+        together.
         """
-        gpx = _write_gpx(tmp_path / "track.gpx", seconds=60)
+        gpx = _write_gpx(tmp_path / "track.gpx", seconds=6)
 
         metadata = _extract(
             NO_GPS_VIDEO,

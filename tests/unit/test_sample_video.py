@@ -336,6 +336,106 @@ class TestSampleTimelapseByInterval:
         )
 
 
+class TestGPXStartTimeByInterval:
+    """
+    With --interpolation_use_gpx_start_time, the geotagging stage puts the
+    first frame of a video without a GPS clock at the start of the GPX, and
+    the others at --video_duration_ratio. A track that runs on long after the
+    video is refused, as in distance sampling.
+    """
+
+    # 5.76 seconds long, without GPS
+    VIDEO = _PWD.parent.joinpath("data", "videos", "sample-5s.mp4")
+
+    @staticmethod
+    def _write_gpx(path: Path, seconds: int) -> Path:
+        start = datetime.datetime(2025, 3, 14, 7, 0, 0, tzinfo=datetime.timezone.utc)
+        trkpts = "".join(
+            f'<trkpt lat="{37.0 + i * 1e-4:.7f}" lon="-122.0"><time>'
+            f"{(start + datetime.timedelta(seconds=i)).strftime('%Y-%m-%dT%H:%M:%SZ')}"
+            "</time></trkpt>"
+            for i in range(seconds + 1)
+        )
+        path.write_text(
+            '<?xml version="1.0"?><gpx version="1.1" creator="test" '
+            'xmlns="http://www.topografix.com/GPX/1/1">'
+            f"<trk><trkseg>{trkpts}</trkseg></trk></gpx>"
+        )
+        return path
+
+    def test_a_track_far_longer_than_the_video_is_refused(
+        self, tmp_path, setup_mock, caplog
+    ):
+        video_dir = tmp_path / "videos"
+        video_dir.mkdir()
+        shutil.copyfile(self.VIDEO, video_dir / self.VIDEO.name)
+        gpx = self._write_gpx(tmp_path / "track.gpx", seconds=60)
+
+        with pytest.raises(exceptions.MapillaryVideoSampleError):
+            sample_video.sample_video(
+                video_dir,
+                tmp_path / "samples",
+                video_sample_distance=-1,
+                video_sample_interval=2,
+                geotag_source=["gpx"],
+                geotag_source_path=gpx,
+                interpolation_use_gpx_start_time=True,
+            )
+
+        assert "--video_duration_ratio" in caplog.text
+
+    def test_a_track_that_ends_with_the_video_at_the_ratio_passes(self, tmp_path):
+        """The video spans 57.6s of GPS time at 10 seconds per second."""
+        gpx = self._write_gpx(tmp_path / "track.gpx", seconds=57)
+        video_sync = VideoSyncOption(use_gpx_start_time=True, duration_ratio=10)
+        options = sample_video._parse_geotag_options(
+            ["gpx"], gpx, None, tmp_path, video_sync
+        )
+
+        sample_video._check_gpx_start_by_interval(self.VIDEO, options, video_sync)
+
+    def test_gps_rejected_as_noise_still_has_a_clock(self, tmp_path, monkeypatch):
+        """
+        Interval sampling reads no telemetry from GPS rejected as noise, but
+        GPX sync reads its clock, and syncs the GPX at that clock's pace, as
+        for any video with a GPS clock
+        """
+        # A 12x timelapse clock
+        points = [
+            telemetry.GPSPoint(
+                time=i * 0.1,
+                lat=37.0,
+                lon=-122.0,
+                alt=None,
+                angle=None,
+                epoch_time=1741935600.0 + i * 1.2,
+                fix=None,
+                precision=None,
+                ground_speed=None,
+            )
+            for i in range(30)
+        ]
+        monkeypatch.setattr(
+            sample_video.GPXVideoExtractor,
+            "_extract_native_video_metadata",
+            lambda _self: (
+                VideoMetadata(
+                    filename=self.VIDEO,
+                    filetype=FileType.GOPRO,
+                    points=T.cast(T.List[geo.Point], points),
+                ),
+                True,
+            ),
+        )
+        gpx = self._write_gpx(tmp_path / "track.gpx", seconds=60)
+        video_sync = VideoSyncOption(use_gpx_start_time=True)
+        options = sample_video._parse_geotag_options(
+            ["gpx"], gpx, None, tmp_path, video_sync
+        )
+
+        sample_video._check_gpx_start_by_interval(self.VIDEO, options, video_sync)
+
+
 class TestGPSClockStartTime:
     """Tests for _gps_clock_start_time."""
 
@@ -926,6 +1026,17 @@ class TestSampleVideoNegativeDistance:
                 video_sample_distance=1.0,
                 video_sample_interval=1.0,
             )
+
+
+@pytest.mark.parametrize("ratio", [0, -1, float("nan")])
+def test_a_duration_ratio_must_be_positive(tmp_path: Path, ratio: float) -> None:
+    """It divides the GPS time of a video without a GPS clock."""
+    with pytest.raises(exceptions.MapillaryBadParameterError):
+        sample_video.sample_video(
+            _PWD.joinpath("data/mock_sample_video/videos/hello.mp4"),
+            tmp_path,
+            video_duration_ratio=ratio,
+        )
 
 
 class TestSampleVideoRerun:
