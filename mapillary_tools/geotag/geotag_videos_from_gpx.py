@@ -47,7 +47,12 @@ class GeotagVideosFromGPX(GeotagVideosFromGeneric):
             if source_path.is_file():
                 results.append(
                     GPXVideoExtractor(
-                        video_path, source_path, video_sync=self.video_sync
+                        video_path,
+                        source_path,
+                        video_sync=self.video_sync,
+                        # The track that process uploads with the video.
+                        # Sampling reads its track only within the video
+                        clip_to_video=self.video_sync is None,
                     )
                 )
             else:

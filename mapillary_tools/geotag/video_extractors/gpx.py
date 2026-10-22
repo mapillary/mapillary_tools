@@ -9,6 +9,7 @@ import dataclasses
 import datetime
 import enum
 import logging
+import math
 import statistics
 import sys
 import typing as T
@@ -104,11 +105,15 @@ class GPXVideoExtractor(BaseVideoExtractor):
         gpx_path: Path,
         sync_mode: SyncMode = SyncMode.SYNC,
         video_sync: options.VideoSyncOption | None = None,
+        clip_to_video: bool = False,
     ):
         self.video_path = video_path
         self.gpx_path = gpx_path
         self.sync_mode = sync_mode
         self.video_sync = video_sync
+        # Clip the track to the video when a clock gives its pace along the
+        # video (see _clip_to_video)
+        self.clip_to_video = clip_to_video
         if video_sync is not None and video_sync.use_gpx_start_time:
             self.sync_mode = SyncMode.REBASE
 
@@ -132,6 +137,8 @@ class GPXVideoExtractor(BaseVideoExtractor):
             rate = self._duration_ratio()
             self._apply_offset_time(gpx_points, rate=rate)
             self._check_coverage(gpx_points, gpx_unix_times, [], start_clock, rate)
+            if self.clip_to_video and start_clock is not None:
+                gpx_points = self._clip_to_video(gpx_points)
             return types.VideoMetadata(
                 filename=self.video_path,
                 filesize=utils.get_file_size(self.video_path),
@@ -204,6 +211,8 @@ class GPXVideoExtractor(BaseVideoExtractor):
             None if self.sync_mode is SyncMode.REBASE else clock,
             rate,
         )
+        if self.clip_to_video and clock is not None:
+            gpx_points = self._clip_to_video(gpx_points)
 
         return dataclasses.replace(native_video_metadata, points=gpx_points)
 
@@ -238,6 +247,23 @@ class GPXVideoExtractor(BaseVideoExtractor):
         # merged points to be
         gpx_points.sort(key=lambda p: p.time)
         return gpx_points
+
+    def _clip_to_video(self, gpx_points: list[geo.Point]) -> list[geo.Point]:
+        """
+        Clip a GPX track to the video when a clock gives its pace along the
+        video, so that where the video ends along it is known: the GPS clock
+        of the video, which places the track too unless
+        --interpolation_use_gpx_start_time starts it with the video, or the
+        --video_start_time of sampling. Its points outside the video are the
+        positions of none of its frames, and a GPX of a longer trip can run on
+        for long after it.
+
+        A track that is only assumed to start with a video without a GPS clock
+        is left as it is: it may be that of a timelapse, which runs on past
+        the end of the video at the pace of the GPS clock rather than that of
+        the video.
+        """
+        return _clip_track(gpx_points, _video_duration(self.video_path))
 
     def _place_without_video_gps(
         self, gpx_points: T.Sequence[geo.Point]
@@ -636,6 +662,36 @@ class GPXVideoExtractor(BaseVideoExtractor):
             if v1 < v2
         ]
         return statistics.median(steps) if steps else None
+
+
+def _clip_track(
+    points: T.Sequence[geo.Point], duration: float | None
+) -> list[geo.Point]:
+    """
+    Clip a track, sorted by time, to the video, from time 0 to duration (None
+    if unknown), with a point interpolated at either end that the track runs
+    past, so that the frames up to that end keep their position
+
+    >>> track = [geo.Point(time=t, lat=t, lon=0, alt=None, angle=None) for t in (-2, 2, 6, 10)]
+    >>> [(p.time, p.lat) for p in _clip_track(track, 8.0)]
+    [(0.0, 0.0), (2, 2), (6, 6), (8.0, 8.0)]
+    >>> [p.time for p in _clip_track(track, None)]
+    [0.0, 2, 6, 10]
+    >>> [p.time for p in _clip_track(track, 10.0)]
+    [0.0, 2, 6, 10]
+    >>> _clip_track(track[:1], 8.0)
+    []
+    """
+    if not points:
+        return []
+
+    end = math.inf if duration is None else duration
+    clipped = [p for p in points if 0 <= p.time <= end]
+    if points[0].time < 0 < points[-1].time and (not clipped or 0 < clipped[0].time):
+        clipped.insert(0, geo.interpolate(points, 0.0))
+    if points[0].time < end < points[-1].time and clipped[-1].time < end:
+        clipped.append(geo.interpolate(points, end))
+    return clipped
 
 
 def _video_duration(video_path: Path) -> float | None:
