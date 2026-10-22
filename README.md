@@ -375,6 +375,10 @@ mapillary_tools process MY_IMAGE_DIR \
     --interpolation_offset_time -28800
 ```
 
+The offset applies to videos geotagged from the GPX as well. In a directory that mixes images and videos, an offset
+that corrects the camera clock of the images also moves the track of each video, and a video that the moved track
+misses fails. To avoid that, process the images on their own with `--file_types image`.
+
 Another option `--interpolation_use_gpx_start_time` moves your images to align with the beginning of the GPS track.
 This is useful when you can confirm that you start GPS recording and capturing at the same time, or with a known delay.
 For a video without a GPS clock, a track that lasts more than twice as long as the video spans at its
@@ -472,9 +476,20 @@ VIDEO_DIR/
 
 ### Limitations of `--video_geotag_source`
 
-**External geolocation sources will be aligned with the start of video, there is
-currently no way of applying offsets or scaling the time.** This means, for instance, that GPX tracks must begin precisely
-at the instant of the video, and that timelapse videos are supported only for sources `camm, gopro, blackvue`.
+**A GPX track is synced by the GPS clock of the video, if the video has GPS of its own, and otherwise aligned with
+the start of the video.** In `process`, a timelapse video is supported for a GPX only if it has GPS of its own.
+
+As with images, `--interpolation_offset_time N` adds N seconds to the time of the video to find its positions along
+the GPX track, and `--interpolation_use_gpx_start_time` aligns the start of the video with the start of the track, even
+if the video has GPS:
+
+```sh
+# Start recording the video 2.5 seconds after starting the GPS logger
+mapillary_tools process VIDEO_DIR/ \
+    --video_geotag_source gpx \
+    --interpolation_use_gpx_start_time \
+    --interpolation_offset_time 2.5
+```
 
 
 ## Authenticate

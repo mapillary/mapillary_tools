@@ -696,6 +696,71 @@ def test_process_video_geotag_source_with_gpx_outside_video(
     }
 
 
+def test_process_video_from_gpx_with_interpolation_options(
+    setup_data: py.path.local,
+):
+    """
+    The interpolation options line up a GPX with a video, as they do with
+    images. They were ignored for videos.
+    """
+    video_path = setup_data.join("gopro_data").join("max-360mode.mp4")
+    # 3.613 seconds before the GPS clock of the video starts
+    start = datetime.datetime(2019, 11, 18, 23, 44, 40, tzinfo=datetime.timezone.utc)
+    points = "".join(
+        f'<trkpt lat="{37.0 + i * 0.0001:.7f}" lon="-122.0">'
+        f"<time>{(start + datetime.timedelta(seconds=i)).isoformat()}</time></trkpt>"
+        for i in range(21)
+    )
+    gpx_file = setup_data.join("track.gpx")
+    gpx_file.write(
+        '<?xml version="1.0"?>\n'
+        '<gpx version="1.1" creator="test" xmlns="http://www.topografix.com/GPX/1/1">'
+        f"<trk><trkseg>{points}</trkseg></trk></gpx>\n"
+    )
+
+    def describe(*options: str):
+        [desc] = run_process_for_descs(
+            [
+                *["--geotag_source", "gpx"],
+                *["--geotag_source_path", str(gpx_file)],
+                *options,
+                str(video_path),
+            ]
+        )
+        return desc
+
+    # The track is clipped to the video, so look a point up by its GPX time.
+    # The video takes the times of its positions along the GPX, as images do,
+    # so the point keeps that time whatever the options
+    recorded = start.timestamp() + 10
+
+    def video_time_of_recorded(*options: str) -> float:
+        [point] = [p for p in describe(*options)["MAPGPSTrack"] if p[5] == recorded]
+        return point[0]
+
+    synced = video_time_of_recorded()
+    assert synced == pytest.approx(10000 - 3613, abs=1)
+
+    assert video_time_of_recorded("--interpolation_use_gpx_start_time") == 10000
+    assert (
+        video_time_of_recorded(
+            "--interpolation_use_gpx_start_time", "--interpolation_offset_time=2.5"
+        )
+        == 7500
+    )
+
+    shifted = video_time_of_recorded("--interpolation_offset_time=2")
+    assert shifted == pytest.approx(synced - 2000, abs=1)
+
+    # an offset that moves the track off the video fails it, as it does a
+    # track placed by the clock of the video
+    error = describe(
+        "--interpolation_use_gpx_start_time", "--interpolation_offset_time=60"
+    )["error"]
+    assert error["type"] == "MapillaryOutsideGPXTrackError"
+    assert "by 40 seconds, as --interpolation_offset_time 60 " in error["message"]
+
+
 def test_process_geotag_with_gpx_pattern_not_found(setup_data: py.path.local):
     video_path = setup_data.join("gopro_data").join("max-360mode.mp4")
 

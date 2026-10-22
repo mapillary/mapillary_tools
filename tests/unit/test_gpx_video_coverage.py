@@ -28,6 +28,7 @@ from mapillary_tools import exceptions, geo, telemetry, types, uploader
 from mapillary_tools.camm import camm_builder
 from mapillary_tools.geotag import factory
 from mapillary_tools.geotag.options import (
+    InterpolationOption,
     SourceOption,
     SourcePathOption,
     SourceType,
@@ -164,7 +165,7 @@ class TestVideoWithGPSClock:
         gpx_seconds: float,
         video_track: T.Sequence[geo.Point] | None = None,
         duration: float = VIDEO_DURATION,
-        video_sync: VideoSyncOption | None = None,
+        interpolation: InterpolationOption | None = None,
     ) -> types.VideoMetadata:
         video_path = _write_camm_mp4(
             tmp_path / "video.mp4",
@@ -172,7 +173,9 @@ class TestVideoWithGPSClock:
             duration,
         )
         gpx_path = _write_gpx(tmp_path / "track.gpx", gpx_start, gpx_seconds)
-        return GPXVideoExtractor(video_path, gpx_path, video_sync=video_sync).extract()
+        return GPXVideoExtractor(
+            video_path, gpx_path, interpolation=interpolation
+        ).extract()
 
     @pytest.mark.parametrize(
         "start, seconds",
@@ -291,15 +294,15 @@ class TestVideoWithGPSClock:
 
     def test_the_interpolation_offset_is_part_of_the_placement(self, tmp_path, caplog):
         """
-        The geotagging stage looks the frames up 5s later along the track, so
-        a track that covers the video exactly leaves its last 5s uncovered.
+        The frames are looked up 5s later along the track, so a track that
+        covers the video exactly leaves its last 5s uncovered.
         """
         with caplog.at_level(logging.WARNING):
             self._extract(
                 tmp_path,
                 A_UNIX_TIME,
                 VIDEO_DURATION,
-                video_sync=VideoSyncOption(offset_time=5),
+                interpolation=InterpolationOption(offset_time=5),
             )
         [warning] = _warnings(caplog)
         assert "5 seconds of the video fall outside the track" in warning
@@ -407,6 +410,73 @@ class TestVideoWithoutGPSClock:
         with caplog.at_level(logging.WARNING):
             self._extract(tmp_path, video_path, A_UNIX_TIME, VIDEO_DURATION)
         assert not _warnings(caplog)
+
+
+class TestInterpolationOffset:
+    """
+    --interpolation_offset_time moves the track along the video, and can move
+    it off, however the track was placed: a track placed at the start of the
+    video then misses it as surely as one placed by a clock.
+    """
+
+    def _extract(
+        self,
+        tmp_path,
+        video_track: T.Sequence[geo.Point],
+        offset_time: float,
+        use_gpx_start_time: bool = False,
+    ) -> types.VideoMetadata:
+        video_path = _write_camm_mp4(tmp_path / "video.mp4", video_track)
+        gpx_path = _write_gpx(tmp_path / "track.gpx", A_UNIX_TIME, VIDEO_DURATION)
+        return GPXVideoExtractor(
+            video_path,
+            gpx_path,
+            interpolation=InterpolationOption(
+                offset_time=offset_time, use_gpx_start_time=use_gpx_start_time
+            ),
+        ).extract()
+
+    @pytest.mark.parametrize(
+        "video_track, use_gpx_start_time",
+        [([], False), (UNTIMED_TRACK, False), (_video_track(), True)],
+        ids=["no GPS", "GPS without timestamps", "use_gpx_start_time"],
+    )
+    # Before the start of the video, and after its end
+    @pytest.mark.parametrize("offset_time", [100, -100])
+    def test_a_track_placed_at_the_start_moved_off_raises(
+        self, tmp_path, video_track, use_gpx_start_time, offset_time
+    ):
+        with pytest.raises(exceptions.MapillaryOutsideGPXTrackError) as info:
+            self._extract(tmp_path, video_track, offset_time, use_gpx_start_time)
+        message = str(info.value)
+        assert (
+            f"by 1.5 minutes, as --interpolation_offset_time {offset_time} " in message
+        )
+        # Nothing but the offset can have moved it off
+        assert message.endswith(". Check --interpolation_offset_time")
+
+    def test_the_error_gives_the_times_the_video_is_looked_up_at(self, tmp_path):
+        """
+        Its own times overlap the track, and would contradict the gap. The
+        offset is added to them, as it is to the capture time of an image.
+        """
+        # The clock of the video puts the track at video times -20 to -8
+        with pytest.raises(exceptions.MapillaryOutsideGPXTrackError) as info:
+            self._extract(tmp_path, _video_track(), offset_time=20)
+        message = str(info.value)
+        assert (
+            "by 8 seconds, as --interpolation_offset_time 20 looks the video up "
+            "along it (2026-08-12T08:26:47.979846+00:00 to 2026-08-12T08:26:59.979846+00:00)"
+        ) in message
+        assert "Check --interpolation_offset_time, that the GPX file belongs" in message
+        assert info.value.image_time == "2026_08_12_08_26_47_979"
+
+    def test_moved_partly_off_it_warns(self, tmp_path, caplog):
+        with caplog.at_level(logging.WARNING):
+            self._extract(tmp_path, [], offset_time=6)
+        [warning] = _warnings(caplog)
+        assert "as --interpolation_offset_time 6 looks the video up" in warning
+        assert "6 seconds of the video fall outside the track" in warning
 
 
 class TestFallThrough:

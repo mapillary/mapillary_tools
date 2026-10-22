@@ -105,16 +105,18 @@ class GPXVideoExtractor(BaseVideoExtractor):
         gpx_path: Path,
         sync_mode: SyncMode = SyncMode.SYNC,
         video_sync: options.VideoSyncOption | None = None,
+        interpolation: options.InterpolationOption | None = None,
         clip_to_video: bool = False,
     ):
         self.video_path = video_path
         self.gpx_path = gpx_path
         self.sync_mode = sync_mode
         self.video_sync = video_sync
+        self.interpolation = interpolation
         # Clip the track to the video when a clock gives its pace along the
         # video (see _clip_to_video)
         self.clip_to_video = clip_to_video
-        if video_sync is not None and video_sync.use_gpx_start_time:
+        if interpolation is not None and interpolation.use_gpx_start_time:
             self.sync_mode = SyncMode.REBASE
 
     @override
@@ -314,23 +316,29 @@ class GPXVideoExtractor(BaseVideoExtractor):
         self, gpx_points: T.Sequence[geo.Point], rate: float = 1.0
     ) -> None:
         """
-        Shift the track back by --interpolation_offset_time, which the
-        geotagging stage adds to the capture time of a frame to find its
-        position along the GPX. The offset is in GPS seconds, of which a
-        timelapse packs **rate** into each second of video.
+        Shift the track back by --interpolation_offset_time, which is added to
+        the capture time of a frame to find its position along the GPX. The
+        offset is in GPS seconds, of which a timelapse packs **rate** into each
+        second of video.
 
-        The absolute times shift with the track, so that a frame is stamped
-        with its capture time, and the geotagging stage, adding the offset back,
+        The absolute times stay those of the GPX, just as an image geotagged
+        with the offset takes the time of its position along the GPX. When
+        sampling, they shift with the track, so that a frame is stamped with
+        its capture time, and the geotagging stage, adding the offset back,
         finds the position the frame was picked by.
         """
-        if self.video_sync is None or not self.video_sync.offset_time:
+        if self.interpolation is None or not self.interpolation.offset_time:
             return
 
-        offset_time = self.video_sync.offset_time
+        offset_time = self.interpolation.offset_time
         for p in gpx_points:
             p.time -= offset_time / rate
             # parse_gpx() returns CAMMGPSPoint, with epoch_time 0 for no time
-            if isinstance(p, telemetry.CAMMGPSPoint) and 0 < p.epoch_time:
+            if (
+                self.video_sync is not None
+                and isinstance(p, telemetry.CAMMGPSPoint)
+                and 0 < p.epoch_time
+            ):
                 p.epoch_time -= offset_time
 
     def _check_coverage(
@@ -347,14 +355,16 @@ class GPXVideoExtractor(BaseVideoExtractor):
         spans **rate** GPS seconds.
 
         A track that misses the video has no position for any moment of it, so
-        it raises when the clock it was placed by says so. A track that covers
-        only part of the video warns, and one that covers all of it is silent.
+        it raises when its placement says so: the clock it was placed by, or
+        --interpolation_offset_time. A track that covers only part of the video
+        warns, and one that covers all of it is silent.
 
         Without the duration of the video, the video is known only up to its
         last GPS point, and a track that starts after it may still overlap the
         video. Then a gap only warns, unless it is too large for any clock or
-        time zone mistake to explain. A track assumed to start with the video
-        has no clock to say that it misses the video, so it only warns.
+        time zone mistake to explain. A track placed at the start of the video,
+        whether assumed to start with it or by --interpolation_use_gpx_start_time,
+        can miss it only once --interpolation_offset_time moves it.
         """
         if not gpx_points or gpx_unix_times is None:
             return
@@ -368,12 +378,30 @@ class GPXVideoExtractor(BaseVideoExtractor):
 
         gpx_first = min(p.time for p in gpx_points)
         gpx_last = max(p.time for p in gpx_points)
+        offset_time = (
+            0.0 if self.interpolation is None else self.interpolation.offset_time
+        )
+
+        # Where the start of the video is looked up along the track, in its
+        # Unix time: the offset is added to the time of every frame, as it is
+        # to the capture time of an image
+        lookup_start = (
+            gpx_unix_times[0] if clock is None else clock.to_unix_time(0)
+        ) + offset_time
 
         gpx_track = f"The GPX track in {self.gpx_path} ({_isoformat(gpx_unix_times[0])} to {_isoformat(gpx_unix_times[1])})"
         if clock is None:
             video = f"the video {self.video_path}"
         else:
             video = f"the video {self.video_path} ({_isoformat(clock.to_unix_time(0))} to {_isoformat(clock.to_unix_time(video_end))})"
+        # Without it, the times of the video read as if the track missed it
+        # by more or less than it does
+        offset_clause = ""
+        if offset_time:
+            offset_clause = (
+                f", as --interpolation_offset_time {offset_time:g} looks the video up along it "
+                f"({_isoformat(lookup_start)} to {_isoformat(lookup_start + video_end * rate)})"
+            )
 
         # In GPS seconds, which is where clock and time zone mistakes are made
         gap = max(gpx_first - video_end, -gpx_last) * rate
@@ -382,23 +410,36 @@ class GPXVideoExtractor(BaseVideoExtractor):
             uncovered = max(gpx_first, 0.0) + max(video_end - gpx_last, 0.0)
             if _LOGGER_TOLERANCE_SECONDS < uncovered * rate:
                 LOG.warning(
-                    f"{gpx_track} covers only part of {video}: "
+                    f"{gpx_track} covers only part of {video}{offset_clause}: "
                     f"{_format_duration(uncovered)} of the video fall outside the track"
                 )
             return
 
+        if clock is None:
+            # Placed at the start of the video, only the offset moved it off
+            advice = "Check --interpolation_offset_time"
+        elif offset_time:
+            advice = (
+                "Check --interpolation_offset_time, that the GPX file belongs to "
+                "this video, then the camera clock and the time zone of the GPX "
+                "timestamps"
+            )
+        else:
+            advice = (
+                "Check that the GPX file belongs to this video, then the camera "
+                "clock and the time zone of the GPX timestamps"
+            )
         message = (
-            f"{gpx_track} misses {video} by {_format_duration(gap)}. Check that "
-            "the GPX file belongs to this video, then the camera clock and the "
-            "time zone of the GPX timestamps"
+            f"{gpx_track} misses {video} by {_format_duration(gap)}{offset_clause}. "
+            f"{advice}"
         )
 
-        if clock is not None and (
+        if (clock is not None or offset_time) and (
             video_duration is not None or _IMPLAUSIBLE_OFFSET_SECONDS < gap
         ):
             raise exceptions.MapillaryOutsideGPXTrackError(
                 message,
-                image_time=build_capture_time(clock.to_unix_time(0)),
+                image_time=build_capture_time(lookup_start),
                 gpx_start_time=build_capture_time(gpx_unix_times[0]),
                 gpx_end_time=build_capture_time(gpx_unix_times[1]),
             )
