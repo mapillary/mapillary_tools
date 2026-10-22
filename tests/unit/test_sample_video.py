@@ -74,12 +74,16 @@ def setup_mock(monkeypatch):
     monkeypatch.setattr(ffmpeglib, "FFMPEG", MOCK_FFMPEG)
 
 
-def _validate_interval(samples: T.Sequence[Path], video_start_time):
+def _validate_interval(
+    samples: T.Sequence[Path], video_start_time, seconds_per_sample: float = 2
+):
     assert len(samples), "expect samples but got none"
     for idx, sample in enumerate(sorted(samples)):
         assert sample.name == f"hello_v_{idx + 1:06d}.jpg"
         exif = exif_read.ExifRead(sample)
-        expected_dt = video_start_time + datetime.timedelta(seconds=2 * idx)
+        expected_dt = video_start_time + datetime.timedelta(
+            seconds=seconds_per_sample * idx
+        )
         assert exif.extract_capture_time() == expected_dt
 
 
@@ -208,9 +212,128 @@ def test_sample_video_when_telemetry_fails(
 
     samples = sample_dir.join("hello.mp4").listdir()
     _validate_interval([Path(s) for s in samples], PROBE_START_TIME)
-    assert "Unable to read the start time of hello.mp4 from its telemetry" in (
-        caplog.text
+    assert "Unable to read the telemetry of hello.mp4" in caplog.text
+
+
+class TestSampleTimelapseByInterval:
+    """
+    Interval samples of a timelapse are stamped with their capture times, which
+    its GPS clock spaces 10 times as far apart as the frames
+    """
+
+    GPS_START_TIME = datetime.datetime(
+        2021, 8, 10, 6, 38, 6, tzinfo=datetime.timezone.utc
     )
+
+    @classmethod
+    def _mock_telemetry(cls, monkeypatch, gps_seconds: T.Callable[[int], float]):
+        # One point per second of video, at gps_seconds(i) from GPS_START_TIME
+        points = [
+            telemetry.GPSPoint(
+                time=float(i),
+                lat=40.0 + i * 0.001,
+                lon=-74.0,
+                alt=None,
+                angle=None,
+                epoch_time=cls.GPS_START_TIME.timestamp() + gps_seconds(i),
+                fix=None,
+                precision=None,
+                ground_speed=None,
+            )
+            for i in range(60)
+        ]
+        monkeypatch.setattr(
+            sample_video,
+            "NativeVideoExtractor",
+            lambda video_path: mock.Mock(
+                extract=lambda: VideoMetadata(
+                    filename=video_path,
+                    filetype=FileType.GOPRO,
+                    points=T.cast(T.List[geo.Point], points),
+                )
+            ),
+        )
+
+    @pytest.fixture
+    def timelapse_telemetry(self, monkeypatch):
+        # Recorded 10 seconds apart
+        self._mock_telemetry(monkeypatch, lambda i: 10 * i)
+
+    def _sample(self, tmpdir: py.path.local, **kwargs) -> list[Path]:
+        root = _PWD.joinpath("data/mock_sample_video")
+        sample_dir = tmpdir.mkdir("sampled_video_frames")
+        sample_video.sample_video(
+            root.joinpath("videos"),
+            Path(sample_dir),
+            video_sample_distance=-1,
+            video_sample_interval=2,
+            rerun=True,
+            **kwargs,
+        )
+        return [Path(s) for s in sample_dir.join("hello.mp4").listdir()]
+
+    def test_capture_times_follow_the_gps_clock(
+        self, tmpdir, setup_mock, timelapse_telemetry, caplog
+    ):
+        _validate_interval(
+            self._sample(tmpdir), self.GPS_START_TIME, seconds_per_sample=20
+        )
+        assert "--video_duration_ratio" not in caplog.text
+
+    def test_capture_times_follow_the_gps_timestamps(
+        self, tmpdir, setup_mock, monkeypatch
+    ):
+        """
+        Not one rate: the GPS clock of a timelapse drifts from it, and distance
+        samples are stamped from the timestamps. The geotagging stage places
+        both kinds of samples along a track timed by them
+        """
+        self._mock_telemetry(monkeypatch, lambda i: 10 * i + 0.1 * i * i)
+
+        samples = sorted(self._sample(tmpdir))
+
+        assert len(samples) > 2
+        for idx, sample in enumerate(samples):
+            video_time = 2 * idx
+            assert exif_read.ExifRead(
+                sample
+            ).extract_capture_time() == self.GPS_START_TIME + datetime.timedelta(
+                seconds=10 * video_time + 0.1 * video_time * video_time
+            )
+
+    def test_from_the_given_start_time(self, tmpdir, setup_mock, timelapse_telemetry):
+        video_start_time = "2020_08_10_14_37_05_023"
+        _validate_interval(
+            self._sample(tmpdir, video_start_time=video_start_time),
+            description.parse_capture_time(video_start_time),
+            seconds_per_sample=20,
+        )
+
+    def test_the_gps_clock_wins_over_the_duration_ratio(
+        self, tmpdir, setup_mock, timelapse_telemetry, caplog
+    ):
+        """
+        The ratio is for the videos without a GPS clock, which a batch of
+        videos may mix with videos that have one
+        """
+        _validate_interval(
+            self._sample(tmpdir, video_duration_ratio=5),
+            self.GPS_START_TIME,
+            seconds_per_sample=20,
+        )
+        assert (
+            "Ignoring --video_duration_ratio 5 for hello.mp4, whose own GPS clock runs at 10x"
+            in caplog.text
+        )
+
+    def test_the_duration_ratio_paces_a_video_without_a_gps_clock(
+        self, tmpdir, setup_mock
+    ):
+        _validate_interval(
+            self._sample(tmpdir, video_duration_ratio=5),
+            PROBE_START_TIME,
+            seconds_per_sample=10,
+        )
 
 
 class TestGPSClockStartTime:
