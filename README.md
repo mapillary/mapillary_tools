@@ -333,20 +333,34 @@ It is used to locate the images along the GPS tracks.
 mapillary_tools process MY_IMAGE_DIR --geotag_source "gpx" --geotag_source_path MY_EXTERNAL_GPS.gpx
 ```
 
-To geotag videos with a GPX file, video start time is required to locate the sample images along the GPS tracks.
-It is read from the video's own GPS track when it has one, and otherwise from the video creation time.
-Cameras disagree on whether the creation time marks the start or the end of the recording (most dashcams write the end),
-so mapillary_tools uses the camera model or a date and time in the file name to tell which, and assumes the start when neither says.
-Use `--video_start_time` to override it, in UTC, when the sample images end up one video duration off along the track.
+To geotag videos with a GPX file, the sample images are located along the GPS track by the time they were captured.
+A video whose own GPS records the time is synced to the track by that clock. For a video without one, specify its start
+time, in UTC, with `--video_start_time`. That start time applies to every video in the command, so to place several
+videos along one GPX file, run it once per video, each with its own start time:
 
 ```sh
-# Geotagging with GPX works with interval-based sampling only,
-# the two options --video_sample_distance -1 --video_sample_interval 2 are therefore required
-# to switch from the default distance-based sampling to the legacy interval-based sampling
-mapillary_tools video_process MY_VIDEO_DIR \
+mapillary_tools video_process MY_VIDEO.mp4 \
     --geotag_source "gpx" \
     --geotag_source_path MY_EXTERNAL_GPS.gpx \
-    --video_sample_distance -1 --video_sample_interval 2
+    --video_start_time 2025_03_14_07_00_30_000
+```
+
+Without it, distance-based sampling (the default) assumes that the track starts with the video, and refuses a track
+more than twice as long as the video. Interval-based sampling (`--video_sample_distance -1 --video_sample_interval N`)
+reads the start time from the video creation time instead. Cameras disagree on whether the creation time marks the start
+or the end of the recording (most dashcams write the end), so mapillary_tools uses the camera model or a date and time
+in the file name to tell which, and assumes the start when neither says.
+
+A timelapse video packs several seconds of capture into each second of video. Its GPS clock, if it has one, tells how
+many. If it has none, specify how many with `--video_duration_ratio`, for instance 60 for a timelapse that took a frame
+every 2 seconds and plays at 30 frames per second:
+
+```sh
+mapillary_tools video_process MY_TIMELAPSE.mp4 \
+    --geotag_source "gpx" \
+    --geotag_source_path MY_EXTERNAL_GPS.gpx \
+    --video_start_time 2025_03_14_07_00_30_000 \
+    --video_duration_ratio 60
 ```
 
 Ideally, the GPS device and the capture device should use the same clock to get the timestamps synchronized.
@@ -363,15 +377,17 @@ mapillary_tools process MY_IMAGE_DIR \
 
 Another option `--interpolation_use_gpx_start_time` moves your images to align with the beginning of the GPS track.
 This is useful when you can confirm that you start GPS recording and capturing at the same time, or with a known delay.
+For a video without a GPS clock, a track that lasts more than twice as long as the video spans at its
+`--video_duration_ratio` is then refused. If the GPS logger was left running after the video, pass the start of the
+track as `--video_start_time` instead, which places the video the same way: the error prints it.
 
 ```sh
 # Start capturing 2.5 seconds after start GPS recording
-mapillary_tools video_process MY_VIDEO_DIR \
+mapillary_tools video_process MY_VIDEO.mp4 \
     --geotag_source "gpx" \
     --geotag_source_path MY_EXTERNAL_GPS.gpx \
     --interpolation_use_gpx_start_time \
-    --interpolation_offset_time 2.5 \
-    --video_sample_distance -1 --video_sample_interval 2
+    --interpolation_offset_time 2.5
 ```
 
 ## New video geotagging features (experimental)
