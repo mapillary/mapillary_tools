@@ -513,13 +513,28 @@ class GPXVideoExtractor(BaseVideoExtractor):
         excess = gpx_duration - video_span
 
         if video_span < excess:
-            raise exceptions.MapillaryGPXVideoStartUnknownError(
+            message = (
                 f"The {self.file_format} track in {self.gpx_path} lasts {_format_duration(gpx_duration)} "
                 f"and {self._describe_video_span(video_span, ratio)}, so the video "
-                "could start anywhere along the track. Specify --video_start_time, or "
-                "--interpolation_use_gpx_start_time if the track was started with the "
-                "video, and if the video is a timelapse, --video_duration_ratio as well"
+                "could start anywhere along the track. "
             )
+            # Not --interpolation_use_gpx_start_time, which starts the track
+            # with the video too, and refuses it for the same reason
+            if gpx_duration < _MAX_RECORDING_SECONDS:
+                message += (
+                    "If the video is a timelapse, specify --video_duration_ratio. If "
+                    "the GPS logger was started with the video and left running, "
+                    "specify --video_start_time "
+                    f"{build_capture_time(min(p.time for p in gpx_points))}, when the "
+                    "track starts. If the track covers more than this video, specify "
+                    "the time the video started as --video_start_time instead"
+                )
+            else:
+                message += (
+                    "A track that long covers more than this video: specify the time "
+                    "the video started as --video_start_time"
+                )
+            raise exceptions.MapillaryGPXVideoStartUnknownError(message)
 
         if _LOGGER_TOLERANCE_SECONDS < excess:
             LOG.warning(
