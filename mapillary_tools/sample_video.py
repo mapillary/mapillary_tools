@@ -750,10 +750,18 @@ def _sample_single_video_by_interval(
             )
 
     stream_specifier = _interval_stream_specifier(probe)
+    # The stream sampled, whether it is the only one or not
+    video_stream = probe.probe_video_with_max_resolution()
 
     with wip_dir_context(wip_sample_dir(sample_dir), sample_dir) as wip_dir:
         ffmpeg.extract_frames_by_interval(
-            video_path, wip_dir, sample_interval, stream_specifier=stream_specifier
+            video_path,
+            wip_dir,
+            sample_interval,
+            stream_specifier=stream_specifier,
+            sample_aspect_ratio=(
+                video_stream.get("sample_aspect_ratio") if video_stream else None
+            ),
         )
         frame_samples = ffmpeglib.FFMPEG.sort_selected_samples(
             wip_dir, video_path, selected_stream_specifiers=[stream_specifier]
@@ -957,6 +965,7 @@ def _sample_single_video_by_distance(
             wip_dir,
             frame_indices=set(sorted_sample_indices),
             stream_specifier=str(video_stream_idx),
+            sample_aspect_ratio=video_stream.get("sample_aspect_ratio"),
         )
 
         frame_samples = ffmpeglib.FFMPEG.sort_selected_samples(

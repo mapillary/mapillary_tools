@@ -56,6 +56,7 @@ class MOCK_FFMPEG(ffmpeglib.FFMPEG):
         sample_path: Path,
         video_sample_interval: float,
         stream_specifier: int | str = "v",
+        sample_aspect_ratio: str | None = None,
     ):
         probe = self.probe_format_and_streams(video_path)
         video_streams = [
@@ -1208,6 +1209,7 @@ class TestSampleVideoDistanceIntegration:
             sample_dir: Path,
             frame_indices: set[int],
             stream_specifier: str = "v",
+            sample_aspect_ratio: str | None = None,
         ) -> None:
             _create_fake_frames(
                 sample_dir,
