@@ -101,8 +101,39 @@ class TestVideoWithoutGPS:
         with pytest.raises(exceptions.MapillaryGPXVideoStartUnknownError) as excinfo:
             _extract(NO_GPS_VIDEO, gpx, VideoSyncOption())
 
-        assert "--video_start_time" in str(excinfo.value)
-        assert "--video_duration_ratio" in str(excinfo.value)
+        message = str(excinfo.value)
+        assert "--video_duration_ratio" in message
+        # For a logger left running, ready to paste: the track starts at GPX_START
+        assert (
+            "started with the video and left running, specify --video_start_time "
+            "2025_03_14_07_00_00_000, when the track starts"
+        ) in message
+        assert "covers more than this video, specify the time the video started" in (
+            message
+        )
+        # Which starts the track with the video too, and refuses it alike
+        assert "--interpolation_use_gpx_start_time" not in message
+
+    def test_a_log_of_days_offers_no_start_time(self, tmp_path):
+        """
+        A track of several days is a log of several trips, and its start that
+        of the first: placed there, the video would land on the wrong trip.
+        """
+        gpx = _write_gpx_tracks(
+            tmp_path / "track.gpx",
+            [
+                ["2025-03-14T07:00:00Z", "2025-03-14T07:00:01Z"],
+                ["2025-03-16T07:00:00Z", "2025-03-16T07:00:01Z"],
+            ],
+        )
+
+        with pytest.raises(exceptions.MapillaryGPXVideoStartUnknownError) as excinfo:
+            _extract(NO_GPS_VIDEO, gpx, VideoSyncOption())
+
+        message = str(excinfo.value)
+        assert "specify the time the video started as --video_start_time" in message
+        assert "2025_03_14" not in message
+        assert "--interpolation_use_gpx_start_time" not in message
 
     def test_gpx_start_time_on_a_track_far_longer_than_the_video_is_refused(
         self, tmp_path
