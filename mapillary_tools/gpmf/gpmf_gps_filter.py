@@ -48,7 +48,17 @@ def remove_outliers(
         return sequence
 
     max_speed = gps_filter.upper_whisker(ground_speeds)
-    merged = gps_filter.dbscan(sequences, gps_filter.speed_le(max_speed))
+    # Pieces whose ends are no farther apart than the points within a piece
+    # were split only by the points between them, such as a single sample
+    # far off the track. Over the fraction of a second such a sample lasts,
+    # GPS jitter alone can read faster than the camera moved, so merge them
+    # whatever the speed between them
+    merged = gps_filter.dbscan(
+        sequences,
+        gps_filter.either(
+            gps_filter.distance_le(max_distance), gps_filter.speed_le(max_speed)
+        ),
+    )
     LOG.debug(
         "Found %d sequences after merging with max speed %f", len(merged), max_speed
     )
