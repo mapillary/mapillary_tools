@@ -74,7 +74,7 @@ def _extract(
 
 
 class TestVideoWithoutGPS:
-    def test_the_track_is_placed_by_the_video_start_time(self, tmp_path):
+    def test_the_track_is_placed_by_the_video_start_time(self, tmp_path, caplog):
         """
         Not by assuming the track starts with the video: a GPX of a whole drive
         then put every clip on its first few minutes.
@@ -88,6 +88,7 @@ class TestVideoWithoutGPS:
 
         assert metadata.points[0].time == pytest.approx(-30)
         assert metadata.points[30].time == pytest.approx(0)
+        assert "Ignoring --video_start_time" not in caplog.text
         # the absolute times, which the frames are stamped with, are untouched
         assert metadata.points[30].get_unix_time() == pytest.approx(
             video_start.timestamp()
@@ -277,7 +278,7 @@ class TestVideoWithoutGPS:
 
 
 class TestVideoWithGPS:
-    def test_the_video_gps_wins_over_the_start_time(self, tmp_path):
+    def test_the_video_gps_wins_over_the_start_time(self, tmp_path, caplog):
         """
         Its own GPS clock syncs the track, as before; --video_start_time only
         places a GPX on a video that has nothing to sync it with.
@@ -290,11 +291,13 @@ class TestVideoWithGPS:
         far_off = GPX_START.timestamp()
 
         synced = _extract(GPS_VIDEO, gpx, video_sync=None)
+        assert "--video_start_time" not in caplog.text
         with_start_time = _extract(GPS_VIDEO, gpx, VideoSyncOption(start_time=far_off))
 
         assert [p.time for p in with_start_time.points] == [
             p.time for p in synced.points
         ]
+        assert "Ignoring --video_start_time 2025_03_14_07_00_00_000 for" in caplog.text
 
     def test_the_video_gps_clock_wins_over_the_duration_ratio(self, tmp_path, caplog):
         """

@@ -1440,7 +1440,7 @@ class TestSampleVideoDistanceIntegration:
             )
             assert mock_sample.call_count == 2
 
-    def test_custom_start_time(self, tmp_path: Path) -> None:
+    def test_custom_start_time(self, tmp_path: Path, caplog) -> None:
         """sample_video with video_start_time override uses the given time."""
         video_dir = tmp_path / "videos"
         video_dir.mkdir()
@@ -1472,6 +1472,61 @@ class TestSampleVideoDistanceIntegration:
         assert capture_time.year == 2023
         assert capture_time.month == 6
         assert capture_time.day == 15
+        assert "Ignoring --video_start_time" not in caplog.text
+
+    def test_the_gps_clock_wins_over_the_options(self, tmp_path: Path, caplog) -> None:
+        """
+        A track with a GPS clock stamps the frames at its timestamps and paces
+        the video, so --video_start_time and --video_duration_ratio are
+        ignored, which is said rather than done silently
+        """
+        video_file = tmp_path / "test.mp4"
+        video_file.touch()
+        output_dir = tmp_path / "output"
+
+        gps_start_time = datetime.datetime(
+            2021, 3, 1, 8, 0, 0, tzinfo=datetime.timezone.utc
+        )
+        gps_points = [
+            telemetry.GPSPoint(
+                time=p.time,
+                lat=p.lat,
+                lon=p.lon,
+                alt=p.alt,
+                angle=p.angle,
+                epoch_time=gps_start_time.timestamp() + p.time,
+                fix=None,
+                precision=None,
+                ground_speed=None,
+            )
+            for p in _make_gps_points(10)
+        ]
+        mocks = self._setup_mocks(tmp_path, video_file, gps_points=gps_points)
+
+        with (
+            mocks["patches"]["ffmpeg_cls"],
+            mocks["patches"]["geotag_cls"],
+            mocks["patches"]["moov_parse"],
+        ):
+            sample_video.sample_video(
+                video_import_path=video_file,
+                import_path=output_dir,
+                video_sample_distance=0.0,
+                video_duration_ratio=0.5,
+                video_start_time="2023_06_15_12_00_00_000",
+            )
+
+        frames = sorted((output_dir / "test.mp4").glob("*.jpg"))
+        assert len(frames) > 0
+        assert exif_read.ExifRead(frames[0]).extract_capture_time() == gps_start_time
+        assert (
+            "Ignoring --video_duration_ratio 0.5 for test.mp4, whose own GPS clock runs at 1x"
+            in caplog.text
+        )
+        assert (
+            "Ignoring --video_start_time 2023_06_15_12_00_00_000 for test.mp4"
+            in caplog.text
+        )
 
     def test_exif_lat_lon_written(self, tmp_path: Path) -> None:
         """Verify GPS coordinates are written into EXIF of sampled frames."""

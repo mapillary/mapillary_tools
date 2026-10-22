@@ -174,6 +174,12 @@ class GPXVideoExtractor(BaseVideoExtractor):
                     self.video_path,
                     clock.rate,
                 )
+            if self.video_sync is not None and self.video_sync.start_time is not None:
+                LOG.warning(
+                    "Ignoring --video_start_time %s for %s, which has a GPS clock of its own",
+                    build_capture_time(self.video_sync.start_time),
+                    self.video_path,
+                )
             if clock.rate != 1.0:
                 LOG.info(
                     "The GPS clock in %s runs %.1f times faster than the video (timelapse). Syncing %s accordingly",
