@@ -36,7 +36,7 @@ from .geotag.options import (
     SourceType,
     VideoSyncOption,
 )
-from .geotag.video_extractors.gpx import GPSTimeline, GPXVideoExtractor, VideoClock
+from .geotag.video_extractors.gpx import GPXVideoExtractor, VideoClock
 from .geotag.video_extractors.native import NativeVideoExtractor
 from .geotag.video_extractors.nmea import NMEAVideoExtractor
 from .mp4 import mp4_sample_parser, simple_mp4_parser as sparser
@@ -473,12 +473,12 @@ def _read_telemetry(video_path: Path) -> T.Sequence[geo.Point]:
     return []
 
 
-def _telemetry_clock_rate(
+def _telemetry_clock(
     video_path: Path, telemetry_points: T.Sequence[geo.Point]
-) -> float | None:
+) -> VideoClock | None:
     """
-    GPS seconds per video second of the video's own GPS clock: more than 1 if
-    the video is a timelapse, or None if it has no GPS clock
+    The video's own GPS clock, or None if it has none. It runs more than 1 GPS
+    second per video second if the video is a timelapse
     """
     clock = GPXVideoExtractor._read_video_clock(telemetry_points)
     if clock is None:
@@ -486,11 +486,11 @@ def _telemetry_clock_rate(
 
     if clock.rate != 1.0:
         LOG.info(
-            "The GPS clock in %s runs %.1f times faster than the video (timelapse)",
+            "The GPS clock in %s runs %.3g times faster than the video",
             video_path.name,
             clock.rate,
         )
-    return clock.rate
+    return clock
 
 
 def _parse_filename_time(video_path: Path) -> datetime.datetime | None:
@@ -770,48 +770,36 @@ def _sample_single_video_by_interval(
     telemetry_points = _read_telemetry(video_path)
 
     # Frames are stamped with their capture times, which a timelapse packs
-    # several seconds of into each second of video: as the video's own GPS
-    # timestamps tell, and for a video without a GPS clock, at
-    # --video_duration_ratio
-    clock_rate = _telemetry_clock_rate(video_path, telemetry_points)
+    # several seconds of into each second of video: by the video's own GPS
+    # clock, as GPX sync places a GPX and distance samples are stamped, and for
+    # a video without a GPS clock, at --video_duration_ratio
+    clock = _telemetry_clock(video_path, telemetry_points)
     # GPS rejected as noise gives no telemetry, but GPX sync reads its clock,
     # and the frames are stamped by it, where GPX sync places them along the
     # GPX, so that the geotagging stage finds them there
-    gpx_clock: VideoClock | None = None
-    if clock_rate is None:
-        gpx_clock = _gpx_sync_clock(video_path, geotag_options)
-        if gpx_clock is not None:
-            clock_rate = gpx_clock.rate
-    timeline: GPSTimeline | None = None
-    if clock_rate is None:
+    if clock is None:
+        clock = _gpx_sync_clock(video_path, geotag_options)
+    if clock is None:
         rate = duration_ratio
     else:
-        rate = clock_rate
+        rate = clock.rate
         if duration_ratio != 1.0:
             LOG.warning(
                 "Ignoring --video_duration_ratio %g for %s, whose own GPS clock runs at %.3gx",
                 duration_ratio,
                 video_path.name,
-                clock_rate,
+                clock.rate,
             )
-        if gpx_clock is None:
-            # As distance samples are stamped, and as the geotagging stage
-            # times the video's track to place the samples along it
-            timeline = GPSTimeline.read(telemetry_points, clock_rate)
 
-    if clock_rate is None and video_sync is not None:
+    if clock is None and video_sync is not None:
         _check_gpx_start_by_interval(video_path, geotag_options, video_sync)
 
     probe = _probe_video(ffmpeg, video_path)
 
     if start_time is None:
-        if timeline is not None:
+        if clock is not None:
             start_time = datetime.datetime.fromtimestamp(
-                timeline.to_unix_time(0.0), tz=datetime.timezone.utc
-            )
-        elif gpx_clock is not None:
-            start_time = datetime.datetime.fromtimestamp(
-                gpx_clock.to_unix_time(0.0), tz=datetime.timezone.utc
+                clock.to_unix_time(0.0), tz=datetime.timezone.utc
             )
         else:
             start_time = _extract_video_start_time(video_path, probe, telemetry_points)
@@ -843,11 +831,7 @@ def _sample_single_video_by_interval(
                 continue
             # extract_frames() produces 1-based frame indices so we need to subtract 1 here
             video_time = (frame_idx_1based - 1) * sample_interval
-            if timeline is None:
-                seconds = video_time * rate
-            else:
-                seconds = timeline.to_unix_time(video_time) - timeline.to_unix_time(0.0)
-            timestamp = start_time + datetime.timedelta(seconds=seconds)
+            timestamp = start_time + datetime.timedelta(seconds=video_time * rate)
             exif_edit = ExifEdit(sample_paths[0])
             exif_edit.add_date_time_original(timestamp)
             exif_edit.add_gps_datetime(timestamp)
@@ -1057,11 +1041,11 @@ def _sample_single_video_by_distance(
     last_unix_time = max(track_unix_times, default=None)
 
     # Read from the video itself, a track with a GPS clock of its own paces the
-    # video, and stamps the frames along its timeline, as interval samples are.
-    # A GPX source warns of the options that its sync ignores itself, and its
-    # sync placed the track along the video's clock already: its timestamps
-    # stamp the frames as they are
-    track_timeline: GPSTimeline | None = None
+    # video, and its clock stamps the frames, as interval samples are. A GPX
+    # source warns of the options that its sync ignores itself, and its sync
+    # placed the track along the video's clock already: its timestamps stamp
+    # the frames as they are
+    track_clock: VideoClock | None = None
     if not any(
         option.source in factory.EXTERNAL_GPS_SOURCES for option in geotag_options
     ):
@@ -1073,14 +1057,12 @@ def _sample_single_video_by_distance(
             start_time,
         )
         track_clock = GPXVideoExtractor._read_video_clock(video_metadata.points)
-        if track_clock is not None:
-            track_timeline = GPSTimeline.read(video_metadata.points, track_clock.rate)
 
-    # Frames along the timeline, or at points with an absolute timestamp, are
-    # timestamped from it below, so only the others need the start time
+    # Frames stamped by the clock, or at points with an absolute timestamp,
+    # are timestamped below, so only the others need the start time
     if (
         start_time is None
-        and track_timeline is None
+        and track_clock is None
         and any(
             interp.get_unix_time() is None
             for _, interp in sample_points_by_frame_idx.values()
@@ -1130,8 +1112,8 @@ def _sample_single_video_by_distance(
 
             gps_unix_time = (
                 interp.get_unix_time()
-                if track_timeline is None
-                else track_timeline.to_unix_time(interp.time)
+                if track_clock is None
+                else track_clock.to_unix_time(interp.time)
             )
             if gps_unix_time is not None:
                 assert first_unix_time is not None and last_unix_time is not None

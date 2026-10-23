@@ -69,7 +69,7 @@ class TestVideoClock:
     @pytest.mark.parametrize("rate", [2.0, 12.5, 30.0])
     def test_timelapse(self, rate):
         """1s of video spans `rate` seconds of GPS time."""
-        clock = _read((i * 0.1, A_UNIX_TIME + i * 0.1 * rate) for i in range(20))
+        clock = _read((i * 0.1, A_UNIX_TIME + i * 0.1 * rate) for i in range(40))
         assert clock.rate == pytest.approx(rate)
         assert clock.to_video_time(A_UNIX_TIME + rate) == pytest.approx(1.0)
 
@@ -78,8 +78,12 @@ class TestVideoClock:
         clock = _read((i, A_UNIX_TIME + i * 1.2) for i in range(6))
         assert clock.rate == 1.0
 
-    def test_too_short_to_measure_a_rate(self):
-        clock = _read((i * 0.1, A_UNIX_TIME + i * 1.5) for i in range(9))
+    def test_too_short_to_tell_a_timelapse_from_jitter(self):
+        """
+        Two blocks of a GoPro, the second stamped 1.5 seconds late, measure
+        2.5x over a second of video
+        """
+        clock = _read([(0, A_UNIX_TIME), (1.001, A_UNIX_TIME + 2.5)])
         assert clock.rate == 1.0
 
     def test_block_timestamps_anchor_at_the_block_start(self):
