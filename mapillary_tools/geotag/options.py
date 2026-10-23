@@ -36,6 +36,12 @@ SOURCE_TYPE_ALIAS: dict[str, SourceType] = {
     "exiftool": SourceType.EXIFTOOL_RUNTIME,
 }
 
+# The names that --video_geotag_source takes besides those above. Before v0.14,
+# "video" read the video's own GPS in any format, as the native source does now
+VIDEO_SOURCE_TYPE_ALIAS: dict[str, SourceType] = {
+    "video": SourceType.NATIVE,
+}
+
 
 @dataclasses.dataclass
 class SourceOption:

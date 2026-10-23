@@ -1032,6 +1032,28 @@ def test_process_video_geotag_source_with_exiftool_runtime(setup_data: py.path.l
     assert_descs_exact_equal(exiftool_descs, native_descs)
 
 
+def test_process_video_geotag_source_names_in_readme(setup_data: py.path.local):
+    """
+    The README names the source that reads a video's own GPS "video", and those
+    that read one format of it "gopro", "camm" and "blackvue"
+    """
+    video_path = str(setup_data.join("gopro_data").join("max-360mode.mp4"))
+
+    native_descs = run_process_for_descs(
+        ["--video_geotag_source", "native", video_path]
+    )
+    assert "error" not in native_descs[0]
+
+    for source in ["video", "gopro"]:
+        descs = run_process_for_descs(["--video_geotag_source", source, video_path])
+        assert_descs_exact_equal(native_descs, descs)
+
+    # A GoPro video has none of the GPS of the other formats
+    for source in ["camm", "blackvue"]:
+        descs = run_process_for_descs(["--video_geotag_source", source, video_path])
+        assert [d["error"]["type"] for d in descs] == ["MapillaryVideoGPSNotFoundError"]
+
+
 def test_process_geotag_everything_with_exiftool_runtime(setup_data: py.path.local):
     pytest_skip_if_not_exiftool_installed()
 
