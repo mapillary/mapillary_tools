@@ -171,6 +171,20 @@ class ExifEditTests(unittest.TestCase):
     def test_add_altitude(self):
         add_altitude_general(self, EMPTY_EXIF_FILE_TEST)
 
+    def test_add_altitude_above_4293_m(self):
+        # Written with the 1e-6 precision of lower altitudes, the numerator of
+        # the rational would not fit in its 32 bits
+        test_altitude = 7112.573717404068
+
+        empty_exifedit = ExifEdit(EMPTY_EXIF_FILE)
+        empty_exifedit.add_altitude(test_altitude)
+        empty_exifedit.write(EMPTY_EXIF_FILE_TEST)
+
+        exif_data = ExifRead(EMPTY_EXIF_FILE_TEST)
+        altitude = exif_data.extract_altitude()
+        assert altitude is not None
+        self.assertAlmostEqual(test_altitude, altitude, places=5)
+
     def test_add_direction(self):
         add_direction_general(self, EMPTY_EXIF_FILE_TEST)
 
