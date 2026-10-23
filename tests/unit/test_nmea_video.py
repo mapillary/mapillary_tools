@@ -60,8 +60,16 @@ def _write_gpx(path: Path, seconds: int, start: datetime.datetime = START) -> Pa
     return path
 
 
-def _write_nmea(path: Path, seconds: int, start: datetime.datetime = START) -> Path:
-    """The track of _write_gpx(), as RMC and GGA sentences"""
+def _write_nmea(
+    path: Path,
+    seconds: int,
+    start: datetime.datetime = START,
+    gga_first: bool = False,
+) -> Path:
+    """
+    The track of _write_gpx(), as RMC and GGA sentences, the GGA sentence of
+    each fix first or last
+    """
     lines = []
     for time, lat, alt in _track(seconds, start):
         hhmmss = time.strftime("%H%M%S.00")
@@ -83,6 +91,8 @@ def _write_nmea(path: Path, seconds: int, start: datetime.datetime = START) -> P
                 + (f"{alt:.1f}", "M", "0.0", "M", "", ""),
             )
         )
+        if gga_first:
+            lines[-2:] = lines[-1:-3:-1]
     path.write_text("".join(f"{line}\r\n" for line in lines))
     return path
 
@@ -131,6 +141,24 @@ class TestPlacedAsAGPX:
 
         assert from_nmea
         assert len(from_nmea) == len(from_gpx)
+        for nmea_point, gpx_point in zip(from_nmea, from_gpx):
+            assert nmea_point == pytest.approx(gpx_point, abs=1e-6)
+
+    def test_a_track_across_midnight_is_placed_as_from_a_gpx(self, tmp_path):
+        """
+        Its first fix after midnight, logged before the RMC sentence with its
+        date, was dated a day early, and the video got a track of a day
+        """
+        start = datetime.datetime(
+            2019, 11, 18, 23, 59, 57, tzinfo=datetime.timezone.utc
+        )
+        gpx = _write_gpx(tmp_path / "track.gpx", 6, start)
+        nmea = _write_nmea(tmp_path / "track.nmea", 6, start, gga_first=True)
+
+        from_gpx = _points(GPXVideoExtractor(NO_GPS_VIDEO, gpx))
+        from_nmea = _points(NMEAVideoExtractor(NO_GPS_VIDEO, nmea))
+
+        assert len(from_nmea) == len(from_gpx) == 7
         for nmea_point, gpx_point in zip(from_nmea, from_gpx):
             assert nmea_point == pytest.approx(gpx_point, abs=1e-6)
 

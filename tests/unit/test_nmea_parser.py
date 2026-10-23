@@ -133,6 +133,57 @@ def test_gga_before_the_first_rmc_take_its_date(tmp_path):
     ) == [_fix("02:46:35", lat=37.588435), _fix("02:46:36")]
 
 
+@pytest.mark.parametrize("gga_first", [True, False])
+def test_fixes_across_midnight(tmp_path, gga_first):
+    """
+    The first fix after midnight, logged before the RMC sentence with its
+    date, was dated a day early, a day before the rest of the track
+    """
+    lines = []
+    for time, date in [
+        ("235959.00", "211222"),
+        ("000000.00", "221222"),
+        ("000001.00", "221222"),
+    ]:
+        if gga_first:
+            lines += [_gga(time), _rmc(time, date=date)]
+        else:
+            lines += [_rmc(time, date=date), _gga(time)]
+
+    assert _read(tmp_path, *lines) == [
+        _fix("23:59:59", date="2022-12-21"),
+        _fix("00:00:00"),
+        _fix("00:00:01"),
+    ]
+
+
+def test_gga_before_the_first_rmc_across_midnight(tmp_path):
+    """It took the date of the RMC sentence, a day late"""
+    assert _read(
+        tmp_path,
+        _gga("235959.00", lat="3735.30610"),
+        _rmc("000000.00"),
+        _gga("000000.00"),
+    ) == [_fix("23:59:59", date="2022-12-21", lat=37.588435), _fix("00:00:00")]
+
+
+def test_a_log_of_another_day_appended(tmp_path):
+    """
+    Its first fix, logged before its RMC sentence, takes the date of that
+    sentence, not that of the fix before it
+    """
+    assert _read(
+        tmp_path,
+        _rmc("180000.00", date="211222"),
+        _gga("180000.00"),
+        _gga("090000.00", lat="3735.30610"),
+        _rmc("090000.00", date="241222"),
+    ) == [
+        _fix("18:00:00", date="2022-12-21"),
+        _fix("09:00:00", date="2022-12-24", lat=37.588435),
+    ]
+
+
 def test_gga_without_any_date_give_no_points(tmp_path, caplog):
     """They raised UnboundLocalError"""
     with caplog.at_level(logging.WARNING):
