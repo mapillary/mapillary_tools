@@ -114,6 +114,16 @@ class TestNMEAFile:
             GeotagImagesFromNMEAFile(tmp_path / "missing.nmea"), "NMEA file not found"
         )
 
+    def test_a_malformed_sentence_is_skipped(self, tmp_path):
+        """It failed every image"""
+        nmea = tmp_path / "track.nmea"
+        nmea.write_text(NMEA_RMC + NMEA_GGA.replace("$GPGGA", "$GLGGA") + NMEA_GGA)
+
+        geotag = GeotagImagesFromNMEAFile(nmea)
+
+        assert geotag.track_error is None
+        assert len(geotag.points) == 1
+
     def test_a_valid_file_is_read(self, tmp_path):
         nmea = tmp_path / "track.nmea"
         nmea.write_text(NMEA_RMC + NMEA_GGA)

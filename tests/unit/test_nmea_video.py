@@ -162,6 +162,21 @@ class TestPlacedAsAGPX:
         for nmea_point, gpx_point in zip(from_nmea, from_gpx):
             assert nmea_point == pytest.approx(gpx_point, abs=1e-6)
 
+    def test_a_malformed_sentence_is_skipped(self, tmp_path):
+        """It failed the whole file"""
+        gpx = _write_gpx(tmp_path / "track.gpx", 6)
+        nmea = _write_nmea(tmp_path / "track.nmea", 6)
+        lines = nmea.read_text().splitlines()
+        lines.insert(5, lines[4][:-2] + "00")
+        nmea.write_text("\r\n".join(lines))
+
+        from_gpx = _points(GPXVideoExtractor(NO_GPS_VIDEO, gpx))
+        from_nmea = _points(NMEAVideoExtractor(NO_GPS_VIDEO, nmea))
+
+        assert len(from_nmea) == len(from_gpx) == 7
+        for nmea_point, gpx_point in zip(from_nmea, from_gpx):
+            assert nmea_point == pytest.approx(gpx_point, abs=1e-6)
+
     def test_messages_name_the_nmea_file(self, tmp_path):
         nmea = _write_nmea(tmp_path / "track.nmea", seconds=60)
 

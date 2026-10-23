@@ -39,7 +39,9 @@ def _gga(time: str, quality: int = 1, talker="GP", lat="3735.30670") -> str:
 
 def _read(tmp_path: Path, *lines: str):
     path = tmp_path / "track.nmea"
-    path.write_text("".join(f"{line}\r\n" for line in lines))
+    # Bytes, so that the line ends are CRLF on every platform: write_text() on
+    # Windows would write each "\r\n" as "\r\r\n", an empty line more
+    path.write_bytes("".join(f"{line}\r\n" for line in lines).encode("ascii"))
     return [
         (
             datetime.datetime.fromtimestamp(p.time, datetime.timezone.utc).isoformat(),
@@ -89,22 +91,26 @@ def test_one_point_per_time(tmp_path):
     ) == [_fix("02:46:36"), _fix("02:46:37", lat=37.588435)]
 
 
-def test_sentences_before_the_first_fix_are_skipped(tmp_path):
+def test_sentences_before_the_first_fix_are_skipped(tmp_path, caplog):
     """
     A log that started before its first fix was rejected whole, and gave
     positions at 0, 0
     """
-    assert _read(
-        tmp_path,
-        # void, with the date of a clock that is not set yet, and empty
-        _rmc("000001.00", date="060180", status="V"),
-        _sentence("GPRMC,,V,,,,,,,,,,N"),
-        # no fix, with and without a time
-        _sentence("GPGGA,024635.00,,,,,0,00,99.99,,,,,,"),
-        _sentence("GPGGA,,,,,,0,00,,,M,,M,,"),
-        _rmc("024636.00"),
-        _gga("024636.00"),
-    ) == [_fix("02:46:36")]
+    with caplog.at_level(logging.WARNING):
+        assert _read(
+            tmp_path,
+            # void, with the date of a clock that is not set yet, and empty
+            _rmc("000001.00", date="060180", status="V"),
+            _sentence("GPRMC,,V,,,,,,,,,,N"),
+            # no fix, with and without a time
+            _sentence("GPGGA,024635.00,,,,,0,00,99.99,,,,,,"),
+            _sentence("GPGGA,,,,,,0,00,,,M,,M,,"),
+            _rmc("024636.00"),
+            _gga("024636.00"),
+        ) == [_fix("02:46:36")]
+
+    # They are not malformed
+    assert not caplog.text
 
 
 def test_a_void_rmc_gives_no_date(tmp_path):
@@ -182,6 +188,65 @@ def test_a_log_of_another_day_appended(tmp_path):
         _fix("18:00:00", date="2022-12-21"),
         _fix("09:00:00", date="2022-12-24", lat=37.588435),
     ]
+
+
+def test_a_malformed_sentence_is_skipped_with_a_warning(tmp_path, caplog):
+    """One failed the whole file, and every image geotagged from it"""
+    bad_checksum = _gga("024636.50", talker="GL")[:-2] + "00"
+    with caplog.at_level(logging.WARNING):
+        assert _read(
+            tmp_path,
+            _rmc("024636.00"),
+            _gga("024636.00"),
+            bad_checksum,
+            _rmc("024637.00"),
+            _gga("024637.00"),
+        ) == [_fix("02:46:36"), _fix("02:46:37")]
+
+    assert "Skipping 1 of the 5 RMC and GGA sentences of the NMEA file" in caplog.text
+    assert "on line 3 (checksum does not match: 00 != " in caplog.text
+    assert bad_checksum in caplog.text
+
+
+@pytest.mark.parametrize(
+    "malformed",
+    [
+        # pynmea2 leaves the fields it cannot parse strings
+        _gga("0246"),
+        _sentence("GPGGA,024636.50,3735.30670,N,12220.25810,W,x,08,1.0,12.5,M,0.0,M,,"),
+        _gga("024636.50").replace(",12.5,", ",12.x,"),
+        _rmc("024636.50", date="2212x2"),
+        # and fails to compute the position from them
+        _gga("024636.50", lat="37x5.30670"),
+        # junk after the sentence type
+        "$GPGGA,\x01\x02",
+    ],
+)
+def test_malformed_fields_are_skipped(tmp_path, caplog, malformed):
+    with caplog.at_level(logging.WARNING):
+        assert _read(
+            tmp_path,
+            _rmc("024636.00"),
+            _gga("024636.00"),
+            malformed,
+            _rmc("024637.00"),
+            _gga("024637.00"),
+        ) == [_fix("02:46:36"), _fix("02:46:37")]
+
+    assert "Skipping 1 of the 5 RMC and GGA sentences" in caplog.text
+
+
+@pytest.mark.parametrize(
+    "lines",
+    [
+        [_rmc("024636.00")[:-2] + "00", _gga("024636.00")[:-2] + "00"],
+        [_rmc("024636.00"), _gga("0246")],
+    ],
+)
+def test_malformed_sentences_and_no_fix_fail_the_file(tmp_path, lines):
+    """As a file that is not NMEA does, rather than as one without a fix"""
+    with pytest.raises(ValueError):
+        _read(tmp_path, *lines)
 
 
 def test_gga_without_any_date_give_no_points(tmp_path, caplog):
