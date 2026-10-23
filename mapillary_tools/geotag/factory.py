@@ -197,6 +197,9 @@ def process(
     # those sources, to report if no other source geotags them or fails to
     unread_videos: dict[Path, list[SourceType]] = {}
 
+    # Paths let through to any source
+    handed_paths: set[Path] = set()
+
     for option in options:
         if option.source in EXTERNAL_GPS_SOURCES:
             option_paths = reprocessable_paths
@@ -215,6 +218,7 @@ def process(
         image_videos, video_paths = _filter_images_and_videos(
             option_paths, option.filetypes
         )
+        handed_paths.update(image_videos, video_paths)
 
         if image_videos:
             image_geotag = _build_image_geotag(option)
@@ -291,16 +295,123 @@ def process(
             break
 
     final_metadatas.extend(pending_errors.values())
-    # Limited to some types of video, a video that no source read may not be
-    # of any of them, and is left out as the videos found to be of other types
-    if video_types is None:
-        final_metadatas.extend(
-            _describe_unread_video(path, sources)
-            for path, sources in unread_videos.items()
-            if path in reprocessable_paths and path not in pending_errors
+
+    unread_paths = [
+        path
+        for path in unread_videos
+        if path in reprocessable_paths and path not in pending_errors
+    ]
+
+    # Files that no source was let through, as the filetypes of every source
+    # leave them out (e.g. sources for images only, or a source for BlackVue
+    # videos with --filetypes gopro), but those that --filetypes leaves out
+    sourceless_images, sourceless_videos = _filter_images_and_videos(
+        sorted(reprocessable_paths - handed_paths), filetypes
+    )
+
+    if video_types is not None and (unread_paths or sourceless_videos):
+        # Limited to some types of video, a video that no source read may not
+        # be of any of them. Those of other types are left out, as the videos
+        # found to be of other types
+        kept_paths = set(
+            _videos_not_of_other_types(
+                unread_paths + sourceless_videos,
+                video_types,
+                # The same for every option (see process_geotag_properties)
+                num_processes=next(iter(options)).num_processes,
+            )
         )
+        unread_paths = [path for path in unread_paths if path in kept_paths]
+        sourceless_videos = [path for path in sourceless_videos if path in kept_paths]
+
+    final_metadatas.extend(
+        _describe_unread_video(path, unread_videos[path]) for path in unread_paths
+    )
+    final_metadatas.extend(
+        _describe_sourceless_file(path, options, filetypes)
+        for path in sourceless_images + sourceless_videos
+    )
 
     return final_metadatas
+
+
+def _videos_not_of_other_types(
+    video_paths: T.Sequence[Path],
+    video_types: set[types.FileType],
+    num_processes: int | None = None,
+) -> list[Path]:
+    """
+    The videos of **video_paths** that are of the types **video_types**, or of
+    a type that cannot be told: all but those in which the native reader, given
+    those types, recognizes none of them, as process() tells while geotagging
+    (see _is_of_other_type)
+    """
+    LOG.info(
+        f"==> Reading the type of {len(video_paths)} videos that no source can geotag..."
+    )
+    native = SourceOption(
+        SourceType.NATIVE, filetypes=video_types, num_processes=num_processes
+    )
+    video_geotag = geotag_videos_from_video.GeotagVideosFromVideo(
+        filetypes=native.filetypes, num_processes=native.num_processes
+    )
+    other_types = {
+        metadata.filename
+        for metadata in video_geotag.to_description(video_paths)
+        if _is_of_other_type(metadata, native, video_types)
+    }
+    return [path for path in video_paths if path not in other_types]
+
+
+def _describe_sourceless_file(
+    path: Path,
+    options: T.Iterable[SourceOption],
+    filetypes: set[types.FileType] | None,
+) -> types.ErrorMetadata:
+    """
+    Describe a file that no source of **options** was let through, limited to
+    --filetypes **filetypes**, rather than leave it out of the results as if it
+    had not been there
+
+    >>> video_only = SourceOption(SourceType.NATIVE, filetypes={types.FileType.VIDEO})
+    >>> _describe_sourceless_file(Path("i.jpg"), [video_only], None).error
+    MapillaryGeoTaggingError('No geotag source is given for this image: the geotag source native is limited to other file types')
+    >>> # For BlackVue videos, limited to --filetypes gopro
+    >>> blackvue_only = SourceOption(SourceType.NATIVE, filetypes=set())
+    >>> _describe_sourceless_file(Path("v.mp4"), [blackvue_only], {types.FileType.GOPRO}).error
+    MapillaryVideoGPSNotFoundError('--filetypes gopro leaves no geotag source for this video: the geotag source native is limited to other file types')
+    >>> images_only = [
+    ...     SourceOption(SourceType.NATIVE, filetypes={types.FileType.IMAGE}),
+    ...     SourceOption(SourceType.EXIFTOOL_RUNTIME, filetypes={types.FileType.IMAGE}),
+    ... ]
+    >>> filetypes = {types.FileType.IMAGE, types.FileType.GOPRO}
+    >>> _describe_sourceless_file(Path("v.mp4"), images_only, filetypes).error
+    MapillaryVideoGPSNotFoundError('--filetypes gopro,image leaves no geotag source for this video: the geotag sources native, exiftool_runtime are limited to other file types')
+    """
+    kind = "image" if utils.is_image_file(path) else "video"
+    if filetypes is None:
+        no_source = f"No geotag source is given for this {kind}"
+    else:
+        asked_for = ",".join(sorted(filetype.value for filetype in filetypes))
+        no_source = f"--filetypes {asked_for} leaves no geotag source for this {kind}"
+    names = list(dict.fromkeys(option.source.value for option in options))
+    sources = (
+        f"the geotag sources {', '.join(names)} are"
+        if len(names) > 1
+        else f"the geotag source {names[0]} is"
+    )
+    message = f"{no_source}: {sources} limited to other file types"
+    if kind == "image":
+        return types.describe_error_metadata(
+            exceptions.MapillaryGeoTaggingError(message),
+            path,
+            filetype=types.FileType.IMAGE,
+        )
+    return types.describe_error_metadata(
+        exceptions.MapillaryVideoGPSNotFoundError(message),
+        path,
+        filetype=types.FileType.VIDEO,
+    )
 
 
 def _describe_unread_video(
