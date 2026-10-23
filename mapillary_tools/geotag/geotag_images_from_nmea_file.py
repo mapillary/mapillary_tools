@@ -77,8 +77,12 @@ def _read_nmea_points(source_path: Path) -> list[geo.Point]:
 def get_lat_lon_time_from_nmea(nmea_file: Path) -> list[geo.Point]:
     """
     Read the fixes of an NMEA file: the time and position of each GGA
-    sentence, on the date of the last RMC sentence before it, or of the first
-    RMC sentence for the GGA sentences before any.
+    sentence, on the date of the RMC sentence of the same fix. Receivers
+    write the GGA sentence of a fix before or after its RMC sentence, so a
+    GGA sentence takes the date that puts it nearest the fix before it or the
+    RMC sentence after it, whichever it is nearer: the first fix after
+    midnight falls on the next day, also when the RMC sentence with that date
+    follows it.
 
     Receivers log sentences without a fix, such as before they acquire one:
     RMC sentences that are void or have no date or time, and GGA sentences
@@ -98,11 +102,14 @@ def get_lat_lon_time_from_nmea(nmea_file: Path) -> list[geo.Point]:
 
     messages = [pynmea2.parse(line) for line in lines if _SENTENCE_RE.search(line)]
 
-    # Get initial date
-    dates = [_fix_date(m) for m in messages if isinstance(m, pynmea2.RMC)]
-    date = next((d for d in dates if d is not None), None)
-    if date is None:
-        fixes = [m for m in messages if isinstance(m, pynmea2.GGA) and _has_fix(m)]
+    # The RMC sentences with a date, and the GGA sentences with a fix
+    fixes = [
+        m
+        for m in messages
+        if (isinstance(m, pynmea2.RMC) and _fix_date(m) is not None)
+        or (isinstance(m, pynmea2.GGA) and _has_fix(m))
+    ]
+    if not any(isinstance(m, pynmea2.RMC) for m in fixes):
         if fixes:
             LOG.warning(
                 "Ignoring the %d fixes in the NMEA file %s, as no RMC sentence gives their date",
@@ -111,24 +118,72 @@ def get_lat_lon_time_from_nmea(nmea_file: Path) -> list[geo.Point]:
             )
         return []
 
+    # The datetime of the next RMC sentence after each fix
+    next_rmc: list[datetime.datetime | None] = []
+    upcoming: datetime.datetime | None = None
+    for message in reversed(fixes):
+        next_rmc.append(upcoming)
+        if isinstance(message, pynmea2.RMC):
+            upcoming = _rmc_datetime(message)
+    next_rmc.reverse()
+
     # Parse GPS trace
     points = []
     times: set[float] = set()
-    for message in messages:
+    last: datetime.datetime | None = None
+    for message, after in zip(fixes, next_rmc):
         if isinstance(message, pynmea2.RMC):
-            date = _fix_date(message) or date
+            last = _rmc_datetime(message)
+            continue
 
-        elif isinstance(message, pynmea2.GGA) and _has_fix(message):
-            dt = datetime.datetime.combine(date, message.timestamp)
-            time = geo.as_unix_time(dt)
-            if time in times:
-                continue
-            times.add(time)
-            lat, lon, alt = message.latitude, message.longitude, message.altitude
-            points.append(geo.Point(time=time, lat=lat, lon=lon, alt=alt, angle=None))
+        last = _gga_datetime(message.timestamp, last, after)
+        time = geo.as_unix_time(last)
+        if time in times:
+            continue
+        times.add(time)
+        lat, lon, alt = message.latitude, message.longitude, message.altitude
+        points.append(geo.Point(time=time, lat=lat, lon=lon, alt=alt, angle=None))
 
     points.sort()
     return points
+
+
+def _rmc_datetime(message: pynmea2.RMC) -> datetime.datetime:
+    return datetime.datetime.combine(message.datestamp, message.timestamp)
+
+
+def _gga_datetime(
+    time: datetime.time,
+    before: datetime.datetime | None,
+    after: datetime.datetime | None,
+) -> datetime.datetime:
+    """
+    The datetime of a GGA sentence at **time** of day, after the fix **before**
+    it and before the RMC sentence **after** it: on the date, or the day before
+    or after it, that puts it nearest the one of them it is nearer
+
+    >>> before = datetime.datetime(2022, 12, 21, 23, 59, 59)
+    >>> after = datetime.datetime(2022, 12, 22, 0, 0, 0)
+    >>> _gga_datetime(datetime.time(0, 0, 0), before, after)
+    datetime.datetime(2022, 12, 22, 0, 0)
+    >>> _gga_datetime(datetime.time(0, 0, 0), before, None)
+    datetime.datetime(2022, 12, 22, 0, 0)
+    >>> _gga_datetime(datetime.time(23, 59, 59), None, after)
+    datetime.datetime(2022, 12, 21, 23, 59, 59)
+
+    The first fix of a log of another day, appended to the file:
+
+    >>> after = datetime.datetime(2022, 12, 24, 9, 0, 0)
+    >>> _gga_datetime(datetime.time(9, 0, 0), before, after)
+    datetime.datetime(2022, 12, 24, 9, 0)
+    """
+    candidates = [
+        (datetime.datetime.combine(near.date() + datetime.timedelta(days), time), near)
+        for near in (before, after)
+        if near is not None
+        for days in (-1, 0, 1)
+    ]
+    return min(candidates, key=lambda candidate: abs(candidate[0] - candidate[1]))[0]
 
 
 def _fix_date(message: pynmea2.RMC) -> datetime.date | None:
