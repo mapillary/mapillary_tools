@@ -105,29 +105,65 @@ class GeotagVideosFromExifToolXML(GeotagVideosFromGeneric):
 
 
 class GeotagVideosFromExifToolRunner(GeotagVideosFromGeneric):
+    def __init__(self, pattern: str | None = None, num_processes: int | None = None):
+        super().__init__(num_processes=num_processes)
+        # Names the file to read for each video, after the video: by default
+        # the video itself, but the GPS of a stitched video can be in the
+        # original that it was stitched from (e.g. "../%g.insv")
+        self.source_path = (
+            None if pattern is None else options.SourcePathOption(pattern=pattern)
+        )
+
     @override
     def _generate_video_extractors(
         self, video_paths: T.Sequence[Path]
     ) -> T.Sequence[VideoExifToolExtractor | types.ErrorMetadata]:
+        results: list[VideoExifToolExtractor | types.ErrorMetadata] = []
+
+        # The file to read for each video
+        read_paths: dict[Path, Path] = {}
+        for video_path in video_paths:
+            if self.source_path is None:
+                read_path = video_path
+            else:
+                read_path = self.source_path.resolve(video_path)
+            if read_path.is_file():
+                read_paths[video_path] = read_path
+            else:
+                results.append(
+                    types.describe_error_metadata(
+                        exceptions.MapillaryVideoGPSNotFoundError(
+                            f"File not found for video: {read_path}"
+                        ),
+                        video_path,
+                        filetype=types.FileType.VIDEO,
+                    )
+                )
+
+        if not read_paths:
+            return results
+
+        # Not -fast, which skips the trailer that holds the GPS of an Insta360
+        # original
         if constants.EXIFTOOL_PATH is None:
-            runner = ExiftoolRunner()
+            runner = ExiftoolRunner(fast=False)
         else:
-            runner = ExiftoolRunner(constants.EXIFTOOL_PATH)
+            runner = ExiftoolRunner(constants.EXIFTOOL_PATH, fast=False)
 
         LOG.debug(
             "Extracting XML from %d videos with ExifTool command: %s",
-            len(video_paths),
+            len(read_paths),
             " ".join(runner._build_args_read_stdin()),
         )
         try:
-            xml = runner.extract_xml(video_paths)
+            xml = runner.extract_xml(list(dict.fromkeys(read_paths.values())))
         except FileNotFoundError as ex:
             exiftool_ex = exceptions.MapillaryExiftoolNotFoundError(ex)
-            return [
+            return results + [
                 types.describe_error_metadata(
                     exiftool_ex, video_path, filetype=types.FileType.VIDEO
                 )
-                for video_path in video_paths
+                for video_path in read_paths
             ]
 
         try:
@@ -144,6 +180,13 @@ class GeotagVideosFromExifToolRunner(GeotagVideosFromGeneric):
                 xml_element
             )
 
-        return GeotagVideosFromExifToolXML.build_video_extractors_from_etree(
-            rdf_by_path, video_paths
+        # Each video with the metadata of the file read for it
+        rdf_by_video_path = {
+            exiftool_read.canonical_path(video_path): rdf
+            for video_path, read_path in read_paths.items()
+            if (rdf := rdf_by_path.get(exiftool_read.canonical_path(read_path)))
+            is not None
+        }
+        return results + GeotagVideosFromExifToolXML.build_video_extractors_from_etree(
+            rdf_by_video_path, list(read_paths)
         )

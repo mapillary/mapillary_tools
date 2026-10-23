@@ -15,14 +15,22 @@ class ExiftoolRunner:
     Wrapper around ExifTool to run it in a subprocess
     """
 
-    def __init__(self, exiftool_executable: str = "exiftool", recursive: bool = False):
+    def __init__(
+        self,
+        exiftool_executable: str = "exiftool",
+        recursive: bool = False,
+        fast: bool = True,
+    ):
         self.exiftool_executable = exiftool_executable
         self.recursive = recursive
+        # -fast skips metadata at the end of a file, such as the trailer that
+        # holds the GPS of an Insta360 original (.insv)
+        self.fast = fast
 
     def _build_args_read_stdin(self) -> list[str]:
         args: list[str] = [
             self.exiftool_executable,
-            "-fast",
+            *(["-fast"] if self.fast else []),
             "-q",
             "-n",  # Disable print conversion
             "-X",  # XML output

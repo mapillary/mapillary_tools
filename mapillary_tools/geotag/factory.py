@@ -765,8 +765,12 @@ def _build_video_geotag(option: SourceOption) -> base.GeotagVideosFromGeneric | 
         )
 
     if option.source is SourceType.EXIFTOOL_RUNTIME:
+        # Only by its own pattern: the source path that --geotag_source_path, or
+        # the video import path in video_process, gives every source is not one
+        # for exiftool to read
         return geotag_videos_from_exiftool.GeotagVideosFromExifToolRunner(
-            num_processes=option.num_processes
+            pattern=None if option.source_path is None else option.source_path.pattern,
+            num_processes=option.num_processes,
         )
 
     elif option.source is SourceType.EXIFTOOL_XML:
