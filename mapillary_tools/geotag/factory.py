@@ -47,6 +47,10 @@ _VIDEO_TYPE_OF_LEGACY_SOURCE = {
     SourceType.CAMM: types.FileType.CAMM,
 }
 
+# The XML that the exiftool_xml source reads for a file, without a source path
+# or a pattern: the output of `exiftool -X` for it, named after it
+_EXIFTOOL_XML_DEFAULT_PATTERN = "%g.xml"
+
 # Sources that read a GPS track from outside the video file, as opposed to
 # re-reading the telemetry embedded in it
 EXTERNAL_GPS_SOURCES = frozenset({SourceType.GPX, SourceType.NMEA})
@@ -643,6 +647,20 @@ def _ensure_source_path(option: SourceOption) -> Path:
     return option.source_path.source_path
 
 
+def _exiftool_xml_source_path(option: SourceOption) -> SourcePathOption:
+    """
+    Where the exiftool_xml source finds the XML of an image or a video: at its
+    source path or by its pattern, or by default, as the README documents, in
+    the XML named after the file beside it
+
+    >>> _exiftool_xml_source_path(SourceOption(SourceType.EXIFTOOL_XML))
+    SourcePathOption(pattern='%g.xml', source_path=None)
+    """
+    if option.source_path is None:
+        return SourcePathOption(pattern=_EXIFTOOL_XML_DEFAULT_PATTERN)
+    return option.source_path
+
+
 def _build_image_geotag(option: SourceOption) -> base.GeotagImagesFromGeneric | None:
     """
     Build a GeotagImagesFromGeneric object based on the provided option.
@@ -663,14 +681,8 @@ def _build_image_geotag(option: SourceOption) -> base.GeotagImagesFromGeneric | 
         )
 
     elif option.source is SourceType.EXIFTOOL_XML:
-        # This is to ensure 'video_process --geotag={"source": "exiftool_xml", "source_path": "/tmp/xml_path"}'
-        # to work
-        if option.source_path is None:
-            raise exceptions.MapillaryBadParameterError(
-                "source_path must be provided for EXIFTOOL_XML source"
-            )
         return geotag_images_from_exiftool.GeotagImagesFromExifToolWithSamples(
-            source_path=option.source_path,
+            source_path=_exiftool_xml_source_path(option),
             num_processes=option.num_processes,
         )
 
@@ -758,12 +770,8 @@ def _build_video_geotag(option: SourceOption) -> base.GeotagVideosFromGeneric | 
         )
 
     elif option.source is SourceType.EXIFTOOL_XML:
-        if option.source_path is None:
-            raise exceptions.MapillaryBadParameterError(
-                "source_path must be provided for EXIFTOOL_XML source"
-            )
         return geotag_videos_from_exiftool.GeotagVideosFromExifToolXML(
-            source_path=option.source_path,
+            source_path=_exiftool_xml_source_path(option),
         )
 
     elif option.source is SourceType.GPX:

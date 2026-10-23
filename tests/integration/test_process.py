@@ -17,6 +17,7 @@ from .fixtures import (
     assert_contains_image_descs,
     assert_descs_exact_equal,
     EXECUTABLE,
+    EXIFTOOL_EXECUTABLE,
     pytest_skip_if_not_exiftool_installed,
     run_command,
     run_exiftool_and_generate_geotag_args,
@@ -1170,6 +1171,55 @@ def test_process_geotag_with_exiftool_xml_pattern(setup_data: py.path.local):
     )
 
     assert_descs_exact_equal(exiftool_descs, native_descs)
+
+
+def test_process_geotag_with_exiftool_xml_default_pattern(setup_data: py.path.local):
+    """
+    Without a source path or a pattern, exiftool_xml reads the XML named after
+    each image and video, beside it: %g.xml, as the README documents
+    """
+    pytest_skip_if_not_exiftool_installed()
+
+    paths = [
+        str(setup_data.join("images")),
+        str(setup_data.join("gopro_data").join("max-360mode.mp4")),
+    ]
+    subprocess.run(
+        [
+            EXIFTOOL_EXECUTABLE,
+            *["-fast", "-q", "-n", "-X", "-ee"],
+            *["-api", "LargeFileSupport=1"],
+            *["-w!", "%d%f.xml"],
+            *paths,
+        ],
+        check=True,
+    )
+    assert setup_data.join("gopro_data").join("max-360mode.xml").check()
+
+    native_descs = run_process_for_descs([*["--geotag_source", "native"], *paths])
+
+    descs = run_process_for_descs([*["--geotag_source", "exiftool_xml"], *paths])
+    assert_descs_exact_equal(native_descs, descs)
+
+    native_video_descs = run_process_for_descs(
+        [*["--video_geotag_source", "native"], paths[1]]
+    )
+    video_descs = run_process_for_descs(
+        [*["--video_geotag_source", "exiftool_xml"], paths[1]]
+    )
+    assert_descs_exact_equal(native_video_descs, video_descs)
+
+
+def test_process_geotag_with_exiftool_xml_default_pattern_missing_file(
+    setup_data: py.path.local,
+):
+    video_path = setup_data.join("videos").join("sample-5s.mp4")
+    descs = run_process_for_descs(
+        [*["--video_geotag_source", "exiftool_xml"], str(video_path)]
+    )
+
+    assert len(descs) == 1
+    assert descs[0]["error"]["type"] == "MapillaryExifToolXMLNotFoundError"
 
 
 def test_process_geotag_with_exiftool_xml_pattern_missing_file(
