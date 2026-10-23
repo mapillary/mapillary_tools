@@ -188,18 +188,126 @@ class TestProcess:
         assert isinstance(result, types.VideoMetadata)
         assert called == DEFAULT_CHAIN
 
-    def test_video_that_no_source_can_read_is_left_out(self, monkeypatch):
+    @pytest.mark.parametrize(
+        "filetypes", [None, GOPRO, {types.FileType.GOPRO, types.FileType.BLACKVUE}]
+    )
+    def test_video_of_a_type_asked_for_that_no_source_can_read_is_reported(
+        self, filetypes
+    ):
         """
-        Its type is not known without reading it, so it may not be of any of the
-        types asked for
+        It was left out, as if it had not been there, when --filetypes was
+        given. Its type is read to tell, by the native reader
         """
-        results, _ = _run_chain(monkeypatch, _options(SourceType.EXIF), {}, GOPRO)
+        video = DATA / "gopro_data" / "max-360mode.mp4"
+        [result] = _process_without_stubs([video], _options(SourceType.EXIF), filetypes)
+        assert isinstance(result, types.ErrorMetadata)
+        assert result.filename == video
+        assert "cannot geotag videos" in str(result.error)
+
+    @pytest.mark.parametrize(
+        ("video", "filetypes"),
+        [
+            (DATA / "videos" / "sample-5s.mp4", GOPRO),
+            (DATA / "gopro_data" / "max-360mode.mp4", {types.FileType.BLACKVUE}),
+        ],
+    )
+    def test_video_of_another_type_that_no_source_can_read_is_left_out(
+        self, video, filetypes
+    ):
+        results = _process_without_stubs([video], _options(SourceType.EXIF), filetypes)
         assert results == []
 
-        results, _ = _run_chain(monkeypatch, _options(SourceType.EXIF), {}, None)
-        [result] = results
+
+def _blackvue_source_and_default_image_sources() -> list[SourceOption]:
+    """
+    --video_geotag_source '{"source": "native", "filetypes": ["blackvue"]}' and
+    the default sources for images, as process_geotag_properties() makes them
+    """
+    return [
+        SourceOption(SourceType.NATIVE, filetypes={types.FileType.BLACKVUE}),
+        SourceOption(SourceType.NATIVE, filetypes={types.FileType.IMAGE}),
+        SourceOption(SourceType.EXIFTOOL_RUNTIME, filetypes={types.FileType.IMAGE}),
+    ]
+
+
+class TestFilesNoSourceIsGiven:
+    """
+    The filetypes of every source, limited to --filetypes if given, can leave
+    out a file, which --filetypes lets in. It was left out, as if it had not
+    been there
+    """
+
+    def test_video_of_a_type_asked_for_is_reported(self):
+        video = DATA / "gopro_data" / "max-360mode.mp4"
+        [result] = _process_without_stubs(
+            [video], _blackvue_source_and_default_image_sources(), GOPRO
+        )
         assert isinstance(result, types.ErrorMetadata)
-        assert "cannot geotag videos" in str(result.error)
+        assert isinstance(result.error, exceptions.MapillaryVideoGPSNotFoundError)
+        assert result.filename == video
+        assert str(result.error) == (
+            "--filetypes gopro leaves no geotag source for this video: the geotag "
+            "sources native, exiftool_runtime are limited to other file types"
+        )
+
+    def test_video_of_another_type_is_left_out(self):
+        video = DATA / "videos" / "sample-5s.mp4"
+        results = _process_without_stubs(
+            [video], _blackvue_source_and_default_image_sources(), GOPRO
+        )
+        assert results == []
+
+    def test_any_video_with_filetypes_video(self):
+        video = DATA / "videos" / "sample-5s.mp4"
+        [result] = _process_without_stubs(
+            [video],
+            [SourceOption(SourceType.EXIF, filetypes={types.FileType.IMAGE})],
+            {types.FileType.VIDEO},
+        )
+        assert isinstance(result, types.ErrorMetadata)
+        assert str(result.error).startswith(
+            "--filetypes video leaves no geotag source for this video"
+        )
+
+    def test_image(self):
+        image = DATA / "images" / "DSC00001.JPG"
+        options = [SourceOption(SourceType.NATIVE, filetypes={types.FileType.VIDEO})]
+        [result] = _process_without_stubs([image], options, {types.FileType.IMAGE})
+        assert isinstance(result, types.ErrorMetadata)
+        assert isinstance(result.error, exceptions.MapillaryGeoTaggingError)
+        assert result.filetype is types.FileType.IMAGE
+
+    @pytest.mark.parametrize(
+        ("path", "source_filetype", "kind"),
+        [
+            (DATA / "images" / "DSC00001.JPG", types.FileType.VIDEO, "image"),
+            (DATA / "videos" / "sample-5s.mp4", types.FileType.IMAGE, "video"),
+        ],
+    )
+    def test_without_filetypes(self, path, source_filetype, kind):
+        """
+        Left out by the filetypes of the sources alone. Without --filetypes no
+        type is left out, so a video is reported without reading its type
+        """
+        options = [SourceOption(SourceType.NATIVE, filetypes={source_filetype})]
+        [result] = _process_without_stubs([path], options, None)
+        assert isinstance(result, types.ErrorMetadata)
+        assert str(result.error) == (
+            f"No geotag source is given for this {kind}: the geotag source native "
+            "is limited to other file types"
+        )
+
+
+def _process_without_stubs(
+    paths: T.Sequence[Path],
+    options: T.Sequence[SourceOption],
+    filetypes: set[types.FileType] | None,
+) -> list[types.MetadataOrError]:
+    """factory.process() as process_geotag_properties() calls it, in this process"""
+    for option in options:
+        option.filetypes = types.combine_filetype_filters(option.filetypes, filetypes)
+        option.num_processes = 0
+    return factory.process(paths, options, filetypes)
 
 
 class TestNativeVideoExtractor:

@@ -663,6 +663,67 @@ def test_process_filetypes_of_videos(setup_data: py.path.local):
     ]
 
 
+def test_process_filetypes_of_videos_no_source_can_read(setup_data: py.path.local):
+    """
+    A video of a type asked for, given only sources that cannot geotag videos,
+    is failed as without --filetypes. It was left out of the results
+    """
+    videos = [
+        str(setup_data.join("gopro_data").join("max-360mode.mp4")),
+        str(setup_data.join("videos").join("sample-5s.mp4")),
+    ]
+    descs = run_process_for_descs(
+        ["--filetypes=gopro", "--geotag_source=exif", *videos]
+    )
+    assert [(Path(d["filename"]).name, d["error"]["message"]) for d in descs] == [
+        ("max-360mode.mp4", "The geotag source exif cannot geotag videos")
+    ]
+
+    assert [] == run_process_for_descs(
+        ["--filetypes=blackvue", "--geotag_source=exif", *videos]
+    )
+
+
+def test_process_filetypes_no_source_is_given(setup_data: py.path.local):
+    """
+    The filetypes of every source, limited to --filetypes if given, can leave
+    out a file, which --filetypes lets in. It was left out of the results
+    """
+    videos = [
+        str(setup_data.join("gopro_data").join("max-360mode.mp4")),
+        str(setup_data.join("videos").join("sample-5s.mp4")),
+    ]
+    image_source = ['--geotag_source={"source": "native", "filetypes": ["image"]}']
+    descs = run_process_for_descs([*image_source, *videos])
+    assert sorted((Path(d["filename"]).name, d["error"]["message"]) for d in descs) == [
+        (
+            name,
+            "No geotag source is given for this video: the geotag source native "
+            "is limited to other file types",
+        )
+        for name in ["max-360mode.mp4", "sample-5s.mp4"]
+    ]
+
+    blackvue_source = [
+        "--video_geotag_source",
+        '{"source": "native", "filetypes": ["blackvue"]}',
+    ]
+    descs = run_process_for_descs(["--filetypes=gopro", *blackvue_source, *videos])
+    assert [(Path(d["filename"]).name, d["error"]["message"]) for d in descs] == [
+        (
+            "max-360mode.mp4",
+            "--filetypes gopro leaves no geotag source for this video: the geotag "
+            "sources native, exiftool_runtime are limited to other file types",
+        )
+    ]
+
+    image_dir = setup_data.join("images")
+    video_source = ['--geotag_source={"source": "native", "filetypes": ["video"]}']
+    descs = run_process_for_descs(["--filetypes=image", *video_source, str(image_dir)])
+    assert descs
+    assert {d["error"]["type"] for d in descs} == {"MapillaryGeoTaggingError"}
+
+
 def test_process_video_geotag_source_with_gpx_specified(setup_data: py.path.local):
     video_path = setup_data.join("videos").join("sample-5s.mp4")
     gpx_file = setup_data.join("gpx").join("sf_30km_h.gpx")
