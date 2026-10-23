@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 import datetime
 import logging
 import os
@@ -808,6 +809,10 @@ def _sample_single_video_by_interval(
                 f"Unable to extract video start time from {video_path}"
             )
 
+    # Located along the video's own GPS track, as distance samples are
+    track = _read_track_for_interval_samples(video_path, geotag_options)
+    interpolator = geo.Interpolator([track.points]) if track is not None else None
+
     stream_specifier = _interval_stream_specifier(probe)
     # The stream sampled, whether it is the only one or not
     video_stream = probe.probe_video_with_max_resolution()
@@ -835,7 +840,78 @@ def _sample_single_video_by_interval(
             exif_edit = ExifEdit(sample_paths[0])
             exif_edit.add_date_time_original(timestamp)
             exif_edit.add_gps_datetime(timestamp)
+            if (
+                track is not None
+                and interpolator is not None
+                and _within_track_time_range_buffered(track.points, video_time)
+            ):
+                _add_position(exif_edit, track, interpolator.interpolate(video_time))
             exif_edit.write()
+
+
+def _read_track_for_interval_samples(
+    video_path: Path, geotag_options: T.Sequence[SourceOption]
+) -> types.VideoMetadata | None:
+    """
+    The video's own GPS track, which its interval samples are located along
+    as distance samples are, or None to leave their positions to the
+    geotagging stage. That places them by their capture times along a GPX or
+    NMEA track, which interval sampling, unlike distance sampling, does not
+    place along the video: it stamps a video without a GPS clock from its
+    creation time, rather than from the start of the track
+    """
+    if any(option.source in factory.EXTERNAL_GPS_SOURCES for option in geotag_options):
+        return None
+
+    # Through the factory with the same sources as distance sampling, which
+    # reads the video's own GPS by default (see _parse_geotag_options()). One
+    # video is read in this process rather than in a pool of its own
+    video_metadatas = factory.process(
+        [video_path],
+        [
+            dataclasses.replace(option, num_processes=0)
+            for option in geotag_options or [SourceOption(SourceType.NATIVE)]
+        ],
+    )
+    assert len(video_metadatas) == 1, "expect 1 video metadata"
+    video_metadata = video_metadatas[0]
+    if isinstance(video_metadata, types.ErrorMetadata):
+        LOG.warning(
+            "The samples of %s are not geotagged, as no GPS track was read from it: %s",
+            video_path.name,
+            video_metadata.error,
+        )
+        return None
+
+    assert isinstance(video_metadata, types.VideoMetadata), (
+        f"expect VideoMetadata but got {type(video_metadata).__name__}"
+    )
+    if not video_metadata.points:
+        LOG.warning(
+            "The samples of %s are not geotagged, as it has no GPS points",
+            video_path.name,
+        )
+        return None
+
+    return video_metadata
+
+
+def _add_position(
+    exif_edit: ExifEdit, video_metadata: types.VideoMetadata, point: geo.Point
+) -> None:
+    """
+    Write the position of a sample, and the camera of the video it was cut
+    from, as distance sampling writes them
+    """
+    exif_edit.add_lat_lon(point.lat, point.lon)
+    if point.alt is not None:
+        exif_edit.add_altitude(point.alt)
+    if point.angle is not None:
+        exif_edit.add_direction(point.angle)
+    if video_metadata.make:
+        exif_edit.add_make(video_metadata.make)
+    if video_metadata.model:
+        exif_edit.add_model(video_metadata.model)
 
 
 def _within_track_time_range_buffered(points, t: float) -> bool:
@@ -1131,13 +1207,5 @@ def _sample_single_video_by_distance(
             exif_edit = ExifEdit(sample_paths[0])
             exif_edit.add_date_time_original(timestamp)
             exif_edit.add_gps_datetime(timestamp)
-            exif_edit.add_lat_lon(interp.lat, interp.lon)
-            if interp.alt is not None:
-                exif_edit.add_altitude(interp.alt)
-            if interp.angle is not None:
-                exif_edit.add_direction(interp.angle)
-            if video_metadata.make:
-                exif_edit.add_make(video_metadata.make)
-            if video_metadata.model:
-                exif_edit.add_model(video_metadata.model)
+            _add_position(exif_edit, video_metadata, interp)
             exif_edit.write()

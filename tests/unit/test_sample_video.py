@@ -413,6 +413,150 @@ class TestSampleTimelapseByInterval:
         )
 
 
+class TestLocateIntervalSamples:
+    """
+    Interval samples are located along the video's own GPS track, as distance
+    samples are, so that the geotagging stage finds their positions in them
+    """
+
+    GPS_START_TIME = datetime.datetime(
+        2021, 8, 10, 6, 38, 6, tzinfo=datetime.timezone.utc
+    )
+
+    # The position of the image that MOCK_FFMPEG copies for each sample
+    MOCK_SAMPLE_LON_LAT = (14.498805555555554, 35.91251666666667)
+
+    @classmethod
+    def _points(cls, seconds: int) -> list[geo.Point]:
+        # One point per second of video, recorded in real time
+        return [
+            telemetry.GPSPoint(
+                time=float(i),
+                lat=40.0 + i * 0.001,
+                lon=-74.0,
+                alt=100.0 + i,
+                angle=None,
+                epoch_time=cls.GPS_START_TIME.timestamp() + i,
+                fix=None,
+                precision=None,
+                ground_speed=None,
+            )
+            for i in range(seconds)
+        ]
+
+    @staticmethod
+    def _video_metadata(video_path: Path, points: T.Sequence[geo.Point]):
+        return VideoMetadata(
+            filename=video_path,
+            filetype=FileType.GOPRO,
+            points=list(points),
+            make="GoPro",
+            model="HERO7 Black",
+        )
+
+    def _sample(self, tmpdir, monkeypatch, track_points, **kwargs) -> list[Path]:
+        clock_points = self._points(60)
+        monkeypatch.setattr(
+            sample_video,
+            "NativeVideoExtractor",
+            lambda video_path: mock.Mock(
+                extract=lambda: self._video_metadata(video_path, clock_points)
+            ),
+        )
+        self.track_calls: list[list[SourceOption]] = []
+
+        def fake_process(paths, options):
+            self.track_calls.append(list(options))
+            [video_path] = paths
+            if isinstance(track_points, Exception):
+                return [
+                    describe_error_metadata(
+                        track_points, video_path, filetype=FileType.VIDEO
+                    )
+                ]
+            return [self._video_metadata(video_path, track_points)]
+
+        monkeypatch.setattr(sample_video.factory, "process", fake_process)
+
+        root = _PWD.joinpath("data/mock_sample_video")
+        sample_dir = tmpdir.mkdir("sampled_video_frames")
+        sample_video.sample_video(
+            root.joinpath("videos"),
+            Path(sample_dir),
+            video_sample_distance=-1,
+            video_sample_interval=2,
+            rerun=True,
+            **kwargs,
+        )
+        return sorted(Path(s) for s in sample_dir.join("hello.mp4").listdir())
+
+    def test_located_along_the_video_track(self, tmpdir, setup_mock, monkeypatch):
+        samples = self._sample(tmpdir, monkeypatch, self._points(60))
+
+        _validate_interval(samples, self.GPS_START_TIME)
+        for idx, sample in enumerate(samples):
+            exif = exif_read.ExifRead(sample)
+            # At the video time of the sample, 2 seconds apart
+            lon_lat = exif.extract_lon_lat()
+            assert lon_lat is not None
+            assert lon_lat == pytest.approx((-74.0, 40.0 + 2 * idx * 0.001))
+            assert exif.extract_altitude() == pytest.approx(100.0 + 2 * idx)
+            # The bearing of the track, northwards
+            assert exif.extract_direction() == pytest.approx(0.0)
+            assert exif.extract_make() == "GoPro"
+            assert exif.extract_model() == "HERO7 Black"
+        # By the sources distance sampling reads, in this process
+        [options] = self.track_calls
+        assert [(o.source, o.num_processes) for o in options] == [
+            (SourceType.NATIVE, 0)
+        ]
+
+    def test_samples_past_the_track_are_not_located(
+        self, tmpdir, setup_mock, monkeypatch
+    ):
+        # The track ends 20 seconds into the video
+        samples = self._sample(tmpdir, monkeypatch, self._points(21))
+
+        lon_lats = [exif_read.ExifRead(s).extract_lon_lat() for s in samples]
+        assert lon_lats[10] == pytest.approx((-74.0, 40.020))
+        assert all(lon_lat == self.MOCK_SAMPLE_LON_LAT for lon_lat in lon_lats[11:])
+
+    def test_not_located_without_a_track(self, tmpdir, setup_mock, monkeypatch, caplog):
+        with caplog.at_level(logging.WARNING, logger=sample_video.LOG.name):
+            samples = self._sample(
+                tmpdir,
+                monkeypatch,
+                exceptions.MapillaryVideoGPSNotFoundError("No GPS data found"),
+            )
+
+        _validate_interval(samples, self.GPS_START_TIME)
+        assert all(
+            exif_read.ExifRead(s).extract_lon_lat() == self.MOCK_SAMPLE_LON_LAT
+            for s in samples
+        )
+        assert (
+            "The samples of hello.mp4 are not geotagged, as no GPS track was read from it: No GPS data found"
+            in caplog.text
+        )
+
+    @pytest.mark.parametrize("source", [SourceType.GPX, SourceType.NMEA])
+    def test_not_located_with_a_track_file(self, monkeypatch, source):
+        """
+        The geotagging stage places the samples along a GPX or NMEA track by
+        their capture times, which interval sampling does not place the track by
+        """
+        process = mock.Mock()
+        monkeypatch.setattr(sample_video.factory, "process", process)
+
+        track = sample_video._read_track_for_interval_samples(
+            Path("video.mp4"),
+            [SourceOption(source), SourceOption(SourceType.NATIVE)],
+        )
+
+        assert track is None
+        process.assert_not_called()
+
+
 class TestSampleNoisyTimelapseByInterval:
     """
     GPS rejected as noise gives interval sampling no telemetry to read a clock

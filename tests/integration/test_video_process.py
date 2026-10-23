@@ -18,6 +18,7 @@ import pytest
 
 from .fixtures import (
     assert_contains_image_descs,
+    assert_same_image_descs,
     EXIFTOOL_EXECUTABLE,
     pytest_skip_if_not_exiftool_installed,
     pytest_skip_if_not_ffmpeg_installed,
@@ -182,6 +183,44 @@ def test_video_process_by_distance_with_a_video_geotag_source_only(
 
     assert descs
     assert all("error" not in desc for desc in descs), descs
+
+
+def test_video_process_by_interval_with_the_default_geotag_sources(
+    setup_data: py.path.local,
+):
+    """
+    Interval samples are located along the video's own GPS track, as distance
+    samples are, where the legacy source that geotags images from videos would
+    place them. They used to carry no position, and the default sources failed
+    every one of them
+    """
+    pytest_skip_if_not_ffmpeg_installed()
+
+    video_path = setup_data.join("gopro_data").join("max-360mode.mp4")
+    interval = ["--video_sample_interval=2", "--video_sample_distance=-1"]
+
+    with tempfile.TemporaryDirectory() as dir:
+        descs = run_video_process_for_descs([*interval, str(video_path), dir])
+        sample_dir = Path(dir, "max-360mode.mp4")
+        assert descs
+        assert all("error" not in desc for desc in descs), descs
+
+        # sample_video and process, as video_process runs them
+        process_descs = run_process_for_descs([str(sample_dir)])
+        assert_same_image_descs(process_descs, descs)
+
+    with tempfile.TemporaryDirectory() as dir:
+        legacy_descs = run_video_process_for_descs(
+            [*interval, "--geotag_source=gopro_videos", str(video_path), dir]
+        )
+
+    by_name = {Path(d["filename"]).name: d for d in descs}
+    assert len(by_name) == len(legacy_descs)
+    for legacy in legacy_descs:
+        desc = by_name[Path(legacy["filename"]).name]
+        assert desc["MAPCaptureTime"] == legacy["MAPCaptureTime"]
+        assert desc["MAPLatitude"] == pytest.approx(legacy["MAPLatitude"], abs=1e-7)
+        assert desc["MAPLongitude"] == pytest.approx(legacy["MAPLongitude"], abs=1e-7)
 
 
 def _with_creation_time(video: py.path.local, creation_time: str, dir: str) -> Path:

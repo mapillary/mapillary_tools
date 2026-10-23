@@ -124,12 +124,18 @@ class ExifEdit:
             )
 
     def add_altitude(self, altitude: float) -> None:
-        """Add altitude."""
+        """
+        Add altitude. The terms of an EXIF rational are 32-bit, which limits the
+        denominator of altitudes above 4293 m
+        """
 
         ref = 0 if altitude > 0 else 1
+        max_denominator = min(
+            1_000_000, max(1, (2**32 - 1) // (math.ceil(math.fabs(altitude)) + 1))
+        )
         self._ef["GPS"][piexif.GPSIFD.GPSAltitude] = (
             Fraction.from_float(math.fabs(altitude))
-            .limit_denominator()
+            .limit_denominator(max_denominator)
             .as_integer_ratio()
         )
         self._ef["GPS"][piexif.GPSIFD.GPSAltitudeRef] = ref
