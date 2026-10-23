@@ -85,30 +85,26 @@ def test_samples_are_placed_by_their_capture_times(tmp_path: Path, rate: float):
     }
 
 
-def test_timelapse_samples_are_placed_by_the_gps_timestamps(tmp_path: Path):
+def test_timelapse_samples_are_placed_by_the_gps_clock(tmp_path: Path):
     """
-    Distance samples are stamped with the GPS time of their video time. A
-    GoPro MAX timelapse can stamp its first point seconds early, and its clock
-    keeps no one rate, so timed at one rate the track placed the samples off,
-    and the last ones past its end.
+    Samples are stamped by the GPS clock of the video. A GoPro MAX timelapse
+    can stamp its first point seconds early, and timed from it, the track
+    placed the samples off, and the last ones past its end.
     """
     video_path = tmp_path / "hello.mp4"
     sample_dir = tmp_path / "samples" / "hello.mp4"
     sample_dir.mkdir(parents=True)
 
-    # 10x, but the first timestamp 3 seconds early and the clock speeding up
-    gps_seconds = [0.0] + [3 + 10 * i + 0.1 * i * i for i in range(1, 10)]
-
-    def stamped(video_time: float) -> datetime.datetime:
-        i = int(video_time)
-        seconds = gps_seconds[i]
-        if i + 1 < len(gps_seconds):
-            seconds += (gps_seconds[i + 1] - gps_seconds[i]) * (video_time - i)
-        return START_TIME + datetime.timedelta(seconds=seconds)
+    # 10x, but the first timestamp 3 seconds early
+    gps_seconds = [0.0] + [3 + 10 * i for i in range(1, 10)]
 
     video_times = [0.0, 0.5, 2.0, 4.5, 8.0, 9.0]
     samples = [
-        _sample(sample_dir, k + 1, stamped(video_time))
+        _sample(
+            sample_dir,
+            k + 1,
+            START_TIME + datetime.timedelta(seconds=3 + 10 * video_time),
+        )
         for k, video_time in enumerate(video_times)
     ]
 
@@ -168,20 +164,18 @@ def test_samples_are_placed_by_their_own_video(tmp_path: Path):
 
 def test_samples_are_placed_along_a_clock_that_gains(tmp_path: Path):
     """
-    Interval samples are stamped along the GPS timestamps of the video. A
-    clock that gains on the video, half a second every 4 seconds, is not a
-    timelapse, and its track timed by the video placed the samples ahead
+    A clock that gains on the video, as a LabPano's runs 8/7 times as fast,
+    is no timelapse, and its track timed by the video placed the samples
+    ahead
     """
     video_path = tmp_path / "hello.mp4"
     sample_dir = tmp_path / "samples" / "hello.mp4"
     sample_dir.mkdir(parents=True)
 
-    gps_seconds = [i + 0.5 * (i // 4) for i in range(10)]
+    gps_seconds = [i * 8 / 7 for i in range(30)]
     samples = [
         _sample(
-            sample_dir,
-            k + 1,
-            START_TIME + datetime.timedelta(seconds=gps_seconds[2 * k]),
+            sample_dir, k + 1, START_TIME + datetime.timedelta(seconds=2 * k * 8 / 7)
         )
         for k in range(5)
     ]

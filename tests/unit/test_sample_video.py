@@ -323,50 +323,60 @@ class TestSampleTimelapseByInterval:
         )
         assert "--video_duration_ratio" not in caplog.text
 
-    def test_capture_times_follow_the_gps_timestamps(
-        self, tmpdir, setup_mock, monkeypatch
-    ):
-        """
-        Not one rate: the GPS clock of a timelapse drifts from it, and distance
-        samples are stamped from the timestamps. The geotagging stage places
-        both kinds of samples along a track timed by them
-        """
-        self._mock_telemetry(monkeypatch, lambda i: 10 * i + 0.1 * i * i)
-
-        samples = sorted(self._sample(tmpdir))
-
-        assert len(samples) > 2
-        for idx, sample in enumerate(samples):
-            video_time = 2 * idx
-            assert exif_read.ExifRead(
-                sample
-            ).extract_capture_time() == self.GPS_START_TIME + datetime.timedelta(
-                seconds=10 * video_time + 0.1 * video_time * video_time
+    def _capture_times(self, samples: T.Sequence[Path]) -> list[float]:
+        """In seconds from GPS_START_TIME"""
+        return [
+            round(
+                (
+                    exif_read.ExifRead(sample).extract_capture_time()
+                    - self.GPS_START_TIME
+                ).total_seconds(),
+                3,
             )
+            for sample in sorted(samples)
+        ]
 
-    def test_a_normal_video_follows_its_gps_timestamps(
+    def test_capture_times_follow_the_gps_clock_without_a_stale_timestamp(
         self, tmpdir, setup_mock, monkeypatch
     ):
         """
-        Not one second per second from the median of its first timestamps: the
-        first can be stale, and the clock of some cameras gains on the video
+        The first GPS timestamp of a GoPro MAX timelapse can be seconds early,
+        and starts neither the clock nor the samples
         """
-        # The first timestamp 5 seconds stale, and half a second gained every
-        # 4 seconds
-        self._mock_telemetry(
-            monkeypatch, lambda i: -5 if i == 0 else i + 0.5 * (i // 4)
+        self._mock_telemetry(monkeypatch, lambda i: -10 if i == 0 else 10 * i)
+
+        capture_times = self._capture_times(self._sample(tmpdir))
+
+        assert len(capture_times) > 2
+        assert capture_times == [20.0 * idx for idx in range(len(capture_times))]
+
+    def test_a_normal_video_follows_its_gps_clock(
+        self, tmpdir, setup_mock, monkeypatch
+    ):
+        """
+        A second per second from the median of its timestamps, not through
+        them: the first can be stale, and the others jitter
+        """
+        # The first timestamp 5 seconds stale, and the others half a second off
+        # the line through them
+        jitter = [0.0, 0.5, -0.5, 0.0]
+        self._mock_telemetry(monkeypatch, lambda i: -5 if i == 0 else i + jitter[i % 4])
+
+        capture_times = self._capture_times(self._sample(tmpdir))
+
+        assert len(capture_times) > 2
+        assert capture_times == [2.0 * idx for idx in range(len(capture_times))]
+
+    def test_a_clock_that_gains_on_the_video(self, tmpdir, setup_mock, monkeypatch):
+        """A LabPano's runs 8/7 times as fast as the video"""
+        self._mock_telemetry(monkeypatch, lambda i: i * 8 / 7)
+
+        capture_times = self._capture_times(self._sample(tmpdir))
+
+        assert len(capture_times) > 2
+        assert capture_times == pytest.approx(
+            [2 * idx * 8 / 7 for idx in range(len(capture_times))], abs=0.001
         )
-
-        samples = sorted(self._sample(tmpdir))
-
-        assert len(samples) > 2
-        for idx, sample in enumerate(samples):
-            video_time = 2 * idx
-            assert exif_read.ExifRead(
-                sample
-            ).extract_capture_time() == self.GPS_START_TIME + datetime.timedelta(
-                seconds=video_time + 0.5 * (video_time // 4)
-            )
 
     def test_from_the_given_start_time(self, tmpdir, setup_mock, timelapse_telemetry):
         video_start_time = "2020_08_10_14_37_05_023"

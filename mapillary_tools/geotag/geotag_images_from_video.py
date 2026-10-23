@@ -20,7 +20,7 @@ from .. import geo, types, utils
 from .base import GeotagImagesFromGeneric
 from .geotag_images_from_gpx import GeotagImagesFromGPX
 from .geotag_videos_from_video import GeotagVideosFromVideo
-from .video_extractors.gpx import GPSTimeline, GPXVideoExtractor
+from .video_extractors.gpx import GPXVideoExtractor
 
 
 LOG = logging.getLogger(__name__)
@@ -109,21 +109,15 @@ class GeotagImagesFromVideo(GeotagImagesFromGeneric):
     ) -> T.Sequence[geo.Point]:
         """
         Time the video's GPS points in GPS seconds from the start of the video,
-        like the samples, which are stamped with their capture times, as its
-        GPS timestamps tell: a timelapse packs several into each second of
+        like the samples, which are stamped with their capture times, at the
+        pace of its GPS clock: a timelapse packs several into each second of
         video, and some clocks gain on the video.
         """
         clock = GPXVideoExtractor._read_video_clock(points)
-        if clock is None:
+        if clock is None or clock.rate == 1.0:
             return points
 
-        timeline = GPSTimeline.read(points, clock.rate)
-        assert timeline is not None, "a GPS clock is read from GPS timestamps"
-        start = timeline.to_unix_time(0.0)
-        return [
-            dataclasses.replace(p, time=timeline.to_unix_time(p.time) - start)
-            for p in points
-        ]
+        return [dataclasses.replace(p, time=p.time * clock.rate) for p in points]
 
 
 class GeotagImageSamplesFromVideo(GeotagImagesFromGeneric):

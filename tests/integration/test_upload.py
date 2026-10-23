@@ -10,7 +10,7 @@ from pathlib import Path
 
 import py.path
 import pytest
-from mapillary_tools.geotag.video_extractors.gpx import GPSTimeline, GPXVideoExtractor
+from mapillary_tools.geotag.video_extractors.gpx import GPXVideoExtractor
 from mapillary_tools.geotag.video_extractors.native import NativeVideoExtractor
 
 from .fixtures import (
@@ -52,9 +52,7 @@ def test_upload_video_with_gpx_running_past_both_ends(
     points = NativeVideoExtractor(Path(video_path)).extract().points
     clock = GPXVideoExtractor._read_video_clock(points)
     assert clock is not None
-    timeline = GPSTimeline.read(points, clock.rate)
-    assert timeline is not None
-    video_start = timeline.to_unix_time(0)
+    video_start = clock.to_unix_time(0)
     # From 12.5 seconds before the video to about 47 seconds after it
     trkpts = "".join(
         f'<trkpt lat="{37.0 + i * 0.0001:.7f}" lon="-122.0"><time>'
@@ -85,8 +83,7 @@ def test_upload_video_with_gpx_running_past_both_ends(
     assert first[0] == 0
     assert first[2] == pytest.approx(37.0 + 12.5 * 0.0001, abs=1e-7)
     assert first[5] == pytest.approx(video_start, abs=1e-3)
-    # The CAMM track of the uploaded video truncates the time between samples
-    assert last[0] == pytest.approx(duration * 1000, abs=2)
+    assert last[0] == pytest.approx(duration * 1000, abs=1)
     assert last[5] == pytest.approx(video_start + duration, abs=1e-3)
 
 

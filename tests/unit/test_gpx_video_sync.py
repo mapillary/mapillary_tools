@@ -27,7 +27,6 @@ from mapillary_tools.geotag.options import (
 )
 from mapillary_tools.geotag.video_extractors import gpx as gpx_extractor
 from mapillary_tools.geotag.video_extractors.gpx import (
-    GPSTimeline,
     GPXVideoExtractor,
     SyncMode,
     VideoClock,
@@ -396,10 +395,8 @@ class TestInterpolationOptions:
             GPS_VIDEO, gpx, VideoSyncOption(), InterpolationOption(offset_time=2)
         )
 
-        # Each point is where the one 2 GPS seconds before it was: the video
-        # is looked up 2 GPS seconds further along the track
-        assert [p.time for p in shifted.points][2:] == pytest.approx(
-            [p.time for p in synced.points][:-2]
+        assert [p.time for p in shifted.points] == pytest.approx(
+            [p.time - 2 for p in synced.points]
         )
 
     def test_use_gpx_start_time_starts_the_track_with_the_video(self, tmp_path):
@@ -467,7 +464,7 @@ class TestGPXStartAtTheFirstFrame:
             InterpolationOption(use_gpx_start_time=True),
         )
 
-        assert metadata.points[0].time == pytest.approx(0.5)
+        assert metadata.points[0].time == 0.5
         assert metadata.points[0].get_unix_time() == _GPS_VIDEO_START.timestamp()
 
     def test_process_starts_the_track_at_time_0(self, tmp_path):
@@ -506,7 +503,7 @@ class TestProcessInterpolationOptions:
     it does when it geotags images from a GPX. It ignored them for videos.
     """
 
-    # 3.624 seconds before the GPS timestamps of GPS_VIDEO place its start
+    # 3.613 seconds before the GPS clock of GPS_VIDEO starts
     START = datetime.datetime(2019, 11, 18, 23, 44, 40, tzinfo=datetime.timezone.utc)
 
     def test_use_gpx_start_time_starts_the_track_with_a_video_with_gps(self, tmp_path):
@@ -518,8 +515,8 @@ class TestProcessInterpolationOptions:
             GPS_VIDEO, gpx, None, InterpolationOption(use_gpx_start_time=True)
         )
 
-        assert synced.points[0].time == pytest.approx(-3.624)
-        assert started.points[0].time == pytest.approx(0, abs=1e-6)
+        assert synced.points[0].time == pytest.approx(-3.613)
+        assert started.points[0].time == 0
 
     def test_the_offset_shifts_the_track_but_not_its_times(self, tmp_path):
         """
@@ -531,8 +528,8 @@ class TestProcessInterpolationOptions:
         synced = _extract(GPS_VIDEO, gpx, None, InterpolationOption())
         shifted = _extract(GPS_VIDEO, gpx, None, InterpolationOption(offset_time=2))
 
-        assert [p.time for p in shifted.points][2:] == pytest.approx(
-            [p.time for p in synced.points][:-2]
+        assert [p.time for p in shifted.points] == pytest.approx(
+            [p.time - 2 for p in synced.points]
         )
         assert [p.get_unix_time() for p in shifted.points] == [
             p.get_unix_time() for p in synced.points
@@ -687,15 +684,6 @@ class TestTimelapseOffset:
             classmethod(
                 lambda cls, points: VideoClock(
                     video_time=0.0, unix_time=start.timestamp(), rate=10.0
-                )
-            ),
-        )
-        monkeypatch.setattr(
-            GPSTimeline,
-            "read",
-            classmethod(
-                lambda cls, points, rate: GPSTimeline(
-                    (0.0,), (start.timestamp(),), rate
                 )
             ),
         )
