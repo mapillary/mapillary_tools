@@ -1055,6 +1055,47 @@ def test_process_video_geotag_source_names_in_readme(setup_data: py.path.local):
         assert [d["error"]["type"] for d in descs] == ["MapillaryVideoGPSNotFoundError"]
 
 
+def test_process_video_geotag_source_with_exiftool_runtime_pattern(
+    setup_data: py.path.local,
+):
+    """
+    As the README geotags a stitched video by the original it was stitched
+    from: exiftool_runtime reads the file that its pattern names after the video
+    """
+    pytest_skip_if_not_exiftool_installed()
+
+    original_path = setup_data.join("gopro_data").join("max-360mode.mp4")
+    stitched_dir = setup_data.join("gopro_data").mkdir("stitched")
+    # A video without GPS of its own, named after the original
+    stitched_path = stitched_dir.join("max-360mode.mp4")
+    setup_data.join("videos").join("sample-5s.mp4").copy(stitched_path)
+
+    descs = run_process_for_descs(
+        [
+            *[
+                "--video_geotag_source",
+                json.dumps({"source": "exiftool_runtime", "pattern": "../%g.mp4"}),
+            ],
+            str(stitched_dir),
+        ]
+    )
+    original_descs = run_process_for_descs(
+        [*["--video_geotag_source", "exiftool_runtime"], str(original_path)]
+    )
+
+    assert [Path(d["filename"]).name for d in descs] == ["max-360mode.mp4"]
+    assert Path(descs[0]["filename"]).parent.name == "stitched"
+    assert descs[0]["MAPDeviceModel"] == "GoPro Max"
+    assert len(descs[0]["MAPGPSTrack"]) > 0
+    assert descs[0]["MAPGPSTrack"] == original_descs[0]["MAPGPSTrack"]
+
+    # Without the pattern, the video's own metadata has no GPS
+    descs = run_process_for_descs(
+        [*["--video_geotag_source", "exiftool_runtime"], str(stitched_dir)]
+    )
+    assert descs[0]["error"]["type"] == "MapillaryVideoGPSNotFoundError"
+
+
 def test_process_geotag_everything_with_exiftool_runtime(setup_data: py.path.local):
     pytest_skip_if_not_exiftool_installed()
 
