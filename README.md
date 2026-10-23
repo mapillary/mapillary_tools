@@ -414,7 +414,7 @@ The new video processing is triggered with the `--video_geotag_source SOURCE` op
 In this case, each source will be tried in turn, until one returns good quality data.
 
 `SOURCE` can be:
-1. the plain name of the source - one of `video, camm, gopro, blackvue, gpx, nmea, exiftool_xml, exiftool_runtime`
+1. the plain name of the source - one of `native, video, camm, gopro, blackvue, gpx, nmea, exiftool_xml, exiftool_runtime`
 2. a JSON object that includes optional parameters
 ```json5
 {
@@ -430,7 +430,8 @@ PATTERN specifies how the data source file is named, starting from the video fil
 
 Supported sources and their default pattern are:
 
-* `video`: parse the video, in order, as `camm, gopro, blackvue`. Pattern: `%f`
+* `native`, or `video`: parse the video looking for geolocation in any format that mapillary_tools reads: GoPro, CAMM,
+BlackVue and others. Pattern: `%f`
 * `camm`: parse the video looking for a CAMM track. Pattern: `%f`
 * `gopro`: parse the video looking for geolocation in GoPro format. Pattern: `%f`
 * `blackvue`: parse the video looking for geolocation in BlackVue format. Pattern: `%f`

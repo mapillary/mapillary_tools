@@ -31,6 +31,7 @@ from .options import (
     SourceOption,
     SourcePathOption,
     SourceType,
+    VIDEO_SOURCE_TYPE_ALIAS,
 )
 
 
@@ -38,12 +39,20 @@ LOG = logging.getLogger(__name__)
 
 _ALL_VIDEO_TYPES = {types.FileType.VIDEO, *types.NATIVE_VIDEO_FILETYPES}
 
+# As a --video_geotag_source, each of the legacy sources that geotag images from
+# videos reads the GPS of the videos of its type, as it did before v0.14
+_VIDEO_TYPE_OF_LEGACY_SOURCE = {
+    SourceType.GOPRO: types.FileType.GOPRO,
+    SourceType.BLACKVUE: types.FileType.BLACKVUE,
+    SourceType.CAMM: types.FileType.CAMM,
+}
+
 # Sources that read a GPS track from outside the video file, as opposed to
 # re-reading the telemetry embedded in it
 EXTERNAL_GPS_SOURCES = frozenset({SourceType.GPX, SourceType.NMEA})
 
 
-def parse_source_option(source: str) -> list[SourceOption]:
+def parse_source_option(source: str, video: bool = False) -> list[SourceOption]:
     """
     Given a source string, parse it into a list of GeotagOptions objects.
 
@@ -53,13 +62,17 @@ def parse_source_option(source: str) -> list[SourceOption]:
         "exif,gpx" -> [SourceOption(SourceType.EXIF), SourceOption(SourceType.GPX)]
         '{"source": "gpx"}' -> [SourceOption(SourceType.GPX)]
 
+    A --video_geotag_source (**video**) takes the names of
+    VIDEO_SOURCE_TYPE_ALIAS too.
+
     Raise MapillaryBadParameterError for an unknown source type, and for a
     JSON object that does not match SourceOptionSchema.
     """
+    aliases = {**SOURCE_TYPE_ALIAS, **VIDEO_SOURCE_TYPE_ALIAS} if video else None
 
     try:
-        source_type = SourceType(SOURCE_TYPE_ALIAS.get(source, source))
-    except ValueError:
+        source_type = _parse_source_type(source, aliases)
+    except exceptions.MapillaryBadParameterError:
         pass
     else:
         return [SourceOption(source_type)]
@@ -69,6 +82,10 @@ def parse_source_option(source: str) -> list[SourceOption]:
     except json.JSONDecodeError:
         pass
     else:
+        if aliases and isinstance(payload, dict):
+            name = payload.get("source")
+            if isinstance(name, str) and name in VIDEO_SOURCE_TYPE_ALIAS:
+                payload = {**payload, "source": VIDEO_SOURCE_TYPE_ALIAS[name].value}
         try:
             return [SourceOption.from_dict(payload)]
         except jsonschema.ValidationError as ex:
@@ -78,17 +95,21 @@ def parse_source_option(source: str) -> list[SourceOption]:
 
     sources = source.split(",")
 
-    return [SourceOption(_parse_source_type(s)) for s in sources]
+    return [SourceOption(_parse_source_type(s, aliases)) for s in sources]
 
 
-def _parse_source_type(source: str) -> SourceType:
+def _parse_source_type(
+    source: str, aliases: T.Mapping[str, SourceType] | None = None
+) -> SourceType:
+    if aliases is None:
+        aliases = SOURCE_TYPE_ALIAS
     try:
-        return SourceType(SOURCE_TYPE_ALIAS.get(source, source))
+        return SourceType(aliases.get(source, source))
     except ValueError:
         raise exceptions.MapillaryBadParameterError(
             f"Invalid geotag source {source!r}. Supported source types: "
             f"{', '.join(s.value for s in SourceType)} "
-            f"(aliases: {', '.join(SOURCE_TYPE_ALIAS)})"
+            f"(aliases: {', '.join(aliases)})"
         ) from None
 
 
@@ -109,11 +130,8 @@ def parse_source_options(
         )
 
     for s in video_geotag_source:
-        for video_option in parse_source_option(s):
-            video_option.filetypes = types.combine_filetype_filters(
-                video_option.filetypes, {types.FileType.VIDEO}
-            )
-            parsed_options.append(video_option)
+        for video_option in parse_source_option(s, video=True):
+            parsed_options.append(_as_video_source(video_option))
 
     for s in geotag_source:
         parsed_options.extend(parse_source_option(s))
@@ -135,6 +153,31 @@ def parse_source_options(
                     )
 
     return parsed_options
+
+
+def _as_video_source(option: SourceOption) -> SourceOption:
+    """
+    Limit a --video_geotag_source option to videos. The legacy gopro, blackvue
+    and camm sources, which otherwise geotag images from videos, read the
+    video's own GPS as the native source does, from the videos of their type
+
+    >>> option = _as_video_source(SourceOption(SourceType.GOPRO))
+    >>> option.source, option.filetypes
+    (<SourceType.NATIVE: 'native'>, {<FileType.GOPRO: 'gopro'>})
+    >>> option = _as_video_source(SourceOption(SourceType.GPX))
+    >>> option.source, option.filetypes
+    (<SourceType.GPX: 'gpx'>, {<FileType.VIDEO: 'video'>})
+    """
+    video_type = _VIDEO_TYPE_OF_LEGACY_SOURCE.get(option.source)
+    if video_type is not None:
+        option.source = SourceType.NATIVE
+        option.filetypes = types.combine_filetype_filters(
+            option.filetypes, {video_type}
+        )
+    option.filetypes = types.combine_filetype_filters(
+        option.filetypes, {types.FileType.VIDEO}
+    )
+    return option
 
 
 def can_geotag_videos(option: SourceOption) -> bool:
