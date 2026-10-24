@@ -335,3 +335,71 @@ class TestNativeVideoExtractor:
             NativeVideoExtractor(
                 DATA / "gopro_data" / "hero8.mp4", filetypes=GOPRO
             ).extract()
+
+
+class TestSourceNamedAfterAVideoType:
+    """
+    --video_geotag_source gopro, camm or blackvue reads only the videos of its
+    type. A video of another type was reported as having no GPS
+    """
+
+    @staticmethod
+    def _process(
+        video: Path, source: str, filetypes: set[types.FileType] | None = None
+    ) -> list[types.MetadataOrError]:
+        options = factory.parse_source_options(
+            geotag_source=[], video_geotag_source=[source], geotag_source_path=None
+        )
+        return _process_without_stubs([video], options, filetypes)
+
+    @pytest.mark.parametrize(
+        "video, source, message",
+        [
+            (
+                DATA / "videos" / "sample-5s.mp4",
+                "gopro",
+                "Not a GoPro video: the geotag source gopro reads GoPro videos only",
+            ),
+            (
+                DATA / "gopro_data" / "max-360mode.mp4",
+                "camm",
+                "Not a CAMM video: the geotag source camm reads CAMM videos only",
+            ),
+            (
+                DATA / "gopro_data" / "max-360mode.mp4",
+                "blackvue_videos",
+                "Not a BlackVue video: the geotag source blackvue reads BlackVue videos only",
+            ),
+            (
+                DATA / "gopro_data" / "max-360mode.mp4",
+                '{"source": "camm"}',
+                "Not a CAMM video: the geotag source camm reads CAMM videos only",
+            ),
+        ],
+    )
+    def test_video_of_another_type(self, video, source, message):
+        [result] = self._process(video, source)
+
+        assert isinstance(result, types.ErrorMetadata)
+        # The error the native reader gives, which process() acts on
+        assert type(result.error) is exceptions.MapillaryVideoGPSNotFoundError
+        assert str(result.error) == message
+
+    def test_video_of_its_type(self):
+        [result] = self._process(DATA / "gopro_data" / "max-360mode.mp4", "gopro")
+
+        assert isinstance(result, types.VideoMetadata)
+        assert result.filetype is types.FileType.GOPRO
+
+    def test_native_source_limited_by_its_filetypes(self):
+        """Not named after a type of video: its error is as before"""
+        [result] = self._process(
+            DATA / "videos" / "sample-5s.mp4",
+            '{"source": "native", "filetypes": ["gopro"]}',
+        )
+
+        assert isinstance(result, types.ErrorMetadata)
+        assert str(result.error) == "No GPS data found from the video"
+
+    def test_video_of_another_type_than_filetypes_is_left_out(self):
+        assert self._process(DATA / "videos" / "sample-5s.mp4", "gopro", GOPRO) == []

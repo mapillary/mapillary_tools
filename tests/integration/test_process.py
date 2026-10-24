@@ -1081,10 +1081,15 @@ def test_process_video_geotag_source_names_in_readme(setup_data: py.path.local):
         descs = run_process_for_descs(["--video_geotag_source", source, video_path])
         assert_descs_exact_equal(native_descs, descs)
 
-    # A GoPro video has none of the GPS of the other formats
-    for source in ["camm", "blackvue"]:
+    # A GoPro video is of none of the other formats, which says so
+    for source, name in [("camm", "CAMM"), ("blackvue", "BlackVue")]:
         descs = run_process_for_descs(["--video_geotag_source", source, video_path])
-        assert [d["error"]["type"] for d in descs] == ["MapillaryVideoGPSNotFoundError"]
+        assert [d["error"] for d in descs] == [
+            {
+                "type": "MapillaryVideoGPSNotFoundError",
+                "message": f"Not a {name} video: the geotag source {source} reads {name} videos only",
+            }
+        ]
 
 
 def test_process_video_geotag_source_with_exiftool_runtime_pattern(

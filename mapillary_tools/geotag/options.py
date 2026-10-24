@@ -60,6 +60,11 @@ class SourceOption:
     # Set by sample_video only, and not in the JSON schema
     video_sync: VideoSyncOption | None = None
 
+    # The only type of video that a --video_geotag_source named after one
+    # (gopro, camm or blackvue) reads. Set when the options are parsed, and
+    # not in the JSON schema
+    named_video_type: types.FileType | None = None
+
     @classmethod
     def from_dict(cls, data: dict[str, T.Any]) -> SourceOption:
         validate_option(data)
