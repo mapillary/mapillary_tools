@@ -30,7 +30,7 @@ class NMEAVideoExtractor(GPXVideoExtractor):
     def _parse_tracks(self) -> list[list[geo.Point]]:
         try:
             points = get_lat_lon_time_from_nmea(self.gpx_path)
-        # OSError: unreadable; ValueError: not text (UnicodeError), or
+        # OSError: unreadable; ValueError: not text, or
         # malformed sentences and no fix
         except (OSError, ValueError) as ex:
             raise exceptions.MapillaryInvalidGPXError(

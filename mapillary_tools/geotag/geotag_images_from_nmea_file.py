@@ -22,6 +22,9 @@ LOG = logging.getLogger(__name__)
 # GL (GLONASS), GA (Galileo), ...
 _SENTENCE_RE = re.compile(r"\$[A-Z]{2}(RMC|GGA),")
 
+# What a byte that is not text decodes to
+_NOT_TEXT = "\ufffd"
+
 # The checksum that ends a sentence: *HH
 _CHECKSUM_RE = re.compile(r"\*[0-9A-Fa-f]{2}\s*$")
 
@@ -65,7 +68,7 @@ def _read_nmea_points(source_path: Path) -> list[geo.Point]:
 
     try:
         points = get_lat_lon_time_from_nmea(source_path)
-    # OSError: unreadable; ValueError: not text (UnicodeError), or malformed
+    # OSError: unreadable; ValueError: not text, or malformed
     # sentences and no fix; TypeError: a sentence without its time or date;
     # UnboundLocalError: GGA sentences but no RMC sentence to give their date
     except (OSError, ValueError, TypeError, UnboundLocalError) as ex:
@@ -101,17 +104,18 @@ def get_lat_lon_time_from_nmea(nmea_file: Path) -> list[geo.Point]:
     for the same time: only the first is read, so that no two points share a
     time.
 
-    A malformed sentence, such as one whose checksum does not match, or one
-    cut short, is skipped with a warning. A file of which no fix can be read
-    and that has malformed sentences raises ValueError, as one that is not
-    text does.
+    A malformed sentence, such as one whose checksum does not match, one cut
+    short, or one with a byte that is not text, is skipped with a warning. A
+    file of which no fix can be read raises ValueError if it has malformed
+    sentences or bytes that are not text.
     """
-    # NMEA sentences are ASCII. Decode them as UTF-8 on every platform, so
-    # that a file that is not text fails to read, not only where UTF-8 is the
-    # default encoding
-    with nmea_file.open("r", encoding="utf-8") as f:
+    # NMEA sentences are ASCII. Decode them as UTF-8 on every platform, not as
+    # whatever the default encoding is, and decode a byte that is not text,
+    # such as one damaged in a sentence, as U+FFFD (see _parse_sentence())
+    with nmea_file.open("r", encoding="utf-8", errors="replace") as f:
         lines = f.readlines()
         lines = [line.rstrip("\n\r") for line in lines]
+    not_text = any(_NOT_TEXT in line for line in lines)
 
     # (line number, line) of each RMC and GGA sentence
     sentences = [
@@ -134,6 +138,9 @@ def get_lat_lon_time_from_nmea(nmea_file: Path) -> list[geo.Point]:
             malformed.append((number, line, ex))
 
     points = _read_fixes(messages, nmea_file)
+
+    if not points and not_text and not malformed:
+        raise ValueError(f"{nmea_file} is not text")
 
     if malformed:
         number, line, error = malformed[0]
@@ -211,7 +218,8 @@ def _parse_sentence(line: str, checksummed: bool = False) -> pynmea2.NMEASentenc
     not parse or its checksum does not match, if it has no checksum but should
     (**checksummed**), if its time or the date of an RMC sentence is not
     hhmmss[.ss] or ddmmyy, or if a field that a fix is read from does not
-    parse, which pynmea2 leaves a string
+    parse, which pynmea2 leaves a string, or if it has a byte that is not
+    text, decoded as U+FFFD
 
     >>> _parse_sentence("$GPGGA,0246,3735.30670,N,12220.25810,W,1,08,1.0,0.0,M,0.0,M,,*64")
     Traceback (most recent call last):
@@ -230,6 +238,9 @@ def _parse_sentence(line: str, checksummed: bool = False) -> pynmea2.NMEASentenc
     ...
     ValueError: malformed datestamp: '2212'
     """
+    if _NOT_TEXT in line:
+        raise ValueError("a byte that is not text")
+
     if checksummed and not _CHECKSUM_RE.search(line):
         raise ValueError("no checksum")
 
