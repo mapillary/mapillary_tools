@@ -51,13 +51,110 @@ def test_find_all_image_samples():
             Path("."),
         ],
     )
+    # Of the videos of the same name, the samples are of the one whose path,
+    # relative to the folder that holds them all, their folder ends with
     assert {
-        Path("hello.mp4"): [
+        Path("foo/hello.mp4"): [
             Path("foo/hello.mp4/hello_123.jpg"),
             Path("foo/hello.mp4/hello_.jpg"),
         ],
         Path("world.mp4"): [Path("world.mp4/world_123.jpg")],
     } == image_samples_by_video_path
+
+
+def test_find_image_samples_where_resolve_leaves_paths_relative(monkeypatch):
+    """
+    Path.resolve() leaves a path that does not exist relative on Windows with
+    Python 3.9 and 3.10, which took the samples of world.mp4 for those of
+    foo/world.mp4
+    """
+    resolve = Path.resolve
+    monkeypatch.setattr(
+        Path,
+        "resolve",
+        lambda self, strict=False: resolve(self) if self.exists() else self,
+    )
+    samples, ambiguous = utils.find_image_samples(
+        [Path("foo/world.mp4/world_123.jpg"), Path("world.mp4/world_123.jpg")],
+        # "." exists, so it alone was made absolute
+        [Path("foo/world.mp4"), Path("world.mp4"), Path(".")],
+    )
+    assert {
+        Path("foo/world.mp4"): [Path("foo/world.mp4/world_123.jpg")],
+        Path("world.mp4"): [Path("world.mp4/world_123.jpg")],
+    } == samples
+    assert {} == ambiguous
+
+
+def test_find_image_samples_of_videos_on_different_drives(monkeypatch):
+    """Videos of the same name that no path tells apart could be any of them"""
+
+    def commonpath(paths):
+        raise ValueError("Paths don't have the same drive")
+
+    monkeypatch.setattr(utils.os.path, "commonpath", commonpath)
+    samples, ambiguous = utils.find_image_samples(
+        [Path("world.mp4/world_123.jpg")],
+        [Path("foo/world.mp4"), Path("world.mp4")],
+    )
+    assert {} == samples
+    assert {
+        Path("world.mp4/world_123.jpg"): [Path("foo/world.mp4"), Path("world.mp4")]
+    } == ambiguous
+
+
+def test_find_image_samples_of_videos_of_the_same_name():
+    """
+    The samples of videos of the same name in different folders were all taken
+    for the samples of one of them
+    """
+    videos = [
+        Path("videos/clip.mp4"),
+        Path("videos/x/clip.mp4"),
+        Path("videos/y/clip.mp4"),
+        Path("videos/y/z/clip.mp4"),
+    ]
+    # Where sample_video samples them, from videos/
+    images = [
+        Path("out/clip.mp4/clip_0_000001.jpg"),
+        Path("out/x/clip.mp4/clip_0_000001.jpg"),
+        Path("out/x/clip.mp4/clip_0_000002.jpg"),
+        Path("out/y/clip.mp4/clip_0_000001.jpg"),
+        Path("out/y/z/clip.mp4/clip_0_000001.jpg"),
+    ]
+
+    samples_by_video, ambiguous = utils.find_image_samples(images, videos)
+
+    assert samples_by_video == {
+        Path("videos/clip.mp4"): [Path("out/clip.mp4/clip_0_000001.jpg")],
+        Path("videos/x/clip.mp4"): [
+            Path("out/x/clip.mp4/clip_0_000001.jpg"),
+            Path("out/x/clip.mp4/clip_0_000002.jpg"),
+        ],
+        Path("videos/y/clip.mp4"): [Path("out/y/clip.mp4/clip_0_000001.jpg")],
+        Path("videos/y/z/clip.mp4"): [Path("out/y/z/clip.mp4/clip_0_000001.jpg")],
+    }
+    assert ambiguous == {}
+
+
+def test_find_image_samples_that_could_be_of_several_videos():
+    videos = [Path("videos/x/clip.mp4"), Path("videos/y/clip.mp4")]
+    # Not where sample_video samples either of them, from videos/
+    images = [
+        Path("out/clip.mp4/clip_0_000001.jpg"),
+        Path("out/w/clip.mp4/clip_0_000001.jpg"),
+    ]
+
+    samples_by_video, ambiguous = utils.find_image_samples(images, videos)
+
+    assert samples_by_video == {}
+    assert ambiguous == {image: videos for image in images}
+
+    # With one video of the name, its samples are found wherever they are, as
+    # before
+    samples_by_video, ambiguous = utils.find_image_samples(images, videos[:1])
+    assert samples_by_video == {videos[0]: images}
+    assert ambiguous == {}
 
 
 def test_deduplicates():

@@ -111,23 +111,109 @@ def filter_video_samples(
 def find_all_image_samples(
     image_paths: T.Iterable[Path], video_paths: T.Iterable[Path]
 ) -> dict[Path, list[Path]]:
-    # TODO: not work with the same filenames, e.g. foo/hello.mp4 and bar/hello.mp4
-    video_basenames = {path.name: path for path in video_paths}
+    """
+    The samples of each video among the images, but those that could be of
+    several videos of the same name (see find_image_samples)
+    """
+    samples_by_video, _ = find_image_samples(image_paths, video_paths)
+    return samples_by_video
 
-    image_samples_by_video_path: dict[Path, list[Path]] = {}
+
+def find_image_samples(
+    image_paths: T.Iterable[Path], video_paths: T.Iterable[Path]
+) -> tuple[dict[Path, list[Path]], dict[Path, list[Path]]]:
+    """
+    Find the samples of each video among the images. sample_video() names the
+    samples of a video after it, in a folder named after it, at the path of the
+    video relative to the folder of videos it samples (e.g. the samples of
+    VIDEOS/x/clip.mp4 are OUT/x/clip.mp4/clip_0_000001.jpg, ...).
+
+    Videos of the same name in different folders are told apart by their paths
+    relative to the deepest folder that holds them all: the folder of a sample
+    ends with the path of its video, the longest of them if several match. A
+    sample whose folder ends with none of them, which could be of any of them,
+    is a sample of none.
+
+    Returns the samples of each video, and the videos that each sample that
+    could be of several videos could be of.
+
+    >>> images = [
+    ...     Path("OUT/x/clip.mp4/clip_0_000001.jpg"),
+    ...     Path("OUT/y/clip.mp4/clip_0_000001.jpg"),
+    ...     Path("OUT/clip.mp4/clip_0_000001.jpg"),
+    ...     Path("OUT/x/clip.mp4/other.jpg"),
+    ... ]
+    >>> videos = [Path("VIDEOS/x/clip.mp4"), Path("VIDEOS/y/clip.mp4")]
+    >>> samples, ambiguous = find_image_samples(images, videos)
+    >>> {video.as_posix(): [p.as_posix() for p in paths] for video, paths in samples.items()}
+    {'VIDEOS/x/clip.mp4': ['OUT/x/clip.mp4/clip_0_000001.jpg'], 'VIDEOS/y/clip.mp4': ['OUT/y/clip.mp4/clip_0_000001.jpg']}
+    >>> {image.as_posix(): [p.as_posix() for p in paths] for image, paths in ambiguous.items()}
+    {'OUT/clip.mp4/clip_0_000001.jpg': ['VIDEOS/x/clip.mp4', 'VIDEOS/y/clip.mp4']}
+    """
+    videos = list(deduplicate_paths(video_paths))
+    resolved_videos = [_absolute(video) for video in videos]
+    try:
+        root: Path | None = (
+            Path(os.path.commonpath([video.parent for video in resolved_videos]))
+            if resolved_videos
+            else None
+        )
+    except ValueError:
+        # On different drives
+        root = None
+
+    # The videos of each name, with their paths relative to the root
+    videos_by_name: dict[str, list[tuple[Path, tuple[str, ...]]]] = {}
+    for video, resolved_video in zip(videos, resolved_videos):
+        if root is None:
+            relative_parts: tuple[str, ...] = (resolved_video.name,)
+        else:
+            relative_parts = resolved_video.relative_to(root).parts
+        videos_by_name.setdefault(resolved_video.name, []).append(
+            (video, relative_parts)
+        )
+
+    samples_by_video: dict[Path, list[Path]] = {}
+    ambiguous: dict[Path, list[Path]] = {}
     for image_path in image_paths:
-        # If you want to walk an arbitrary filesystem path upwards,
-        # it is recommended to first call Path.resolve() so as to resolve symlinks and eliminate “..” components.
-        image_dirname = image_path.resolve().parent.name
-        if image_dirname in video_basenames:
-            root, _ = os.path.splitext(image_dirname)
-            if image_path.name.startswith(root + "_"):
-                video_path = video_basenames[image_dirname]
-                image_samples_by_video_path.setdefault(video_path, []).append(
-                    image_path
-                )
+        # Resolved first, to walk the path upwards: the folder of a sample is
+        # named after its video
+        sample_dir = _absolute(image_path).parent
+        candidates = videos_by_name.get(sample_dir.name, [])
+        stem, _ = os.path.splitext(sample_dir.name)
+        if not candidates or not image_path.name.startswith(stem + "_"):
+            continue
 
-    return image_samples_by_video_path
+        matching = [
+            (video, parts)
+            for video, parts in candidates
+            if sample_dir.parts[-len(parts) :] == parts
+        ]
+        if matching:
+            longest = max(len(parts) for _, parts in matching)
+            best = [video for video, parts in matching if len(parts) == longest]
+            if 1 < len(best):
+                # Told apart by no path, as videos on different drives
+                ambiguous[image_path] = best
+                continue
+            video = best[0]
+        elif len(candidates) == 1:
+            video, _ = candidates[0]
+        else:
+            ambiguous[image_path] = [video for video, _ in candidates]
+            continue
+        samples_by_video.setdefault(video, []).append(image_path)
+
+    return samples_by_video, ambiguous
+
+
+def _absolute(path: Path) -> Path:
+    """
+    The absolute path of **path**, with its symbolic links resolved where it
+    exists. Path.resolve() alone leaves a path that does not exist relative on
+    Windows with Python 3.9 and 3.10
+    """
+    return Path(os.path.abspath(path.resolve()))
 
 
 def deduplicate_paths(paths: T.Iterable[Path]) -> T.Generator[Path, None, None]:
