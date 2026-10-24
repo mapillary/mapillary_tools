@@ -47,6 +47,12 @@ _VIDEO_TYPE_OF_LEGACY_SOURCE = {
     SourceType.CAMM: types.FileType.CAMM,
 }
 
+_VIDEO_TYPE_NAMES = {
+    types.FileType.GOPRO: "GoPro",
+    types.FileType.BLACKVUE: "BlackVue",
+    types.FileType.CAMM: "CAMM",
+}
+
 # The XML that the exiftool_xml source reads for a file, without a source path
 # or a pattern: the output of `exiftool -X` for it, named after it
 _EXIFTOOL_XML_DEFAULT_PATTERN = "%g.xml"
@@ -178,6 +184,7 @@ def _as_video_source(option: SourceOption) -> SourceOption:
         option.filetypes = types.combine_filetype_filters(
             option.filetypes, {video_type}
         )
+        option.named_video_type = video_type
     option.filetypes = types.combine_filetype_filters(
         option.filetypes, {types.FileType.VIDEO}
     )
@@ -283,6 +290,11 @@ def process(
             video_metadata_or_errors = (
                 video_geotag.to_description(video_paths) if video_geotag else []
             )
+            if option.named_video_type is not None:
+                video_metadata_or_errors = [
+                    _say_of_another_type(metadata, option.named_video_type)
+                    for metadata in video_metadata_or_errors
+                ]
         else:
             video_metadata_or_errors = []
 
@@ -513,6 +525,47 @@ def _describe_unhandled_file(
         ),
         path,
         filetype=types.FileType.VIDEO,
+    )
+
+
+def _say_of_another_type(
+    metadata: types.VideoMetadataOrError, video_type: types.FileType
+) -> types.VideoMetadataOrError:
+    """
+    Say that a video in which the native reader, limited to the videos of
+    **video_type** by the name of the source, finds no GPS is of another
+    type, rather than that it has no GPS. The error stays the one the native
+    reader reports, which tells process() what to do with the video
+
+    >>> not_found = types.describe_error_metadata(
+    ...     exceptions.MapillaryVideoGPSNotFoundError("No GPS data found from the video"),
+    ...     Path("v.mp4"),
+    ...     filetype=types.FileType.VIDEO,
+    ... )
+    >>> said = _say_of_another_type(not_found, types.FileType.GOPRO)
+    >>> type(said.error).__name__, str(said.error)
+    ('MapillaryVideoGPSNotFoundError', 'Not a GoPro video: the geotag source gopro reads GoPro videos only')
+    >>> noisy = types.describe_error_metadata(
+    ...     exceptions.MapillaryGPSNoiseError("GPS is too noisy"),
+    ...     Path("v.mp4"),
+    ...     filetype=types.FileType.VIDEO,
+    ... )
+    >>> _say_of_another_type(noisy, types.FileType.GOPRO) is noisy
+    True
+    """
+    if not (
+        isinstance(metadata, types.ErrorMetadata)
+        and type(metadata.error) is exceptions.MapillaryVideoGPSNotFoundError
+    ):
+        return metadata
+
+    name = _VIDEO_TYPE_NAMES[video_type]
+    return types.describe_error_metadata(
+        exceptions.MapillaryVideoGPSNotFoundError(
+            f"Not a {name} video: the geotag source {video_type.value} reads {name} videos only"
+        ),
+        metadata.filename,
+        filetype=metadata.filetype,
     )
 
 
