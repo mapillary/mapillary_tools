@@ -1311,6 +1311,77 @@ def test_process_geotag_with_exiftool_xml_pattern_fallback(
     assert descs[0]["error"]["type"] == "MapillaryVideoGPSNotFoundError"
 
 
+def _write_track_parts(gpx_file: py.path.local, parts) -> None:
+    """A GPX track of parts, each (start, seconds, lat) with a point a second"""
+    points = "".join(
+        f'<trkpt lat="{lat + i * 0.0001:.7f}" lon="-122.0">'
+        f"<time>{(start + datetime.timedelta(seconds=i)).isoformat()}</time></trkpt>"
+        for start, seconds, lat in parts
+        for i in range(seconds + 1)
+    )
+    gpx_file.write(
+        '<?xml version="1.0"?>\n'
+        '<gpx version="1.1" creator="test" xmlns="http://www.topografix.com/GPX/1/1">'
+        f"<trk><trkseg>{points}</trkseg></trk></gpx>\n"
+    )
+
+
+def test_process_video_track_is_not_interpolated_across_a_gpx_gap(
+    setup_data: py.path.local,
+):
+    """
+    A video that starts in a gap of more than an hour of the GPX track takes
+    the track from the first point past the gap: a point interpolated across
+    the gap, at the start of the video, was uploaded with it
+    """
+    video_path = setup_data.join("gopro_data").join("max-360mode.mp4")
+    # The GPS clock of the video starts at 23:44:43.613, and the track
+    # resumes 3.387 seconds later, 2 hours after its previous point 5 km away
+    resumed = datetime.datetime(2019, 11, 18, 23, 44, 47, tzinfo=datetime.timezone.utc)
+    gpx_file = setup_data.join("track.gpx")
+    _write_track_parts(
+        gpx_file,
+        [(resumed - datetime.timedelta(hours=2), 0, 37.045), (resumed, 20, 37.0)],
+    )
+
+    [desc] = run_process_for_descs(
+        [
+            *["--geotag_source", "gpx"],
+            *["--geotag_source_path", str(gpx_file)],
+            str(video_path),
+        ]
+    )
+
+    track = desc["MAPGPSTrack"]
+    assert track[0][0] == pytest.approx(3387, abs=1)
+    assert track[0][2] == pytest.approx(37.0)
+
+
+def test_process_video_with_a_gpx_gap_inside_it_fails(setup_data: py.path.local):
+    """process would interpolate the track across it, which sampling leaves out"""
+    video_path = setup_data.join("gopro_data").join("max-360mode.mp4")
+    start = datetime.datetime(2019, 11, 18, 23, 44, 40, tzinfo=datetime.timezone.utc)
+    gpx_file = setup_data.join("track.gpx")
+    # No point from 4.4 to 9.4 seconds into the video
+    _write_track_parts(
+        gpx_file,
+        [(start, 8, 37.0), (start + datetime.timedelta(seconds=13), 10, 37.001)],
+    )
+
+    [desc] = run_process_for_descs(
+        [
+            *["--geotag_source", "gpx"],
+            *["--geotag_source_path", str(gpx_file)],
+            str(video_path),
+        ],
+        env={**os.environ, "MAPILLARY_TOOLS_MAX_GPX_GAP_SECONDS": "3"},
+    )
+
+    assert desc["error"]["type"] == "MapillaryOutsideGPXTrackError"
+    assert "has a gap of 5 seconds" in desc["error"]["message"]
+    assert "Sample the video with video_process" in desc["error"]["message"]
+
+
 def test_process_video_with_a_gpx_far_longer_than_it_warns(
     setup_data: py.path.local,
 ):

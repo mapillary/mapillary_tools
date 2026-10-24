@@ -204,7 +204,7 @@ class GPXVideoExtractor(BaseVideoExtractor):
             self._apply_offset_time(gpx_points, rate=rate)
             self._check_coverage(gpx_points, gpx_unix_times, [], start_clock, rate)
             if self.clip_to_video:
-                gpx_points = self._clip_to_video(gpx_points, start_clock)
+                gpx_points = self._clip_to_video(gpx_points, start_clock, rate)
             return types.VideoMetadata(
                 filename=self.video_path,
                 filesize=utils.get_file_size(self.video_path),
@@ -269,7 +269,7 @@ class GPXVideoExtractor(BaseVideoExtractor):
             rate,
         )
         if self.clip_to_video:
-            gpx_points = self._clip_to_video(gpx_points, clock)
+            gpx_points = self._clip_to_video(gpx_points, clock, rate)
 
         return dataclasses.replace(native_video_metadata, points=gpx_points)
 
@@ -313,7 +313,7 @@ class GPXVideoExtractor(BaseVideoExtractor):
             ) from ex
 
     def _clip_to_video(
-        self, gpx_points: list[geo.Point], clock: VideoClock | None
+        self, gpx_points: list[geo.Point], clock: VideoClock | None, rate: float
     ) -> list[geo.Point]:
         """
         Clip a GPX track to the video, from video time 0 to where the video
@@ -330,10 +330,20 @@ class GPXVideoExtractor(BaseVideoExtractor):
         past, so that the first frames keep a position. Its end is left as it
         is: it may be that of a timelapse, which runs on past the end of the
         video at the pace of the GPS clock rather than that of the video.
+
+        A gap of more than constants.MAX_GPX_GAP_SECONDS that video time 0, or
+        the end of the video at **rate** GPS seconds per second, falls in says
+        nothing of where the video was: the fixes on its far side are left
+        out, with no point interpolated across it, as if the track started
+        (or ended) there. One inside the video fails it (see _check_coverage).
         """
+        video_duration = _video_duration(self.video_path)
+        gpx_points = _leave_out_far_side_of_gaps(
+            gpx_points, constants.MAX_GPX_GAP_SECONDS / rate, video_duration
+        )
         if clock is None:
             return _clip_track(gpx_points, None)
-        return _clip_track(gpx_points, _video_duration(self.video_path))
+        return _clip_track(gpx_points, video_duration)
 
     def _place_without_video_gps(
         self, gpx_points: T.Sequence[geo.Point]
@@ -446,7 +456,9 @@ class GPXVideoExtractor(BaseVideoExtractor):
         warns, and one that covers all of it is silent. The video can fall
         between the ends of the track and still miss it, or part of it, in a
         gap of more than constants.MAX_GPX_GAP_SECONDS between two of its
-        points.
+        points. In process, which uploads the track with the video, a gap
+        inside the video raises too: sampling leaves out the frames in it,
+        while the track would be interpolated across it.
 
         Without the duration of the video, the video is known only up to its
         last GPS point, and a track that starts after it may still overlap the
@@ -506,6 +518,66 @@ class GPXVideoExtractor(BaseVideoExtractor):
 
         # In GPS seconds, which is where clock and time zone mistakes are made
         gap = min(max(first - video_end, -last) for first, last in parts) * rate
+        if clock is None:
+            # Placed at the start of the video, only the offset moved it off
+            advice = "Check --interpolation_offset_time"
+        elif offset_time:
+            advice = (
+                f"Check --interpolation_offset_time, that the {self.file_format} file belongs to "
+                f"this video, then the camera clock and the time zone of the {self.file_format} "
+                "timestamps"
+            )
+        else:
+            advice = (
+                f"Check that the {self.file_format} file belongs to this video, then the camera "
+                f"clock and the time zone of the {self.file_format} timestamps"
+            )
+
+        if gap <= 0 and self.clip_to_video:
+            # process uploads the track with the video, and its frames would be
+            # placed along it across a gap that the video spans, which says
+            # nothing of where the video was. Sampling leaves out the frames
+            # in it (see _clip_to_video for the gaps at its ends)
+            for before, after in gap_points:
+                if before.time <= 0 and video_end <= after.time:
+                    # The track touches the video at an instant at one end only
+                    where = f"which {video} falls in{offset_clause}"
+                    if clock is not None or offset_time:
+                        where_advice = advice
+                    elif self.sync_mode is SyncMode.REBASE:
+                        # Said to start with the video
+                        where_advice = f"Trim the {self.file_format} to the video"
+                    else:
+                        # Assumed to start with the video
+                        where_advice = (
+                            f"Trim the {self.file_format} to the video, or sample the video "
+                            "with video_process and --video_start_time"
+                        )
+                elif 0 <= before.time and after.time <= video_end:
+                    where = (
+                        f"inside {video}{offset_clause}, which says nothing of where "
+                        "the video was in it"
+                    )
+                    where_advice = (
+                        "Sample the video with video_process and --video_geotag_source "
+                        f"{self.file_format.lower()}, which leaves out the frames in the gap"
+                    )
+                else:
+                    continue
+                # At the Unix times the points were recorded at
+                track_gap = describe_gap(
+                    before,
+                    after,
+                    lookup_start + before.time * rate,
+                    lookup_start + after.time * rate,
+                )
+                raise exceptions.MapillaryOutsideGPXTrackError(
+                    f"{gpx_track} has {track_gap}, {where}. {where_advice}",
+                    image_time=build_capture_time(lookup_start),
+                    gpx_start_time=build_capture_time(gpx_unix_times[0]),
+                    gpx_end_time=build_capture_time(gpx_unix_times[1]),
+                )
+
         if gap <= 0:
             # In video seconds
             uncovered = (
@@ -523,20 +595,6 @@ class GPXVideoExtractor(BaseVideoExtractor):
                 )
             return
 
-        if clock is None:
-            # Placed at the start of the video, only the offset moved it off
-            advice = "Check --interpolation_offset_time"
-        elif offset_time:
-            advice = (
-                f"Check --interpolation_offset_time, that the {self.file_format} file belongs to "
-                f"this video, then the camera clock and the time zone of the {self.file_format} "
-                "timestamps"
-            )
-        else:
-            advice = (
-                f"Check that the {self.file_format} file belongs to this video, then the camera "
-                f"clock and the time zone of the {self.file_format} timestamps"
-            )
         # Between the ends of the track, the video falls in one of its gaps
         surrounding_gap = next(
             (
@@ -1025,6 +1083,33 @@ def describe_gap(
         f"from {_isoformat(before_time)} at ({round(before.lat, 7)}, {round(before.lon, 7)}) "
         f"to {_isoformat(after_time)} at ({round(after.lat, 7)}, {round(after.lon, 7)})"
     )
+
+
+def _leave_out_far_side_of_gaps(
+    points: T.Sequence[geo.Point], max_gap: float, end: float | None
+) -> list[geo.Point]:
+    """
+    Leave out of a track, sorted by time, the points on the far side of a gap
+    of more than **max_gap** seconds that time 0, or **end** (None if
+    unknown), falls in
+
+    >>> track = [geo.Point(time=t, lat=t, lon=0, alt=None, angle=None) for t in (-9000, 99, 200, 9000)]
+    >>> [p.time for p in _leave_out_far_side_of_gaps(track, 3600, 300)]
+    [99, 200]
+    >>> [p.time for p in _leave_out_far_side_of_gaps(track, 3600, None)]
+    [99, 200, 9000]
+    >>> [p.time for p in _leave_out_far_side_of_gaps(track, 10000, 300)]
+    [-9000, 99, 200, 9000]
+    """
+    start, stop = 0, len(points)
+    for idx, (before, after) in enumerate(geo.pairwise(points)):
+        if after.time - before.time <= max_gap:
+            continue
+        if before.time < 0 < after.time:
+            start = idx + 1
+        if end is not None and before.time < end < after.time:
+            stop = idx + 1
+    return list(points[start:stop])
 
 
 def _clip_track(
