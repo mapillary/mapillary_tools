@@ -708,7 +708,17 @@ def _find_upload_candidates(
         (m for m in metadatas if isinstance(m, types.VideoMetadata)),
         utils.find_videos(import_paths, skip_subfolders=skip_subfolders),
     )
-    zip_paths = utils.find_zipfiles(import_paths, skip_subfolders=skip_subfolders)
+    zip_paths: list[Path] = []
+    for zip_path in utils.find_zipfiles(import_paths, skip_subfolders=skip_subfolders):
+        if zip_path.name.startswith("._"):
+            # The AppleDouble file (._NAME) that macOS writes beside a file it
+            # copies to a drive that cannot hold its metadata: named like a
+            # zip file, but none. A folder scan never finds it, as it is hidden
+            LOG.warning(
+                "Skipping %s, which is not a supported image or video", zip_path
+            )
+            continue
+        zip_paths.append(zip_path)
     return _UploadCandidates(image_metadatas, video_metadatas, zip_paths)
 
 
