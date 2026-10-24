@@ -350,17 +350,11 @@ def test_video_process_by_interval_with_a_video_gpx(setup_data: py.path.local):
         assert desc["MAPLongitude"] == pytest.approx(gpx_desc["MAPLongitude"], abs=1e-7)
 
 
-def test_video_process_by_distance_leaves_out_the_frames_in_a_gap_of_a_video_gpx(
-    setup_data: py.path.local,
-):
+def _gpx_with_a_gap(setup_data: py.path.local) -> str:
     """
-    Without its point at 07:00:33.088, the GPX has a gap from 07:00:31.533 to
-    07:00:34.379, over the limit, inside the video. The frames in it were
-    placed across it
+    The GPX without its point at 07:00:33.088: with a gap from 07:00:31.533 to
+    07:00:34.379, over a limit of 2.5 seconds
     """
-    pytest_skip_if_not_ffmpeg_installed()
-
-    video_path = setup_data.join("videos").join("sample-5s.mp4")
     gpx = setup_data.join("gpx").join("sf_30km_h.gpx").read_text("utf-8")
     gpx_with_gap = re.sub(
         r"<trkpt (?:(?!</trkpt>).)*?<time>2025-03-14T07:00:33\.088Z</time>.*?</trkpt>",
@@ -369,13 +363,29 @@ def test_video_process_by_distance_leaves_out_the_frames_in_a_gap_of_a_video_gpx
         flags=re.S,
     )
     assert gpx_with_gap != gpx
+    return gpx_with_gap
+
+
+# Whatever source follows the GPX, which the video, without GPS of its own,
+# leaves to geotag it
+@pytest.mark.parametrize("then", [[], ["--video_geotag_source=native"]])
+def test_video_process_by_distance_leaves_out_the_frames_in_a_gap_of_a_video_gpx(
+    setup_data: py.path.local, then: list[str]
+):
+    """
+    The GPX has a gap inside the video. The frames in it were placed across it
+    """
+    pytest_skip_if_not_ffmpeg_installed()
+
+    video_path = setup_data.join("videos").join("sample-5s.mp4")
 
     with tempfile.TemporaryDirectory() as dir:
         gpx_file = Path(dir, "gap.gpx")
-        gpx_file.write_text(gpx_with_gap, encoding="utf-8")
+        gpx_file.write_bytes(_gpx_with_a_gap(setup_data).encode("utf-8"))
         descs = run_video_process_for_descs(
             [
                 "--video_geotag_source=gpx",
+                *then,
                 *["--geotag_source_path", str(gpx_file)],
                 *["--video_start_time", "2025_03_14_07_00_30_000"],
                 str(video_path),
@@ -393,6 +403,43 @@ def test_video_process_by_distance_leaves_out_the_frames_in_a_gap_of_a_video_gpx
         for capture_time in capture_times
         if "2025_03_14_07_00_31_534" < capture_time < "2025_03_14_07_00_34_378"
     ], capture_times
+
+
+@pytest.mark.parametrize("then", [[], ["--video_geotag_source=native"]])
+def test_video_process_by_interval_leaves_out_the_samples_in_a_gap_of_a_video_gpx(
+    setup_data: py.path.local, then: list[str]
+):
+    """
+    The GPX has a gap inside the video, from 1.533 to 4.379 seconds into it.
+    The samples in it were placed across it when another source followed the
+    GPX
+    """
+    pytest_skip_if_not_ffmpeg_installed()
+
+    video_path = setup_data.join("videos").join("sample-5s.mp4")
+
+    with tempfile.TemporaryDirectory() as dir:
+        gpx_file = Path(dir, "gap.gpx")
+        gpx_file.write_bytes(_gpx_with_a_gap(setup_data).encode("utf-8"))
+        descs = run_video_process_for_descs(
+            [
+                "--video_sample_distance=-1",
+                "--video_sample_interval=0.5",
+                "--video_geotag_source=gpx",
+                *then,
+                *["--geotag_source_path", str(gpx_file)],
+                *["--video_start_time", "2025_03_14_07_00_30_000"],
+                str(video_path),
+                str(Path(dir, "samples")),
+            ],
+            env={**os.environ, "MAPILLARY_TOOLS_MAX_GPX_GAP_SECONDS": "2.5"},
+        )
+
+    assert all("error" not in desc for desc in descs), descs
+    # Of the 11 samples, from 0 to 5 seconds, not those at 2, 2.5, 3, 3.5 and 4
+    assert sorted(Path(desc["filename"]).name for desc in descs) == [
+        f"sample-5s_v_{idx + 1:06d}.jpg" for idx in [0, 1, 2, 3, 9, 10]
+    ]
 
 
 def _with_creation_time(video: py.path.local, creation_time: str, dir: str) -> Path:

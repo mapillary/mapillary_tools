@@ -226,7 +226,7 @@ def test_distance_sampling_reads_the_video_in_this_process(tmp_path: Path, monke
     """So that a GPX file that geotags several videos is parsed once"""
     calls = []
 
-    def process(paths, options, filetypes=None):
+    def process(paths, options, filetypes=None, sources=None):
         calls.append([option.num_processes for option in options])
         raise RuntimeError("stop here")
 

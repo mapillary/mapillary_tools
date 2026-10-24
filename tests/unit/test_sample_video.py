@@ -456,7 +456,13 @@ class TestLocateIntervalSamples:
             model="HERO7 Black",
         )
 
-    def _sample(self, tmpdir, monkeypatch, track_points, **kwargs) -> list[Path]:
+    def _sample(
+        self, tmpdir, monkeypatch, track_points, read_by: int = 0, **kwargs
+    ) -> list[Path]:
+        """
+        Sample the video every 2 seconds, its track read by the source at
+        index **read_by** of those sampling tries
+        """
         clock_points = self._points(60)
         monkeypatch.setattr(
             sample_video,
@@ -467,7 +473,7 @@ class TestLocateIntervalSamples:
         )
         self.track_calls: list[list[SourceOption]] = []
 
-        def fake_process(paths, options):
+        def fake_process(paths, options, sources=None):
             self.track_calls.append(list(options))
             [video_path] = paths
             if isinstance(track_points, Exception):
@@ -476,6 +482,8 @@ class TestLocateIntervalSamples:
                         track_points, video_path, filetype=FileType.VIDEO
                     )
                 ]
+            if sources is not None:
+                sources[video_path] = options[read_by]
             return [self._video_metadata(video_path, track_points)]
 
         monkeypatch.setattr(sample_video.factory, "process", fake_process)
@@ -653,8 +661,13 @@ class TestLocateIntervalSamples:
             in caplog.text
         )
 
+    @pytest.mark.parametrize(
+        "video_geotag_source",
+        # Whatever source follows the one that read the track
+        [["gpx"], ["gpx", "native"], ["nmea", "exiftool_runtime"]],
+    )
     def test_samples_in_a_gap_of_a_video_track_file_are_left_out(
-        self, tmpdir, setup_mock, monkeypatch
+        self, tmpdir, setup_mock, monkeypatch, video_geotag_source
     ):
         monkeypatch.setattr(sample_video.constants, "MAX_GPX_GAP_SECONDS", 5.0)
         track = self._file_points([*range(11), *range(20, 61)])
@@ -663,7 +676,7 @@ class TestLocateIntervalSamples:
             tmpdir,
             monkeypatch,
             track,
-            video_geotag_source=["gpx"],
+            video_geotag_source=video_geotag_source,
             geotag_source_path=Path(tmpdir) / "track.gpx",
         )
 
@@ -672,8 +685,9 @@ class TestLocateIntervalSamples:
             f"hello_v_{idx + 1:06d}.jpg" for idx in [*range(6), *range(10, 30)]
         ]
 
+    @pytest.mark.parametrize("video_geotag_source", [["gpx"], ["gpx", "native"]])
     def test_a_video_track_file_started_with_the_video_starts_at_the_first_sample(
-        self, tmpdir, setup_mock, monkeypatch
+        self, tmpdir, setup_mock, monkeypatch, video_geotag_source
     ):
         """
         GPX sync starts it at the first frame, 0.5 seconds into the video, and
@@ -686,7 +700,7 @@ class TestLocateIntervalSamples:
             tmpdir,
             monkeypatch,
             track,
-            video_geotag_source=["gpx"],
+            video_geotag_source=video_geotag_source,
             geotag_source_path=Path(tmpdir) / "track.gpx",
             interpolation_use_gpx_start_time=True,
         )
@@ -695,6 +709,40 @@ class TestLocateIntervalSamples:
         _validate_interval(samples, self.GPS_START_TIME)
         lon_lat = exif_read.ExifRead(samples[0]).extract_lon_lat()
         assert lon_lat == pytest.approx((-74.0, 40.0005))
+
+    @pytest.mark.parametrize(
+        "video_geotag_source",
+        # After a GPX that misses the video, or before a GPX
+        [["gpx", "native"], ["native", "gpx"]],
+    )
+    def test_a_track_read_by_the_video_is_located_along_as_its_own(
+        self, tmpdir, setup_mock, monkeypatch, video_geotag_source
+    ):
+        """
+        The video's own track, with a gap over the limit from 10 to 20 seconds,
+        locates the samples as without a GPX
+        """
+        monkeypatch.setattr(sample_video.constants, "MAX_GPX_GAP_SECONDS", 5.0)
+        track = [p for p in self._points(60) if not 10 < p.time < 20]
+
+        samples = self._sample(
+            tmpdir.mkdir("both"),
+            monkeypatch,
+            track,
+            read_by=video_geotag_source.index("native"),
+            video_geotag_source=video_geotag_source,
+            geotag_source_path=Path(tmpdir) / "track.gpx",
+        )
+        own = self._sample(
+            tmpdir.mkdir("own"), monkeypatch, track, video_geotag_source=["native"]
+        )
+
+        assert len(samples) == 30
+        assert [s.name for s in samples] == [s.name for s in own]
+        for sample, own_sample in zip(samples, own):
+            exif, own_exif = exif_read.ExifRead(sample), exif_read.ExifRead(own_sample)
+            assert exif.extract_capture_time() == own_exif.extract_capture_time()
+            assert exif.extract_lon_lat() == own_exif.extract_lon_lat()
 
     def test_none_left_out_of_a_video_track_file_where_the_video_source_may_geotag_them(
         self, tmpdir, setup_mock, monkeypatch
@@ -1584,7 +1632,7 @@ class TestDistanceSamplingFailsLoudly:
         monkeypatch.setattr(
             sample_video.factory,
             "process",
-            lambda paths, options: [
+            lambda paths, options, sources=None: [
                 describe_error_metadata(
                     error, filename=paths[0], filetype=FileType.GOPRO
                 )
@@ -1651,7 +1699,7 @@ class TestDistanceSamplingFailsLoudly:
         monkeypatch.setattr(
             sample_video.factory,
             "process",
-            lambda paths, options: [
+            lambda paths, options, sources=None: [
                 VideoMetadata(
                     filename=paths[0], filesize=0, filetype=FileType.GOPRO, points=[]
                 )
@@ -1667,7 +1715,7 @@ class TestDistanceSamplingFailsLoudly:
         monkeypatch.setattr(
             sample_video.factory,
             "process",
-            lambda paths, options: [
+            lambda paths, options, sources=None: [
                 VideoMetadata(
                     filename=paths[0],
                     filesize=0,
@@ -1780,6 +1828,8 @@ class TestSampleVideoDistanceIntegration:
         num_gps_points: int = 10,
         gps_points: T.Sequence[geo.Point] | None = None,
         sample_times: T.Sequence[float] | None = None,
+        # The index of the source that reads the track, of those tried
+        read_by: int = 0,
     ) -> dict[str, T.Any]:
         """Set up all the mocks needed for _sample_single_video_by_distance."""
         probe_output = _load_probe_output()
@@ -1843,9 +1893,14 @@ class TestSampleVideoDistanceIntegration:
             mock_ffmpeg_class,
         )
 
+        def fake_process(paths, options, sources=None):
+            if sources is not None:
+                sources[paths[0]] = options[read_by]
+            return [video_metadata]
+
         patches["geotag_cls"] = mock.patch(
             "mapillary_tools.sample_video.factory.process",
-            return_value=[video_metadata],
+            side_effect=fake_process,
         )
 
         patches["moov_parse"] = mock.patch.object(
@@ -2325,9 +2380,16 @@ class TestSampleVideoDistanceIntegration:
         ]
 
     def _sample_along_a_file_track(
-        self, tmp_path: Path, gps_points: T.Sequence[geo.Point], **kwargs
+        self,
+        tmp_path: Path,
+        gps_points: T.Sequence[geo.Point],
+        read_by: int = 0,
+        **kwargs,
     ) -> list[datetime.datetime | None]:
-        """Sample a frame a second by distance, and read their capture times"""
+        """
+        Sample a frame a second by distance, the track read by the source at
+        index **read_by** of those tried, and read their capture times
+        """
         video_file = tmp_path / "test.mp4"
         video_file.touch()
         output_dir = tmp_path / "output"
@@ -2336,6 +2398,7 @@ class TestSampleVideoDistanceIntegration:
             video_file,
             gps_points=gps_points,
             sample_times=[float(t) for t in range(int(gps_points[-1].time) + 1)],
+            read_by=read_by,
         )
 
         with (
@@ -2354,9 +2417,11 @@ class TestSampleVideoDistanceIntegration:
         frames = sorted((output_dir / "test.mp4").glob("*.jpg"))
         return [exif_read.ExifRead(frame).extract_capture_time() for frame in frames]
 
+    # Whatever source follows the one that read the track
+    @pytest.mark.parametrize("then", [[], ["native"], ["exiftool_runtime"]])
     @pytest.mark.parametrize("source", ["gpx", "nmea"])
     def test_frames_in_a_gap_of_a_video_track_file_are_left_out(
-        self, tmp_path: Path, monkeypatch, caplog, source
+        self, tmp_path: Path, monkeypatch, caplog, source, then
     ) -> None:
         """
         The track of --video_geotag_source has a gap of 10 seconds, over the
@@ -2368,7 +2433,9 @@ class TestSampleVideoDistanceIntegration:
 
         with caplog.at_level(logging.WARNING, logger=sample_video.LOG.name):
             capture_times = self._sample_along_a_file_track(
-                tmp_path, self._file_track(video_times), video_geotag_source=[source]
+                tmp_path,
+                self._file_track(video_times),
+                video_geotag_source=[source, *then],
             )
 
         assert capture_times == [
@@ -2418,6 +2485,28 @@ class TestSampleVideoDistanceIntegration:
 
         capture_times = self._sample_along_a_file_track(
             tmp_path, self._file_track([*range(11), *range(20, 31)]), **kwargs
+        )
+
+        assert capture_times == [
+            self.GPS_START_TIME + datetime.timedelta(seconds=t) for t in range(31)
+        ]
+
+    @pytest.mark.parametrize(
+        "video_geotag_source",
+        # After a GPX that misses the video, or before a GPX
+        [["gpx", "native"], ["native", "gpx"]],
+    )
+    def test_frames_in_a_gap_of_a_track_read_by_the_video_are_kept(
+        self, tmp_path: Path, monkeypatch, video_geotag_source
+    ) -> None:
+        """The video's own track is sampled across its gaps, as without a GPX"""
+        monkeypatch.setattr(sample_video.constants, "MAX_GPX_GAP_SECONDS", 5.0)
+
+        capture_times = self._sample_along_a_file_track(
+            tmp_path,
+            self._file_track([*range(11), *range(20, 31)]),
+            read_by=video_geotag_source.index("native"),
+            video_geotag_source=video_geotag_source,
         )
 
         assert capture_times == [
@@ -2700,7 +2789,7 @@ class TestFailuresAreReportedTogether:
         monkeypatch.setattr(
             sample_video.factory,
             "process",
-            lambda paths, options: [
+            lambda paths, options, sources=None: [
                 VideoMetadata(
                     filename=paths[0],
                     filesize=1,
@@ -2877,7 +2966,7 @@ class TestGeotagSourceReachesDistanceSampling:
         seen: list = []
         points = _make_gps_points(4, time_step=1.0)
 
-        def fake_process(paths, options):
+        def fake_process(paths, options, sources=None):
             seen.append(list(options))
             return [
                 VideoMetadata(
@@ -2967,7 +3056,7 @@ class TestVideoStartTimeReachesTheGPX:
     def test_sample_video_passes_it_on(self, tmpdir, setup_mock, monkeypatch):
         seen: list = []
 
-        def fake_process(paths, options):
+        def fake_process(paths, options, sources=None):
             seen.extend(options)
             return [
                 VideoMetadata(
@@ -3006,7 +3095,7 @@ class TestVideoStartTimeReachesTheGPX:
         """video_process registers them for its geotagging stage."""
         seen: list = []
 
-        def fake_process(paths, options):
+        def fake_process(paths, options, sources=None):
             seen.extend(options)
             return [
                 VideoMetadata(
@@ -3077,7 +3166,7 @@ class TestTrackThatMissesTheVideo:
         monkeypatch.setattr(
             sample_video.factory,
             "process",
-            lambda paths, options: [
+            lambda paths, options, sources=None: [
                 VideoMetadata(
                     filename=paths[0],
                     filesize=1,
