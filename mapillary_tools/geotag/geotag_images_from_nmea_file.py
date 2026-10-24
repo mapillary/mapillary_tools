@@ -5,7 +5,10 @@
 
 from __future__ import annotations
 
+import dataclasses
 import datetime
+import hashlib
+import io
 import logging
 import re
 from pathlib import Path
@@ -21,6 +24,15 @@ LOG = logging.getLogger(__name__)
 # An RMC or a GGA sentence, from any talker: GP (GPS), GN (several systems),
 # GL (GLONASS), GA (Galileo), ...
 _SENTENCE_RE = re.compile(r"\$[A-Z]{2}(RMC|GGA),")
+
+# How much of a malformed sentence a warning quotes: a line of garbage can be
+# kilobytes long
+_QUOTE_LIMIT = 100
+
+# The fixes read from each NMEA file in this process, or the error that reading
+# it raised, by its path and content: a file that geotags several videos, or
+# images and videos, is read and warned about once
+_READ: dict[tuple[str, str], list[geo.Point] | ValueError] = {}
 
 # What a byte that is not text decodes to
 _NOT_TEXT = "\ufffd"
@@ -108,11 +120,34 @@ def get_lat_lon_time_from_nmea(nmea_file: Path) -> list[geo.Point]:
     short, or one with a byte that is not text, is skipped with a warning. A
     file of which no fix can be read raises ValueError if it has malformed
     sentences or bytes that are not text.
+
+    A file is read once in a process, however many times it is asked for.
+    """
+    data = nmea_file.read_bytes()
+    key = (str(nmea_file.resolve()), hashlib.sha256(data).hexdigest())
+    read = _READ.get(key)
+    if read is None:
+        try:
+            read = _read_nmea_data(nmea_file, data)
+        except ValueError as ex:
+            read = ex
+        _READ[key] = read
+
+    if isinstance(read, ValueError):
+        raise read.with_traceback(None)
+    # Copies, which the caller may change
+    return [dataclasses.replace(p) for p in read]
+
+
+def _read_nmea_data(nmea_file: Path, data: bytes) -> list[geo.Point]:
+    """
+    Read the fixes of the content **data** of an NMEA file, as
+    get_lat_lon_time_from_nmea() describes
     """
     # NMEA sentences are ASCII. Decode them as UTF-8 on every platform, not as
     # whatever the default encoding is, and decode a byte that is not text,
     # such as one damaged in a sentence, as U+FFFD (see _parse_sentence())
-    with nmea_file.open("r", encoding="utf-8", errors="replace") as f:
+    with io.TextIOWrapper(io.BytesIO(data), encoding="utf-8", errors="replace") as f:
         lines = f.readlines()
         lines = [line.rstrip("\n\r") for line in lines]
     not_text = any(_NOT_TEXT in line for line in lines)
@@ -152,11 +187,23 @@ def get_lat_lon_time_from_nmea(nmea_file: Path) -> list[geo.Point]:
             len(malformed) + len(messages),
             nmea_file,
             number,
-            error,
-            line,
+            _quote(str(error)),
+            _quote(line),
         )
 
     return points
+
+
+def _quote(text: str) -> str:
+    """
+    **text**, cut to _QUOTE_LIMIT characters
+
+    >>> _quote("$GPGGA," + "x" * 200)
+    '$GPGGA,xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx... (207 characters)'
+    """
+    if len(text) <= _QUOTE_LIMIT:
+        return text
+    return f"{text[:_QUOTE_LIMIT]}... ({len(text)} characters)"
 
 
 def _read_fixes(
