@@ -97,3 +97,124 @@ class TestCaptureTimeWithoutUnixTime:
         assert metadata.time == datetime.datetime(2020, 1, 2, 3, 4, 5).timestamp()
         assert metadata.lat == pytest.approx(24.5601)
         assert metadata.lon == pytest.approx(-81.8077)
+
+
+def _write_image_with_dates(path: Path, tags: T.Dict[int, str]) -> Path:
+    img = Image.new("RGB", (4, 4), (0, 0, 0))
+    exif = img.getexif()
+    for tag, value in tags.items():
+        if tag == Base.DateTime:
+            exif[tag] = value
+        else:
+            exif.get_ifd(IFD.Exif)[tag] = value
+    gps = exif.get_ifd(IFD.GPSInfo)
+    gps[GPS.GPSLatitudeRef] = "N"
+    gps[GPS.GPSLatitude] = (IFDRational(24), IFDRational(33), IFDRational(3636, 100))
+    gps[GPS.GPSLongitudeRef] = "W"
+    gps[GPS.GPSLongitude] = (IFDRational(81), IFDRational(48), IFDRational(2772, 100))
+    img.save(path, format="JPEG", exif=exif)
+    return path
+
+
+class TestPlaceholderCaptureTimes:
+    """
+    Cameras without a clock write dates before 1970, at which no image was
+    captured. One with a time zone offset had a Unix time, and crashed the
+    run where the description is written.
+    """
+
+    @pytest.mark.parametrize(
+        "date",
+        [NO_DATE, "1904:02:07 13:28:44", "1969:12:31 19:00:00"],
+    )
+    def test_exif(self, tmp_path: Path, date: str):
+        image = _write_image_with_dates(
+            tmp_path / "image.jpg",
+            {Base.DateTimeOriginal: date, Base.OffsetTimeOriginal: "+01:00"},
+        )
+
+        with pytest.raises(
+            exceptions.MapillaryGeoTaggingError, match="Unable to extract timestamp"
+        ):
+            ImageEXIFExtractor(image).extract()
+
+    def test_exif_reads_the_next_date_tag(self, tmp_path: Path):
+        image = _write_image_with_dates(
+            tmp_path / "image.jpg",
+            {
+                Base.DateTimeOriginal: "1904:02:07 13:28:44",
+                Base.DateTimeDigitized: "2020:01:02 03:04:05",
+            },
+        )
+
+        metadata = ImageEXIFExtractor(image).extract()
+
+        assert metadata.time == datetime.datetime(2020, 1, 2, 3, 4, 5).timestamp()
+
+    def test_exif_reads_the_modify_date_last(self, tmp_path: Path):
+        image = _write_image_with_dates(
+            tmp_path / "image.jpg",
+            {
+                Base.DateTimeOriginal: NO_DATE,
+                Base.DateTimeDigitized: NO_DATE,
+                Base.DateTime: "2020:01:02 03:04:05",
+            },
+        )
+
+        metadata = ImageEXIFExtractor(image).extract()
+
+        assert metadata.time == datetime.datetime(2020, 1, 2, 3, 4, 5).timestamp()
+
+    @pytest.mark.parametrize(
+        "date",
+        [NO_DATE, "1904:02:07 13:28:44", "1969:12:31 19:00:00"],
+    )
+    def test_exiftool(self, tmp_path: Path, date: str):
+        element = _exiftool_element(
+            {
+                "GPS:GPSLatitude": "24.5601",
+                "GPS:GPSLatitudeRef": "N",
+                "GPS:GPSLongitude": "81.8077",
+                "GPS:GPSLongitudeRef": "W",
+                "ExifIFD:DateTimeOriginal": date,
+                "ExifIFD:OffsetTimeOriginal": "+01:00",
+            }
+        )
+
+        with pytest.raises(
+            exceptions.MapillaryGeoTaggingError, match="Unable to extract timestamp"
+        ):
+            ImageExifToolExtractor(tmp_path / "image.jpg", element).extract()
+
+    def test_exiftool_reads_the_next_date_tag(self, tmp_path: Path):
+        element = _exiftool_element(
+            {
+                "GPS:GPSLatitude": "24.5601",
+                "GPS:GPSLatitudeRef": "N",
+                "GPS:GPSLongitude": "81.8077",
+                "GPS:GPSLongitudeRef": "W",
+                "GPS:GPSDateStamp": "1904:02:07",
+                "GPS:GPSTimeStamp": "13:28:44",
+                "ExifIFD:DateTimeOriginal": "1969:12:31 19:00:00",
+                "ExifIFD:CreateDate": "2020:01:02 03:04:05",
+            }
+        )
+        image = tmp_path / "image.jpg"
+        image.write_bytes(b"")
+
+        metadata = ImageExifToolExtractor(image, element).extract()
+
+        assert metadata.time == datetime.datetime(2020, 1, 2, 3, 4, 5).timestamp()
+
+    def test_a_capture_time_from_1970_is_read(self, tmp_path: Path):
+        image = _write_image_with_dates(
+            tmp_path / "image.jpg",
+            {
+                Base.DateTimeOriginal: "1970:01:02 00:00:00",
+                Base.OffsetTimeOriginal: "+00:00",
+            },
+        )
+
+        metadata = ImageEXIFExtractor(image).extract()
+
+        assert metadata.time == 24 * 3600

@@ -24,10 +24,13 @@ def _capture_unix_time(capture_time: datetime.datetime) -> float:
     """
     The Unix time of the capture time of an image, assuming that a naive one
     is in the local timezone. Some cameras write 0001:01:01 00:00:00 for no
-    date, which has no Unix time: raise as for an image with no capture time,
-    rather than let geo.as_unix_time() move it to 1970.
+    date, which has no Unix time, and others other dates before 1970 (see
+    exif_read.is_valid_capture_time()): raise as for an image with no capture
+    time, rather than let geo.as_unix_time() move it to 1970.
     """
     try:
+        if not exif_read.is_valid_capture_time(capture_time):
+            raise ValueError(f"placeholder date {capture_time}")
         return capture_time.timestamp()
     except (ValueError, OverflowError, OSError):
         raise exceptions.MapillaryGeoTaggingError(

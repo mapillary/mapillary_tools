@@ -188,7 +188,8 @@ class ExifToolRead(exif_read.ExifReadABC):
             subsec = subsec.replace(" ", "0")
         offset = self._extract_alternative_fields(offset_tags, str)
         dt = exif_read.parse_datetimestr_with_subsec_and_offset(dtstr, subsec, offset)
-        if dt is None:
+        if dt is None or not exif_read.is_valid_capture_time(dt):
+            # A placeholder date: let the next date tag be tried
             return None
         return dt
 
@@ -277,14 +278,22 @@ class ExifToolRead(exif_read.ExifReadABC):
             dt = self.extract_gps_datetime()
         except (ValueError, TypeError, ZeroDivisionError):
             dt = None
-        if dt is not None and dt.date() != datetime.date(1970, 1, 1):
+        if (
+            dt is not None
+            and dt.date() != datetime.date(1970, 1, 1)
+            and exif_read.is_valid_capture_time(dt)
+        ):
             return dt
 
         try:
             dt = self.extract_gps_datetime_from_xmp()
         except (ValueError, TypeError, ZeroDivisionError):
             dt = None
-        if dt is not None and dt.date() != datetime.date(1970, 1, 1):
+        if (
+            dt is not None
+            and dt.date() != datetime.date(1970, 1, 1)
+            and exif_read.is_valid_capture_time(dt)
+        ):
             return dt
 
         dt = self.extract_exif_datetime()
