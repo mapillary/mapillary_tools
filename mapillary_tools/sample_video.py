@@ -1531,8 +1531,13 @@ def _sample_single_video_by_distance(
     # Go through the factory rather than reading the video's own telemetry
     # directly, so that --geotag_source is honoured here as well: a GPX is the
     # documented answer for a camera whose embedded GPS is unusable, and
-    # distance sampling needs positions just as much as geotagging does.
-    video_metadatas = factory.process([video_path], geotag_options)
+    # distance sampling needs positions just as much as geotagging does. The
+    # video is read in this process rather than in a pool of its own, so that a
+    # GPX (or NMEA) file that geotags several videos is read once
+    video_metadatas = factory.process(
+        [video_path],
+        [dataclasses.replace(option, num_processes=0) for option in geotag_options],
+    )
     # Every option can read videos (see _parse_geotag_options()), so process()
     # returns metadata for the video even if all of them fail
     assert len(video_metadatas) == 1, "expect 1 video metadata"

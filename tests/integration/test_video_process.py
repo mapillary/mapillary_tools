@@ -265,6 +265,53 @@ def test_video_process_by_interval_leaves_out_the_samples_past_the_gpx(
     assert "and were left out" in process.stderr
 
 
+def test_video_process_reads_a_gpx_file_of_several_videos_once(
+    setup_data: py.path.local,
+):
+    """
+    Sampling by interval read the GPX file of --geotag_source again for each
+    video, to tell which samples fall outside it, and warned about it each
+    time. It is read, and warned about, once
+    """
+    pytest_skip_if_not_ffmpeg_installed()
+
+    gpx = setup_data.join("gpx").join("sf_30km_h.gpx").read_text("utf-8")
+    # Two tracks, which are merged with a warning
+    points = [m.start() for m in re.finditer("<trkpt ", gpx)]
+    middle = points[len(points) // 2]
+    two_tracks = gpx[:middle] + "</trkseg><trkseg>" + gpx[middle:]
+
+    with tempfile.TemporaryDirectory() as dir:
+        videos = Path(dir, "videos")
+        videos.mkdir()
+        for name in ("a.mp4", "b.mp4"):
+            shutil.copy(
+                str(setup_data.join("videos").join("sample-5s.mp4")), videos / name
+            )
+        gpx_file = Path(dir, "two_tracks.gpx")
+        gpx_file.write_bytes(two_tracks.encode("utf-8"))
+        process = run_video_process(
+            [
+                "--video_sample_distance=-1",
+                "--video_sample_interval=1",
+                *["--video_start_time", "2025_03_14_07_01_31_000"],
+                "--geotag_source=gpx",
+                *["--geotag_source_path", str(gpx_file)],
+                *["--desc_path", str(Path(dir, "desc.json"))],
+                str(videos),
+                str(Path(dir, "samples")),
+            ],
+            capture_output=True,
+            text=True,
+        )
+        with open(Path(dir, "desc.json")) as fp:
+            descs = json.load(fp)
+
+    assert len(descs) == 6, descs
+    assert all("error" not in desc for desc in descs), descs
+    assert process.stderr.count("Found 2 tracks in the GPX file") == 1, process.stderr
+
+
 def test_video_process_by_interval_with_a_video_gpx(setup_data: py.path.local):
     """
     The samples are located along the GPX of --video_geotag_source as GPX sync

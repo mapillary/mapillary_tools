@@ -48,12 +48,15 @@ def _read_gpx_points(source_path: Path) -> list[geo.Point]:
     geotagged from it, and if it is missing or has no timestamped point: the
     file was given to geotag the images from, so it fails them rather than
     leaving them to the next geotag source.
+
+    The file is parsed once in a process (see utils.read_gpx_tracks()), and
+    its points are shared with its other readers, which must not change them.
     """
     if not source_path.is_file():
         raise exceptions.MapillaryInvalidGPXError(f"GPX file not found: {source_path}")
 
     try:
-        tracks = utils.parse_gpx(source_path)
+        tracks = utils.read_gpx_tracks(source_path)
     except (OSError, UnicodeError, gpxpy.gpx.GPXException) as ex:
         raise exceptions.MapillaryInvalidGPXError(
             f"{source_path.name} is not a valid GPX file. "
@@ -61,12 +64,14 @@ def _read_gpx_points(source_path: Path) -> list[geo.Point]:
         ) from ex
 
     if 1 < len(tracks):
-        LOG.warning(
+        utils.warn_once(
+            source_path,
+            ("tracks", len(tracks)),
             "Found %s tracks in the GPX file %s. Will merge points in all the tracks as a single track for interpolation",
             len(tracks),
             source_path,
         )
-    points: list[geo.Point] = sum(tracks, [])
+    points: list[geo.Point] = [point for track in tracks for point in track]
 
     if not points:
         raise exceptions.MapillaryInvalidGPXError(
