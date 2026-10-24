@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import logging
 import typing as T
 from pathlib import Path
 
@@ -240,3 +241,39 @@ class TestVideoImportPath:
         assert option.source_path is not None
         assert option.source_path.pattern is None
         assert option.source_path.source_path == Path("/data/xmls")
+
+    @pytest.mark.parametrize(
+        "source",
+        [
+            "exiftool_xml",
+            '{"source": "exiftool_xml", "pattern": "%g.gpx.xml"}',
+            '{"source": "gpx", "source_path": "/data/track.gpx"}',
+        ],
+    )
+    def test_no_warning_of_a_geotag_source_path_not_given(
+        self, monkeypatch, tmp_path, caplog, source
+    ):
+        """
+        The sources with a path of their own read it, not the video import
+        path, without a warning about a --geotag_source_path that was not given
+        """
+        with caplog.at_level(logging.WARNING):
+            self._options(monkeypatch, tmp_path, [source])
+
+        assert "--geotag_source_path" not in caplog.text
+
+    def test_warning_of_a_geotag_source_path_ignored(
+        self, monkeypatch, tmp_path, caplog
+    ):
+        """A source with a path of its own ignores the one the user gave"""
+        with caplog.at_level(logging.WARNING):
+            [option, *_] = self._options(
+                monkeypatch,
+                tmp_path,
+                ['{"source": "gpx", "source_path": "/data/track.gpx"}'],
+                Path("/data/other.gpx"),
+            )
+
+        assert option.source_path is not None
+        assert option.source_path.source_path == Path("/data/track.gpx")
+        assert "The option --geotag_source_path is ignored for source" in caplog.text
