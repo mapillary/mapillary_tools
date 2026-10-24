@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import logging
 import sys
 import typing as T
 from pathlib import Path
@@ -18,12 +19,21 @@ else:
 from ... import exceptions, exiftool_read_video, geo, telemetry, types, utils
 from ...gpmf import gpmf_gps_filter
 from .base import BaseVideoExtractor
+from .gpx import describe_long_track
+
+
+LOG = logging.getLogger(__name__)
 
 
 class VideoExifToolExtractor(BaseVideoExtractor):
-    def __init__(self, video_path: Path, element: ET.Element):
+    def __init__(
+        self, video_path: Path, element: ET.Element, track_path: Path | None = None
+    ):
         super().__init__(video_path)
         self.element = element
+        # The file that the metadata was read from, when it is not the video,
+        # such as the original that a stitched video was made from
+        self.track_path = track_path
 
     @override
     def extract(self) -> types.VideoMetadata:
@@ -62,6 +72,9 @@ class VideoExifToolExtractor(BaseVideoExtractor):
                 "No GPS data found from the video"
             )
 
+        if self.track_path is not None:
+            self._warn_of_a_long_track(points)
+
         filetype = types.FileType.GOPRO if is_gopro else types.FileType.VIDEO
 
         video_metadata = types.VideoMetadata(
@@ -75,3 +88,21 @@ class VideoExifToolExtractor(BaseVideoExtractor):
         )
 
         return video_metadata
+
+    def _warn_of_a_long_track(self, points: T.Sequence[geo.Point]) -> None:
+        """
+        Warn of a track read from another file that runs on for longer than
+        the whole video, as process warns of a GPX track assumed to start with
+        the video: the video could start anywhere along it. Only warn, since
+        the track of a timelapse runs on past the end of the video too.
+        """
+        track = describe_long_track(
+            f"The GPS track in {self.track_path}", points, self.video_path
+        )
+        if track is None:
+            return
+        LOG.warning(
+            f"{track}, and is assumed to start with it. Unless the video is a "
+            "timelapse of the whole track, check that the exiftool_runtime pattern "
+            "names the file that the video was made from"
+        )

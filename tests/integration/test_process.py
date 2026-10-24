@@ -1133,6 +1133,46 @@ def test_process_video_geotag_source_with_exiftool_runtime_pattern(
     assert descs[0]["error"]["type"] == "MapillaryVideoGPSNotFoundError"
 
 
+def test_process_video_with_an_exiftool_runtime_track_far_longer_than_it_warns(
+    setup_data: py.path.local,
+):
+    """
+    The original that the pattern names has 11.6 seconds of GPS for the 5.76
+    seconds of the video named after it: process warns, as for a GPX track,
+    and goes on
+    """
+    pytest_skip_if_not_exiftool_installed()
+
+    stitched_dir = setup_data.join("gopro_data").mkdir("stitched")
+    setup_data.join("videos").join("sample-5s.mp4").copy(
+        stitched_dir.join("max-360mode.mp4")
+    )
+
+    def stderr(source: dict, path: py.path.local) -> str:
+        return run_command(
+            [
+                *["--video_geotag_source", json.dumps(source)],
+                *["--desc_path", os.devnull],
+                str(path),
+            ],
+            command="process",
+            capture_output=True,
+            text=True,
+        ).stderr
+
+    warned = stderr(
+        {"source": "exiftool_runtime", "pattern": "../%g.mp4"}, stitched_dir
+    )
+    assert "lasts 11.6 seconds and the video" in warned
+    assert "so the video could start anywhere along the track" in warned
+
+    # The track of the original itself
+    original_path = setup_data.join("gopro_data").join("max-360mode.mp4")
+    assert "could start anywhere" not in stderr(
+        {"source": "exiftool_runtime"}, original_path
+    )
+
+
 def test_process_geotag_everything_with_exiftool_runtime(setup_data: py.path.local):
     pytest_skip_if_not_exiftool_installed()
 

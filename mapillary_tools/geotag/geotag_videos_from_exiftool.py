@@ -35,8 +35,15 @@ class GeotagVideosFromExifToolXML(GeotagVideosFromGeneric):
 
     @classmethod
     def build_video_extractors_from_etree(
-        cls, rdf_by_path: dict[str, ET.Element], video_paths: T.Iterable[Path]
+        cls,
+        rdf_by_path: dict[str, ET.Element],
+        video_paths: T.Iterable[Path],
+        track_paths: T.Mapping[Path, Path] | None = None,
     ) -> list[VideoExifToolExtractor | types.ErrorMetadata]:
+        """
+        The extractors of the videos from their RDF descriptions, each read
+        from the file of **track_paths** if it is not the video itself
+        """
         results: list[VideoExifToolExtractor | types.ErrorMetadata] = []
 
         for path in video_paths:
@@ -51,7 +58,8 @@ class GeotagVideosFromExifToolXML(GeotagVideosFromGeneric):
                     )
                 )
             else:
-                results.append(VideoExifToolExtractor(path, rdf))
+                track_path = None if track_paths is None else track_paths.get(path)
+                results.append(VideoExifToolExtractor(path, rdf, track_path=track_path))
 
         return results
 
@@ -197,6 +205,12 @@ class GeotagVideosFromExifToolRunner(GeotagVideosFromGeneric):
             if (rdf := rdf_by_path.get(exiftool_read.canonical_path(read_path)))
             is not None
         }
+        # Tracks read from other files than the videos, which may run on past them
+        track_paths = {
+            video_path: read_path
+            for video_path, read_path in read_paths.items()
+            if read_path.resolve() != video_path.resolve()
+        }
         return results + GeotagVideosFromExifToolXML.build_video_extractors_from_etree(
-            rdf_by_video_path, list(read_paths)
+            rdf_by_video_path, list(read_paths), track_paths
         )

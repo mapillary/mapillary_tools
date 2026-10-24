@@ -10,6 +10,8 @@ names after the video, such as the Insta360 original of a stitched video.
 
 from __future__ import annotations
 
+import logging
+import shutil
 import typing as T
 from pathlib import Path
 
@@ -19,7 +21,7 @@ from mapillary_tools.geotag import factory
 from mapillary_tools.geotag.options import SourceOption, SourcePathOption, SourceType
 
 
-def _rdf(path: Path, model: str) -> str:
+def _rdf(path: Path, model: str, last_time: str = "14:19:38") -> str:
     return f"""\
 <rdf:Description rdf:about='{path.resolve().as_posix()}'
  xmlns:IFD0='http://ns.exiftool.org/EXIF/IFD0/1.0/'
@@ -29,7 +31,7 @@ def _rdf(path: Path, model: str) -> str:
  <QuickTime:GPSDateTime>2023:08:25 14:19:28Z</QuickTime:GPSDateTime>
  <QuickTime:GPSLatitude>47.3598583</QuickTime:GPSLatitude>
  <QuickTime:GPSLongitude>8.5211333</QuickTime:GPSLongitude>
- <QuickTime:GPSDateTime>2023:08:25 14:19:38Z</QuickTime:GPSDateTime>
+ <QuickTime:GPSDateTime>2023:08:25 {last_time}Z</QuickTime:GPSDateTime>
  <QuickTime:GPSLatitude>47.3594</QuickTime:GPSLatitude>
  <QuickTime:GPSLongitude>8.5216</QuickTime:GPSLongitude>
 </rdf:Description>"""
@@ -43,6 +45,8 @@ class _FakeRunner:
 
     def __init__(self, calls: list[tuple[bool, list[Path]]]):
         self.calls = calls
+        # The time of the last GPS point, 10 seconds after the first
+        self.last_time = "14:19:38"
 
     def __call__(self, *args, fast: bool = True, **kwargs) -> _FakeRunner:
         self.fast = fast
@@ -53,7 +57,9 @@ class _FakeRunner:
 
     def extract_xml(self, paths: T.Sequence[Path]) -> str:
         self.calls.append((self.fast, list(paths)))
-        descriptions = "\n".join(_rdf(path, path.name) for path in paths)
+        descriptions = "\n".join(
+            _rdf(path, path.name, self.last_time) for path in paths
+        )
         return (
             "<?xml version='1.0' encoding='UTF-8'?>\n"
             "<rdf:RDF xmlns:rdf='http://www.w3.org/1999/02/22-rdf-syntax-ns#'>\n"
@@ -62,13 +68,17 @@ class _FakeRunner:
 
 
 @pytest.fixture
-def exiftool_calls(monkeypatch: pytest.MonkeyPatch) -> list[tuple[bool, list[Path]]]:
-    calls: list[tuple[bool, list[Path]]] = []
+def fake_exiftool(monkeypatch: pytest.MonkeyPatch) -> _FakeRunner:
+    runner = _FakeRunner([])
     monkeypatch.setattr(
-        "mapillary_tools.geotag.geotag_videos_from_exiftool.ExiftoolRunner",
-        _FakeRunner(calls),
+        "mapillary_tools.geotag.geotag_videos_from_exiftool.ExiftoolRunner", runner
     )
-    return calls
+    return runner
+
+
+@pytest.fixture
+def exiftool_calls(fake_exiftool: _FakeRunner) -> list[tuple[bool, list[Path]]]:
+    return fake_exiftool.calls
 
 
 def _process(video_path: Path, option: SourceOption) -> types.MetadataOrError:
@@ -159,3 +169,70 @@ def test_fast_skips_the_end_of_files():
         "-fast"
         not in exiftool_runner.ExiftoolRunner(fast=False)._build_args_read_stdin()
     )
+
+
+# 5.76 seconds long
+_VIDEO = (
+    Path(__file__).resolve().parent.parent.joinpath("data", "videos", "sample-5s.mp4")
+)
+
+
+class TestATrackFarLongerThanTheVideo:
+    """
+    A track read from another file, such as the original of a stitched
+    timelapse, can last far longer than the video, which is assumed to start
+    with it and could start anywhere along it: warn, as for a GPX track
+    """
+
+    def _process(
+        self, tmp_path: Path, fake_exiftool: _FakeRunner, caplog, **source
+    ) -> list[str]:
+        video_path = tmp_path / "VID_00_006.mp4"
+        shutil.copyfile(_VIDEO, video_path)
+        (tmp_path / "VID_00_006.insv").write_bytes(b"")
+        with caplog.at_level(logging.WARNING):
+            metadata = _process(
+                video_path,
+                # In this process, where the warning is captured
+                SourceOption(SourceType.EXIFTOOL_RUNTIME, num_processes=0, **source),
+            )
+        assert isinstance(metadata, types.VideoMetadata)
+        return [r.getMessage() for r in caplog.records if r.levelno >= logging.WARNING]
+
+    def test_warns(self, tmp_path, fake_exiftool, caplog):
+        fake_exiftool.last_time = "14:20:28"
+        [warning] = self._process(
+            tmp_path,
+            fake_exiftool,
+            caplog,
+            source_path=SourcePathOption(pattern="%g.insv"),
+        )
+        assert "VID_00_006.insv lasts 1.0 minutes and the video" in warning
+        assert "VID_00_006.mp4 only 5.76 seconds, so the video could start" in warning
+        assert warning.endswith(
+            "check that the exiftool_runtime pattern names the file that the video "
+            "was made from"
+        )
+
+    def test_a_track_as_long_as_the_video_is_silent(
+        self, tmp_path, fake_exiftool, caplog
+    ):
+        """10 seconds of track for 5.76 seconds of video"""
+        assert not self._process(
+            tmp_path,
+            fake_exiftool,
+            caplog,
+            source_path=SourcePathOption(pattern="%g.insv"),
+        )
+
+    def test_the_track_of_the_video_itself_is_silent(
+        self, tmp_path, fake_exiftool, caplog
+    ):
+        fake_exiftool.last_time = "14:20:28"
+        assert not self._process(tmp_path, fake_exiftool, caplog)
+        assert not self._process(
+            tmp_path,
+            fake_exiftool,
+            caplog,
+            source_path=SourcePathOption(pattern="%f"),
+        )
