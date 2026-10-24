@@ -849,20 +849,15 @@ class GPXVideoExtractor(BaseVideoExtractor):
         With --interpolation_offset_time, it is the offset that places the
         video along the track, and one way to place it right.
         """
-        video_duration = _video_duration(self.video_path)
-        if video_duration is None:
+        track = describe_long_track(
+            f"The {self.file_format} track in {self.gpx_path}",
+            gpx_points,
+            self.video_path,
+        )
+        if track is None:
             return
 
         gpx_start = min(p.time for p in gpx_points)
-        gpx_duration = max(p.time for p in gpx_points) - gpx_start
-        if gpx_duration <= 2 * video_duration:
-            return
-
-        track = (
-            f"The {self.file_format} track in {self.gpx_path} lasts {_format_duration(gpx_duration)} "
-            f"and the video {self.video_path} only {_format_duration(video_duration)}, "
-            "so the video could start anywhere along the track"
-        )
         offset_time = (
             0.0 if self.interpolation is None else self.interpolation.offset_time
         )
@@ -1128,6 +1123,30 @@ def describe_gap(
         f"a gap of {_format_duration(after_time - before_time)}, "
         f"from {_isoformat(before_time)} at ({round(before.lat, 7)}, {round(before.lon, 7)}) "
         f"to {_isoformat(after_time)} at ({round(after.lat, 7)}, {round(after.lon, 7)})"
+    )
+
+
+def describe_long_track(
+    track_name: str, points: T.Sequence[geo.Point], video_path: Path
+) -> str | None:
+    """
+    Describe a track, named **track_name**, that lasts more than twice as long
+    as the video it is assumed to start with, which could then start anywhere
+    along it; or None if it does not, or if the duration of the video cannot
+    be read
+    """
+    video_duration = _video_duration(video_path)
+    if video_duration is None or not points:
+        return None
+
+    track_duration = max(p.time for p in points) - min(p.time for p in points)
+    if track_duration <= 2 * video_duration:
+        return None
+
+    return (
+        f"{track_name} lasts {_format_duration(track_duration)} "
+        f"and the video {video_path} only {_format_duration(video_duration)}, "
+        "so the video could start anywhere along the track"
     )
 
 
