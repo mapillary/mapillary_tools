@@ -172,3 +172,71 @@ class TestNamedUnsupportedFiles:
         notes.write_bytes(b"not an image")
 
         assert len(self._process(monkeypatch, [notes, notes])) == 1
+
+
+class TestVideoImportPath:
+    """
+    In video_process, the sources without a path of their own read the video
+    import path. An exiftool_xml source without a path or a pattern reads the
+    XML named after each video beside it first, as in process
+    """
+
+    @staticmethod
+    def _options(
+        monkeypatch,
+        import_dir: Path,
+        video_geotag_source: list[str],
+        geotag_source_path: Path | None = None,
+    ) -> list[SourceOption]:
+        seen: list[T.Collection[SourceOption]] = []
+
+        def process(paths, options, filetypes=None):
+            seen.append(options)
+            return []
+
+        monkeypatch.setattr(pgp, "process", process)
+        pgp.process_geotag_properties(
+            import_dir,
+            {types.FileType.IMAGE},
+            geotag_source=[],
+            geotag_source_path=geotag_source_path,
+            video_geotag_source=video_geotag_source,
+            video_import_path=Path("/data/videos"),
+        )
+        [options] = seen
+        return list(options)
+
+    def test_exiftool_xml_gets_its_default_pattern(self, monkeypatch, tmp_path):
+        option = self._options(monkeypatch, tmp_path, ["exiftool_xml"])[0]
+
+        assert option.source is SourceType.EXIFTOOL_XML
+        assert option.source_path is not None
+        assert option.source_path.pattern == "%g.xml"
+        assert option.source_path.source_path == Path("/data/videos")
+
+    def test_a_pattern_is_kept(self, monkeypatch, tmp_path):
+        option = self._options(
+            monkeypatch,
+            tmp_path,
+            ['{"source": "exiftool_xml", "pattern": "%g.gpx.xml"}'],
+        )[0]
+
+        assert option.source_path is not None
+        assert option.source_path.pattern == "%g.gpx.xml"
+        assert option.source_path.source_path == Path("/data/videos")
+
+    def test_other_sources_get_the_import_path_only(self, monkeypatch, tmp_path):
+        option = self._options(monkeypatch, tmp_path, ["native"])[0]
+
+        assert option.source_path is not None
+        assert option.source_path.pattern is None
+        assert option.source_path.source_path == Path("/data/videos")
+
+    def test_geotag_source_path_is_read_as_it_is(self, monkeypatch, tmp_path):
+        option = self._options(
+            monkeypatch, tmp_path, ["exiftool_xml"], Path("/data/xmls")
+        )[0]
+
+        assert option.source_path is not None
+        assert option.source_path.pattern is None
+        assert option.source_path.source_path == Path("/data/xmls")

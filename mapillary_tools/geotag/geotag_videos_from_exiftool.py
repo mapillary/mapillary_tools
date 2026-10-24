@@ -60,6 +60,16 @@ class GeotagVideosFromExifToolXML(GeotagVideosFromGeneric):
         self, video_paths: T.Sequence[Path]
     ) -> T.Sequence[VideoExifToolExtractor | types.ErrorMetadata]:
         rdf_by_path = self.find_rdf_by_path(self.source_path, video_paths)
+        if self.source_path.source_path is not None and self.source_path.pattern:
+            # Given both, the XML that the pattern names after a video, where it
+            # is, rather than the XMLs at the source path, as for the samples of
+            # videos (see GeotagImagesFromExifToolWithSamples)
+            rdf_by_path.update(
+                self.find_rdf_by_path(
+                    options.SourcePathOption(pattern=self.source_path.pattern),
+                    video_paths,
+                )
+            )
         return self.build_video_extractors_from_etree(rdf_by_path, video_paths)
 
     @classmethod

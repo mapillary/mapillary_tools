@@ -2757,6 +2757,38 @@ class TestGeotagSourceReachesDistanceSampling:
         assert options[0].source_path is not None
         assert options[0].source_path.source_path == Path("/data/videos")
 
+    def test_without_a_path_exiftool_xml_gets_its_default_pattern(self):
+        """
+        As in process: the XML named after each video beside it, or else the
+        XMLs in the video import path. With only the import path, it read those
+        XMLs only, matched by the paths in them
+        """
+        [option] = sample_video._parse_geotag_options(
+            None, None, ["exiftool_xml"], Path("/data/videos")
+        )
+
+        assert option.source_path is not None
+        assert option.source_path.pattern == "%g.xml"
+        assert option.source_path.source_path == Path("/data/videos")
+
+    @pytest.mark.parametrize("source", ["gpx", "native"])
+    def test_without_a_path_other_sources_get_no_pattern(self, source):
+        [option] = sample_video._parse_geotag_options(
+            [source], None, None, Path("/data/videos")
+        )
+
+        assert option.source_path is not None
+        assert option.source_path.pattern is None
+
+    def test_exiftool_xml_with_a_path_gets_no_pattern(self):
+        [option] = sample_video._parse_geotag_options(
+            None, Path("/data/xmls"), ["exiftool_xml"], Path("/data/videos")
+        )
+
+        assert option.source_path is not None
+        assert option.source_path.pattern is None
+        assert option.source_path.source_path == Path("/data/xmls")
+
     def test_without_a_path_a_pattern_is_kept(self):
         """
         SourcePathOption.resolve() returns a source_path before trying the

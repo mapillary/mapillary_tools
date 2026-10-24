@@ -147,22 +147,58 @@ def parse_source_options(
         parsed_options.extend(parse_source_option(s))
 
     if geotag_source_path is not None:
-        for parsed_option in parsed_options:
-            if parsed_option.source_path is None:
-                parsed_option.source_path = SourcePathOption(
-                    source_path=Path(geotag_source_path)
-                )
-            else:
-                source_path_option = parsed_option.source_path
-                if source_path_option.source_path is None:
-                    source_path_option.source_path = Path(geotag_source_path)
-                else:
-                    LOG.warning(
-                        "The option --geotag_source_path is ignored for source %s",
-                        parsed_option,
-                    )
+        _give_source_path(parsed_options, geotag_source_path)
 
     return parsed_options
+
+
+def _give_source_path(options: T.Sequence[SourceOption], source_path: Path) -> None:
+    """
+    Give **source_path** to the options without a source path of their own,
+    keeping their patterns
+    """
+    for option in options:
+        if option.source_path is None:
+            option.source_path = SourcePathOption(source_path=Path(source_path))
+        else:
+            source_path_option = option.source_path
+            if source_path_option.source_path is None:
+                source_path_option.source_path = Path(source_path)
+            else:
+                LOG.warning(
+                    "The option --geotag_source_path is ignored for source %s",
+                    option,
+                )
+
+
+def give_video_import_path(
+    options: T.Sequence[SourceOption], video_import_path: Path
+) -> None:
+    """
+    Give the video import path of video_process to the options without a source
+    path of their own, as --geotag_source_path would. An exiftool_xml source
+    without a source path or a pattern keeps its default pattern, as in process
+    (see exiftool_xml_default_source_path)
+    """
+    for option in options:
+        if option.source is SourceType.EXIFTOOL_XML and option.source_path is None:
+            option.source_path = exiftool_xml_default_source_path(video_import_path)
+    _give_source_path(options, video_import_path)
+
+
+def exiftool_xml_default_source_path(video_import_path: Path) -> SourcePathOption:
+    """
+    Where an exiftool_xml source without a source path or a pattern finds the
+    XML of a video in video_process and sample_video: in the XML named after it
+    beside it, as in process, or else in the XMLs in the video import path,
+    matched by the paths in them
+
+    >>> exiftool_xml_default_source_path(Path("videos"))
+    SourcePathOption(pattern='%g.xml', source_path=PosixPath('videos'))
+    """
+    return SourcePathOption(
+        pattern=_EXIFTOOL_XML_DEFAULT_PATTERN, source_path=video_import_path
+    )
 
 
 def _as_video_source(option: SourceOption) -> SourceOption:

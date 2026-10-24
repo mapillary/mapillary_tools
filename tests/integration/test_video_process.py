@@ -664,6 +664,82 @@ def test_video_process_by_distance_with_an_exiftool_xml_pattern(
     assert all("error" not in desc for desc in descs), descs
 
 
+@pytest.mark.parametrize("option", ["--geotag_source", "--video_geotag_source"])
+def test_video_process_by_distance_with_the_exiftool_xml_default_pattern(
+    setup_data: py.path.local, tmp_path: Path, option: str
+):
+    """
+    Without a source path or a pattern, exiftool_xml reads the XML named after
+    the video beside it, as process does. video_process read the XMLs in the
+    video directory only, matched by the paths in them, and an XML made in that
+    directory names the video by its name alone
+    """
+    pytest_skip_if_not_ffmpeg_installed()
+    pytest_skip_if_not_exiftool_installed()
+
+    video_dir = tmp_path / "videos"
+    video_dir.mkdir()
+    shutil.copyfile(
+        str(setup_data.join("gopro_data").join("max-360mode.mp4")),
+        video_dir / "max-360mode.mp4",
+    )
+    with open(video_dir / "max-360mode.xml", "wb") as fp:
+        subprocess.run(
+            [EXIFTOOL_EXECUTABLE, "-ee", "-n", "-X", "max-360mode.mp4"],
+            stdout=fp,
+            cwd=video_dir,
+            check=True,
+        )
+
+    descs = run_video_process_for_descs(
+        [
+            "--video_sample_distance=6",
+            *[option, "exiftool_xml"],
+            str(video_dir),
+            str(tmp_path / "samples"),
+        ]
+    )
+
+    assert descs
+    assert all("error" not in desc for desc in descs), descs
+
+
+def test_video_process_by_distance_with_exiftool_xml_in_the_video_directory(
+    setup_data: py.path.local, tmp_path: Path
+):
+    """
+    Without an XML named after the video, the XMLs in the video directory are
+    read, matched by the paths in them
+    """
+    pytest_skip_if_not_ffmpeg_installed()
+    pytest_skip_if_not_exiftool_installed()
+
+    video_dir = tmp_path / "videos"
+    video_dir.mkdir()
+    video_path = video_dir / "max-360mode.mp4"
+    shutil.copyfile(
+        str(setup_data.join("gopro_data").join("max-360mode.mp4")), video_path
+    )
+    with open(video_dir / "exiftool.xml", "wb") as fp:
+        subprocess.run(
+            [EXIFTOOL_EXECUTABLE, "-ee", "-n", "-X", str(video_path)],
+            stdout=fp,
+            check=True,
+        )
+
+    descs = run_video_process_for_descs(
+        [
+            "--video_sample_distance=6",
+            *["--video_geotag_source", "exiftool_xml"],
+            str(video_dir),
+            str(tmp_path / "samples"),
+        ]
+    )
+
+    assert descs
+    assert all("error" not in desc for desc in descs), descs
+
+
 def test_video_process_processes_the_videos_that_sampled(setup_data: py.path.local):
     """
     hero8.mp4's GPS is all noise, so it cannot be sampled by distance. That

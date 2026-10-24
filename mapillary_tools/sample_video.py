@@ -155,7 +155,15 @@ def _parse_video_sources(
     if geotag_source_path is None:
         for option in options:
             if option.source_path is None:
-                option.source_path = SourcePathOption(source_path=video_import_path)
+                if option.source is SourceType.EXIFTOOL_XML:
+                    # The XML named after each video beside it, as in process
+                    # and in the geotagging stage, or else the XMLs in the
+                    # video import path
+                    option.source_path = factory.exiftool_xml_default_source_path(
+                        video_import_path
+                    )
+                else:
+                    option.source_path = SourcePathOption(source_path=video_import_path)
 
     # exif and the legacy gopro/blackvue/camm sources have nothing to read a
     # video with; in video_process they are there to geotag the frames. Sample
