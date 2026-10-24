@@ -236,6 +236,89 @@ def test_malformed_fields_are_skipped(tmp_path, caplog, malformed):
     assert "Skipping 1 of the 5 RMC and GGA sentences" in caplog.text
 
 
+@pytest.mark.parametrize("gga_first", [True, False])
+def test_a_sentence_cut_inside_its_date_is_skipped(tmp_path, caplog, gga_first):
+    """
+    pynmea2 read the date "2212" of an RMC sentence cut short, the last of a
+    log, as 2012-02-02, and the last fix took it: a track of 10 years
+    """
+    lines = []
+    for time, date in [("235959.00", "211222"), ("000000.00", "221222")]:
+        if gga_first:
+            lines += [_gga(time), _rmc(time, date=date)]
+        else:
+            lines += [_rmc(time, date=date), _gga(time)]
+    if gga_first:
+        lines.append(_gga("000001.00"))
+    cut = _rmc("000001.00").split(",221222,")[0] + ",2212"
+
+    with caplog.at_level(logging.WARNING):
+        assert _read(tmp_path, *lines, cut) == [
+            _fix("23:59:59", date="2022-12-21"),
+            _fix("00:00:00"),
+        ] + ([_fix("00:00:01")] if gga_first else [])
+
+    assert "Skipping 1 of the" in caplog.text
+    assert "(no checksum)" in caplog.text
+
+
+def test_sentences_cut_short_are_skipped_with_one_warning(tmp_path, caplog):
+    lines = []
+    for second in range(10):
+        lines += [_rmc(f"02463{second}.00"), _gga(f"02463{second}.00")]
+    # Every other fix cut short, at another field each time
+    for idx in range(1, 20, 4):
+        lines[idx] = lines[idx][: 10 + 3 * idx]
+
+    with caplog.at_level(logging.WARNING):
+        points = _read(tmp_path, *lines)
+
+    assert [p[0][11:19] for p in points] == [
+        f"02:46:3{second}" for second in range(10) if second % 2 == 1
+    ]
+    assert caplog.text.count("Skipping 5 of the 20 RMC and GGA sentences") == 1
+
+
+def test_sentences_without_checksums_are_read(tmp_path, caplog):
+    """In a log whose sentences carry no checksum, as some converters write"""
+
+    def bare(sentence: str) -> str:
+        return sentence.rsplit("*", 1)[0]
+
+    with caplog.at_level(logging.WARNING):
+        assert _read(
+            tmp_path,
+            bare(_rmc("024636.00")),
+            bare(_gga("024636.00")),
+            bare(_rmc("024637.00")),
+            bare(_gga("024637.00")),
+        ) == [_fix("02:46:36"), _fix("02:46:37")]
+
+    assert not caplog.text
+
+
+@pytest.mark.parametrize(
+    "cut, error",
+    [
+        # pynmea2 read these as 2012-02-02 and 00:00:02
+        ("$GPRMC,024637.00,A,3735.30670,N,12220.25810,W,0.0,0.0,2212", "datestamp"),
+        ("$GPGGA,00002", "timestamp"),
+    ],
+)
+def test_fields_cut_short_without_checksums_are_skipped(tmp_path, caplog, cut, error):
+    """Where no sentence has a checksum, a field cut short tells it"""
+
+    def bare(sentence: str) -> str:
+        return sentence.rsplit("*", 1)[0]
+
+    with caplog.at_level(logging.WARNING):
+        assert _read(
+            tmp_path, bare(_rmc("024636.00")), bare(_gga("024636.00")), cut
+        ) == [_fix("02:46:36")]
+
+    assert f"(malformed {error}: " in caplog.text
+
+
 @pytest.mark.parametrize(
     "lines",
     [

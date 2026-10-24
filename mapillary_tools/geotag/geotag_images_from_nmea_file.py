@@ -22,6 +22,15 @@ LOG = logging.getLogger(__name__)
 # GL (GLONASS), GA (Galileo), ...
 _SENTENCE_RE = re.compile(r"\$[A-Z]{2}(RMC|GGA),")
 
+# The checksum that ends a sentence: *HH
+_CHECKSUM_RE = re.compile(r"\*[0-9A-Fa-f]{2}\s*$")
+
+# The time of a sentence (hhmmss, and a fraction of a second), and the date of
+# an RMC sentence (ddmmyy). pynmea2 reads a field cut short as another time or
+# date: an RMC sentence cut inside its date "2212" as 2012-02-02
+_TIME_RE = re.compile(r"\d{6}(\.\d+)?")
+_DATE_RE = re.compile(r"\d{6}")
+
 
 class GeotagImagesFromNMEAFile(GeotagImagesFromGPX):
     def __init__(
@@ -92,9 +101,10 @@ def get_lat_lon_time_from_nmea(nmea_file: Path) -> list[geo.Point]:
     for the same time: only the first is read, so that no two points share a
     time.
 
-    A malformed sentence, such as one whose checksum does not match, is
-    skipped with a warning. A file of which no fix can be read and that has
-    malformed sentences raises ValueError, as one that is not text does.
+    A malformed sentence, such as one whose checksum does not match, or one
+    cut short, is skipped with a warning. A file of which no fix can be read
+    and that has malformed sentences raises ValueError, as one that is not
+    text does.
     """
     # NMEA sentences are ASCII. Decode them as UTF-8 on every platform, so
     # that a file that is not text fails to read, not only where UTF-8 is the
@@ -103,15 +113,25 @@ def get_lat_lon_time_from_nmea(nmea_file: Path) -> list[geo.Point]:
         lines = f.readlines()
         lines = [line.rstrip("\n\r") for line in lines]
 
+    # (line number, line) of each RMC and GGA sentence
+    sentences = [
+        (number, line)
+        for number, line in enumerate(lines, start=1)
+        if _SENTENCE_RE.search(line)
+    ]
+    # Receivers end each sentence with its checksum, or none of them. One
+    # without, where the others have theirs, was cut short, such as the last
+    # one of a log when the recording stopped
+    checksummed = any(_CHECKSUM_RE.search(line) for _, line in sentences)
+
     messages = []
     # (line number, line, error) of each malformed sentence
     malformed: list[tuple[int, str, ValueError]] = []
-    for number, line in enumerate(lines, start=1):
-        if _SENTENCE_RE.search(line):
-            try:
-                messages.append(_parse_sentence(line))
-            except ValueError as ex:
-                malformed.append((number, line, ex))
+    for number, line in sentences:
+        try:
+            messages.append(_parse_sentence(line, checksummed=checksummed))
+        except ValueError as ex:
+            malformed.append((number, line, ex))
 
     points = _read_fixes(messages, nmea_file)
 
@@ -185,11 +205,13 @@ def _read_fixes(
     return points
 
 
-def _parse_sentence(line: str) -> pynmea2.NMEASentence:
+def _parse_sentence(line: str, checksummed: bool = False) -> pynmea2.NMEASentence:
     """
     Parse an NMEA sentence, raising ValueError if it is malformed: if it does
-    not parse or its checksum does not match, or if a field that a fix is
-    read from does not parse, which pynmea2 leaves a string
+    not parse or its checksum does not match, if it has no checksum but should
+    (**checksummed**), if its time or the date of an RMC sentence is not
+    hhmmss[.ss] or ddmmyy, or if a field that a fix is read from does not
+    parse, which pynmea2 leaves a string
 
     >>> _parse_sentence("$GPGGA,0246,3735.30670,N,12220.25810,W,1,08,1.0,0.0,M,0.0,M,,*64")
     Traceback (most recent call last):
@@ -199,12 +221,32 @@ def _parse_sentence(line: str) -> pynmea2.NMEASentence:
     Traceback (most recent call last):
     ...
     ValueError: checksum does not match: 00 != 4F
+    >>> _parse_sentence("$GPRMC,024636.00,A,3735.30670,N,12220.25810,W,0.0,0.0,2212", checksummed=True)
+    Traceback (most recent call last):
+    ...
+    ValueError: no checksum
+    >>> _parse_sentence("$GPRMC,024636.00,A,3735.30670,N,12220.25810,W,0.0,0.0,2212")
+    Traceback (most recent call last):
+    ...
+    ValueError: malformed datestamp: '2212'
     """
+    if checksummed and not _CHECKSUM_RE.search(line):
+        raise ValueError("no checksum")
+
     try:
         message = pynmea2.parse(line)
     except pynmea2.ParseError as ex:
         # Its argument is (reason, sentence)
         raise ValueError(ex.args[0][0]) from ex
+
+    formats = {"timestamp": _TIME_RE}
+    if isinstance(message, pynmea2.RMC):
+        formats["datestamp"] = _DATE_RE
+    for name, pattern in formats.items():
+        value = _raw_field(message, name)
+        # An empty field is no time or date, as before a fix
+        if value and not pattern.fullmatch(value):
+            raise ValueError(f"malformed {name}: {value!r}")
 
     fields: dict[str, type] = {}
     if isinstance(message, pynmea2.RMC):
@@ -222,6 +264,12 @@ def _parse_sentence(line: str) -> pynmea2.NMEASentence:
         _position = (message.latitude, message.longitude)
 
     return message
+
+
+def _raw_field(message: pynmea2.NMEASentence, name: str) -> str:
+    """The text of the field **name** of a sentence, empty if it is cut off"""
+    idx = message.name_to_idx[name]
+    return message.data[idx] if idx < len(message.data) else ""
 
 
 def _rmc_datetime(message: pynmea2.RMC) -> datetime.datetime:
