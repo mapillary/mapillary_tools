@@ -317,6 +317,27 @@ def make_valid_timezone_offset(delta: datetime.timedelta) -> datetime.timedelta:
     return delta
 
 
+# No image was captured before 1970. Cameras without a clock write placeholder
+# dates before it: 0001:01:01 00:00:00, a date in 1904 (the Mac epoch), or
+# 1969:12:31 19:00:00 (Unix time 0 in a time zone west of UTC)
+_MIN_CAPTURE_YEAR = 1970
+
+
+def is_valid_capture_time(dt: datetime.datetime) -> bool:
+    """
+    Whether **dt** can be the time an image was captured, rather than a
+    placeholder date
+
+    >>> is_valid_capture_time(datetime.datetime(2021, 7, 15, 15, 37, 30))
+    True
+    >>> is_valid_capture_time(datetime.datetime(1, 1, 1))
+    False
+    >>> is_valid_capture_time(datetime.datetime(1969, 12, 31, 19, 0))
+    False
+    """
+    return _MIN_CAPTURE_YEAR <= dt.year
+
+
 _FIELD_TYPE = T.TypeVar("_FIELD_TYPE", int, float, str)
 
 
@@ -391,7 +412,8 @@ class ExifReadFromXMP(ExifReadABC):
             subsec = subsec.replace(" ", "0")
         offset = self._extract_alternative_fields([offset_tag], str)
         dt = parse_datetimestr_with_subsec_and_offset(dtstr, subsec, offset)
-        if dt is None:
+        if dt is None or not is_valid_capture_time(dt):
+            # A placeholder date: let the next date tag be tried
             return None
         return dt
 
@@ -436,7 +458,11 @@ class ExifReadFromXMP(ExifReadABC):
 
     def extract_capture_time(self) -> datetime.datetime | None:
         dt = self.extract_gps_datetime()
-        if dt is not None and dt.date() != datetime.date(1970, 1, 1):
+        if (
+            dt is not None
+            and dt.date() != datetime.date(1970, 1, 1)
+            and is_valid_capture_time(dt)
+        ):
             return dt
 
         dt = self.extract_exif_datetime()
@@ -738,7 +764,8 @@ class ExifReadFromEXIF(ExifReadABC):
             subsec = subsec.replace(" ", "0")
         offset = self._extract_alternative_fields([offset_tag], field_type=str)
         dt = parse_datetimestr_with_subsec_and_offset(dtstr, subsec, offset)
-        if dt is None:
+        if dt is None or not is_valid_capture_time(dt):
+            # A placeholder date: let the next date tag be tried
             return None
         return dt
 
@@ -786,7 +813,11 @@ class ExifReadFromEXIF(ExifReadABC):
             gps_dt = self.extract_gps_datetime()
         except (ValueError, TypeError, ZeroDivisionError):
             gps_dt = None
-        if gps_dt is not None and gps_dt.date() != datetime.date(1970, 1, 1):
+        if (
+            gps_dt is not None
+            and gps_dt.date() != datetime.date(1970, 1, 1)
+            and is_valid_capture_time(gps_dt)
+        ):
             return gps_dt
 
         dt = self.extract_exif_datetime()

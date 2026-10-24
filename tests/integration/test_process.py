@@ -1485,3 +1485,38 @@ def test_process_video_with_a_gpx_far_longer_than_it_warns(
     assert "could start anywhere along the track" in result.stderr
     [desc] = json.loads(result.stdout)
     assert desc["MAPGPSTrack"][0][0] == 0
+
+
+def test_process_image_with_a_placeholder_capture_time_and_offset(
+    tmpdir: py.path.local,
+):
+    """
+    A camera without a clock writes 0001:01:01 00:00:00. With a time zone
+    offset, that time is before year 1 in UTC, and crashed the run
+    """
+    from PIL import Image
+    from PIL.ExifTags import Base, GPS, IFD
+    from PIL.TiffImagePlugin import IFDRational
+
+    folder = tmpdir.mkdir("images")
+    for name, date in [
+        ("placeholder.jpg", "0001:01:01 00:00:00"),
+        ("valid.jpg", "2020:01:02 03:04:05"),
+    ]:
+        img = Image.new("RGB", (4, 4), (0, 0, 0))
+        exif = img.getexif()
+        exif.get_ifd(IFD.Exif)[Base.DateTimeOriginal] = date
+        exif.get_ifd(IFD.Exif)[Base.OffsetTimeOriginal] = "+01:00"
+        gps = exif.get_ifd(IFD.GPSInfo)
+        gps[GPS.GPSLatitudeRef] = "N"
+        gps[GPS.GPSLatitude] = (IFDRational(24), IFDRational(33), IFDRational(36))
+        gps[GPS.GPSLongitudeRef] = "W"
+        gps[GPS.GPSLongitude] = (IFDRational(81), IFDRational(48), IFDRational(27))
+        img.save(str(folder.join(name)), format="JPEG", exif=exif)
+
+    # The EXIF reader alone, which needs no ExifTool installed
+    descs = run_process_for_descs(["--geotag_source=native", str(folder)])
+
+    by_name = {Path(desc["filename"]).name: desc for desc in descs}
+    assert by_name["placeholder.jpg"]["error"]["type"] == "MapillaryGeoTaggingError"
+    assert by_name["valid.jpg"]["MAPCaptureTime"] == "2020_01_02_02_04_05_000"

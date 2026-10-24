@@ -3,17 +3,26 @@
 # This source code is licensed under the BSD license found in the
 # LICENSE file in the root directory of this source tree.
 
+import datetime
 import json
 from pathlib import Path
 
-from mapillary_tools import geo, telemetry
+import pytest
+from mapillary_tools import geo, telemetry, types
 from mapillary_tools.exceptions import MapillaryMetadataValidationError
 from mapillary_tools.serializer.description import (
+    build_capture_time,
     DescriptionJSONSerializer,
     ImageVideoDescriptionFileSchema,
     PointEncoder,
+    validate_and_fail_metadata,
     validate_image_desc,
 )
+
+# 0001-01-01 00:00:00+01:00, which is before year 1 in UTC
+_BEFORE_YEAR_ONE = datetime.datetime(
+    1, 1, 1, tzinfo=datetime.timezone(datetime.timedelta(hours=1))
+).timestamp()
 
 
 def test_validate_descs_ok():
@@ -121,6 +130,24 @@ def test_serialize_image_description_ok():
         **actual_descs[0],
         "filename": Path(actual_descs[0]["filename"]).name,
     }
+
+
+def test_build_capture_time_out_of_range():
+    with pytest.raises(MapillaryMetadataValidationError, match="Invalid capture time"):
+        build_capture_time(_BEFORE_YEAR_ONE)
+
+
+def test_a_capture_time_out_of_range_fails_the_image(tmp_path: Path):
+    image = tmp_path / "image.jpg"
+    image.write_bytes(b"")
+    metadata = types.ImageMetadata(
+        filename=image, time=_BEFORE_YEAR_ONE, lat=1.0, lon=2.0, alt=None, angle=None
+    )
+
+    error = validate_and_fail_metadata(metadata)
+
+    assert isinstance(error, types.ErrorMetadata)
+    assert isinstance(error.error, MapillaryMetadataValidationError)
 
 
 def test_encode_base_point():

@@ -552,13 +552,23 @@ class PointEncoder:
 
 
 def build_capture_time(time: datetime.datetime | int | float) -> str:
-    if isinstance(time, (float, int)):
-        dt = datetime.datetime.fromtimestamp(time, datetime.timezone.utc)
-        # otherwise it will be assumed to be in local time
-        dt = dt.replace(tzinfo=datetime.timezone.utc)
-    else:
-        # otherwise it will be assumed to be in local time
-        dt = time.astimezone(datetime.timezone.utc)
+    """
+    Format a capture time for a description file, raising
+    MapillaryMetadataValidationError for a time that cannot be written as a
+    date (such as one that a time zone offset moves before year 1)
+    """
+    try:
+        if isinstance(time, (float, int)):
+            dt = datetime.datetime.fromtimestamp(time, datetime.timezone.utc)
+            # otherwise it will be assumed to be in local time
+            dt = dt.replace(tzinfo=datetime.timezone.utc)
+        else:
+            # otherwise it will be assumed to be in local time
+            dt = time.astimezone(datetime.timezone.utc)
+    except (ValueError, OverflowError, OSError) as ex:
+        raise exceptions.MapillaryMetadataValidationError(
+            f"Invalid capture time {time}: {ex}"
+        ) from ex
     return datetime.datetime.strftime(dt, "%Y_%m_%d_%H_%M_%S_%f")[:-3]
 
 
