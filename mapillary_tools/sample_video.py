@@ -1623,6 +1623,13 @@ def _sample_single_video_by_distance(
             start_time,
         )
         track_clock = GPXVideoExtractor._read_video_clock(video_metadata.points)
+        if track_clock is not None:
+            # Frames are stamped by the clock within its times at the first and
+            # last points: not within their timestamps, which jitter about the
+            # clock, so that the frames stamped past the last timestamp, with
+            # positions up to the last point, do not all get that timestamp
+            first_unix_time = track_clock.to_unix_time(video_metadata.points[0].time)
+            last_unix_time = track_clock.to_unix_time(video_metadata.points[-1].time)
 
     # Frames stamped by the clock, or at points with an absolute timestamp,
     # are timestamped below, so only the others need the start time

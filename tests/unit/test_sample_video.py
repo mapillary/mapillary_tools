@@ -2476,6 +2476,60 @@ class TestSampleVideoDistanceIntegration:
             gps_start_time + datetime.timedelta(seconds=30 * idx) for idx in range(9)
         ] + [gps_start_time + datetime.timedelta(seconds=269.985)]
 
+    def test_frames_past_the_last_timestamp_are_stamped_by_the_clock(
+        self, tmp_path: Path
+    ) -> None:
+        """
+        The last three timestamps are stamped 1.5 seconds early, as GoPro
+        stamps blocks of points off the straight clock. Clamped to the last
+        timestamp, the last frames were all stamped with it
+        """
+        video_dir = tmp_path / "videos"
+        video_dir.mkdir()
+        video_file = video_dir / "test.mp4"
+        video_file.touch()
+        output_dir = tmp_path / "output"
+
+        gps_start_time = datetime.datetime(
+            2021, 8, 10, 6, 38, 6, tzinfo=datetime.timezone.utc
+        )
+        gps_points = [
+            telemetry.GPSPoint(
+                time=float(time),
+                lat=40.0 + time * 0.001,
+                lon=-74.0,
+                alt=None,
+                angle=None,
+                epoch_time=gps_start_time.timestamp()
+                + time
+                - (1.5 if 18 <= time else 0),
+                fix=None,
+                precision=None,
+                ground_speed=None,
+            )
+            for time in range(21)
+        ]
+        mocks = self._setup_mocks(tmp_path, video_file, gps_points=gps_points)
+
+        with (
+            mocks["patches"]["ffmpeg_cls"],
+            mocks["patches"]["geotag_cls"],
+            mocks["patches"]["moov_parse"],
+        ):
+            sample_video.sample_video(
+                video_import_path=video_file,
+                import_path=output_dir,
+                video_sample_distance=0.0,
+            )
+
+        frames = sorted((output_dir / "test.mp4").glob("*.jpg"))
+        capture_times = [
+            exif_read.ExifRead(frame).extract_capture_time() for frame in frames
+        ]
+        assert capture_times == [
+            gps_start_time + datetime.timedelta(seconds=idx) for idx in range(21)
+        ]
+
 
 class TestProbeVideo:
     """ffprobe fails on a video that has no moov box, such as one cut short"""
