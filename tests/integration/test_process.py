@@ -1022,6 +1022,50 @@ def test_process_video_from_nmea_with_some_checksums(setup_data: py.path.local):
     assert track(write_nmea("one.nmea", lambda body: "234450" in body)) == every
 
 
+def test_process_video_from_nmea_with_a_byte_order_mark(setup_data: py.path.local):
+    """The byte order mark that some editors write cost the first sentence"""
+    video_path = setup_data.join("gopro_data").join("max-360mode.mp4")
+    start = datetime.datetime(2019, 11, 18, 23, 44, 40, tzinfo=datetime.timezone.utc)
+    sentences = []
+    for i in range(21):
+        time = start + datetime.timedelta(seconds=i)
+        hhmmss = time.strftime("%H%M%S.00")
+        position = f"3700.{i * 100:04d},N,12200.0000,W"
+        # GGA first, so that the first fix lost its position to the mark
+        for body in [
+            f"GPGGA,{hhmmss},{position},1,08,1.0,,M,,M,,",
+            f"GPRMC,{hhmmss},A,{position},0.0,0.0,{time.strftime('%d%m%y')},,,A",
+        ]:
+            checksum = 0
+            for char in body:
+                checksum ^= ord(char)
+            sentences.append(f"${body}*{checksum:02X}\r\n")
+    content = "".join(sentences).encode("ascii")
+
+    def track(name: str, data: bytes):
+        nmea_file = setup_data.join(name)
+        nmea_file.write_binary(data)
+        desc_path = setup_data.join(f"{name}.json")
+        result = run_command(
+            [
+                "--skip_process_errors",
+                *["--desc_path", str(desc_path)],
+                *["--geotag_source", "nmea"],
+                *["--geotag_source_path", str(nmea_file)],
+                str(video_path),
+            ],
+            "process",
+            capture_output=True,
+            text=True,
+        )
+        assert "malformed" not in result.stderr
+        [desc] = json.loads(desc_path.read())
+        assert "error" not in desc, desc
+        return desc["MAPGPSTrack"]
+
+    assert track("bom.nmea", b"\xef\xbb\xbf" + content) == track("plain.nmea", content)
+
+
 def test_process_video_from_an_nmea_file_that_is_a_video(setup_data: py.path.local):
     """A video given as the NMEA file, which was decoded whole, fails at once"""
     video_path = setup_data.join("gopro_data").join("max-360mode.mp4")

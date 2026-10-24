@@ -37,6 +37,9 @@ _READ: dict[tuple[str, str], list[geo.Point] | ValueError] = {}
 # What a byte that is not text decodes to
 _NOT_TEXT = "\ufffd"
 
+# The byte order mark, which some editors write at the start of a UTF-8 file
+_BOM = "\ufeff"
+
 # How much of a file tells whether it is text at all, before it is read whole:
 # a video given as an NMEA file is gigabytes
 _SNIFF_BYTES = 64 * 1024
@@ -207,10 +210,14 @@ def _read_nmea_data(nmea_file: Path, data: bytes) -> list[geo.Point]:
     """
     # NMEA sentences are ASCII. Decode them as UTF-8 on every platform, not as
     # whatever the default encoding is, and decode a byte that is not text,
-    # such as one damaged in a sentence, as U+FFFD (see _parse_sentence())
-    with io.TextIOWrapper(io.BytesIO(data), encoding="utf-8", errors="replace") as f:
+    # such as one damaged in a sentence, as U+FFFD (see _parse_sentence()).
+    # Some editors on Windows start a file with a byte order mark, which
+    # "utf-8-sig" leaves out; so is one that starts a log appended to another
+    with io.TextIOWrapper(
+        io.BytesIO(data), encoding="utf-8-sig", errors="replace"
+    ) as f:
         lines = f.readlines()
-        lines = [line.rstrip("\n\r") for line in lines]
+        lines = [line.rstrip("\n\r").lstrip(_BOM) for line in lines]
     not_text = any(_NOT_TEXT in line for line in lines)
 
     # (line number, line) of each RMC and GGA sentence

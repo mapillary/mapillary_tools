@@ -515,6 +515,44 @@ def test_a_log_longer_than_what_tells_text_is_read_whole(tmp_path):
     assert len(_read_bytes(tmp_path, content)) == 600
 
 
+def _crlf(lines: list[str]) -> bytes:
+    return "".join(f"{line}\r\n" for line in lines).encode("ascii")
+
+
+def test_a_log_with_a_byte_order_mark_is_read(tmp_path, caplog):
+    """The byte order mark that starts it cost its first sentence, and a warning"""
+    lines = [_rmc("024636.00"), _gga("024636.00")]
+
+    with caplog.at_level(logging.WARNING):
+        times = _read_bytes(tmp_path, b"\xef\xbb\xbf" + _crlf(lines))
+
+    assert len(times) == 1
+    assert not caplog.text
+
+
+def test_logs_with_byte_order_marks_appended_are_read(tmp_path, caplog):
+    first = [_rmc("024636.00"), _gga("024636.00")]
+    second = [_rmc("024637.00"), _gga("024637.00")]
+
+    with caplog.at_level(logging.WARNING):
+        times = _read_bytes(
+            tmp_path, b"\xef\xbb\xbf" + _crlf(first) + b"\xef\xbb\xbf" + _crlf(second)
+        )
+
+    assert len(times) == 2
+    assert not caplog.text
+
+
+def test_a_utf16_log_is_not_read(tmp_path):
+    """As one that is not text: NMEA is ASCII"""
+    content = "".join(
+        f"{line}\r\n" for line in [_rmc("024636.00"), _gga("024636.00")]
+    ).encode("utf-16")
+
+    with pytest.raises(ValueError, match="^it is not text$"):
+        _read_bytes(tmp_path, content)
+
+
 def test_bytes_that_are_not_text_and_no_fix_fail_the_file(tmp_path):
     """As a file that is not text did before"""
     with pytest.raises(ValueError):
