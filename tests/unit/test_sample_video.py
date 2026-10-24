@@ -271,7 +271,8 @@ class TestSampleTimelapseByInterval:
 
     @classmethod
     def _mock_telemetry(cls, monkeypatch, gps_seconds: T.Callable[[int], float]):
-        # One point per second of video, at gps_seconds(i) from GPS_START_TIME
+        # One point per second of video, at gps_seconds(i) from GPS_START_TIME,
+        # over more than a minute, which a pace off 1x takes to measure
         points = [
             telemetry.GPSPoint(
                 time=float(i),
@@ -284,7 +285,7 @@ class TestSampleTimelapseByInterval:
                 precision=None,
                 ground_speed=None,
             )
-            for i in range(60)
+            for i in range(70)
         ]
         monkeypatch.setattr(
             sample_video,

@@ -166,13 +166,14 @@ def test_samples_are_placed_along_a_clock_that_gains(tmp_path: Path):
     """
     A clock that gains on the video, as a LabPano's runs 8/7 times as fast,
     is no timelapse, and its track timed by the video placed the samples
-    ahead
+    ahead. Over more than a minute, as less is too short to measure a pace
+    off 1x
     """
     video_path = tmp_path / "hello.mp4"
     sample_dir = tmp_path / "samples" / "hello.mp4"
     sample_dir.mkdir(parents=True)
 
-    gps_seconds = [i * 8 / 7 for i in range(30)]
+    gps_seconds = [i * 8 / 7 for i in range(70)]
     samples = [
         _sample(
             sample_dir, k + 1, START_TIME + datetime.timedelta(seconds=2 * k * 8 / 7)

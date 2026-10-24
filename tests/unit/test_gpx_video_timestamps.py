@@ -190,10 +190,53 @@ class TestStraightClock:
         assert clock.to_unix_time(0) == pytest.approx(START.timestamp() + 0.1)
 
     def test_a_timestamp_far_off_makes_no_timelapse(self):
-        """It pulls the least-squares slope past the timelapse rate"""
+        """It would pull a least-squares slope past the timelapse rate"""
         pairs = [(i, i) for i in range(9)] + [(9, 30)]
 
         assert _clock(pairs).rate == 1.0
+
+    def test_a_few_timestamps_make_no_timelapse(self):
+        """
+        A few seconds of a video whose GPS stamps a fix seconds late hold 3
+        timestamps, which measure 4x
+        """
+        assert _clock([(0, 0), (1, 1), (2, 8)]).rate == 1.0
+
+    def test_a_timelapse_of_3_timestamps(self):
+        """Stamped once a second of video, each step of which is 15 seconds"""
+        assert _clock([(0, 0), (1, 15), (2, 30)]).rate == pytest.approx(15)
+
+    def test_one_step_makes_no_timelapse(self):
+        """Nor can it tell a timelapse from a fix stamped seconds late"""
+        assert _clock([(0, 0), (1, 15)]).rate == 1.0
+
+    def test_a_rate_measured_over_less_than_a_minute_is_1(self):
+        """
+        Over 9 seconds, a last fix 6 seconds late pulls the least-squares slope
+        to 1.33x, a drift of 3 seconds; nor can less than a minute of timestamps
+        measure the pace of a clock that gains, by a second over 50 seconds
+        """
+        assert _clock([(i, i + (6 if i == 9 else 0)) for i in range(10)]).rate == 1.0
+        assert _clock([(i, i * 8 / 7) for i in range(50)]).rate == 1.0
+
+    def test_a_step_of_the_clock_does_not_tilt_it(self):
+        """
+        A clock that steps 18 seconds ahead two thirds into a 2-minute video
+        would pull the least-squares slope to 1.2x
+        """
+        clock = _clock([(i, i + (18 if 80 <= i else 0)) for i in range(120)])
+
+        assert clock.rate == 1.0
+        # By the timestamps before the step, which are the most
+        assert clock.to_unix_time(0) == pytest.approx(START.timestamp())
+
+    def test_timestamps_off_the_line_do_not_tilt_it(self):
+        """Late fixes of a camera that records in real time"""
+        late = {30, 31, 32, 95, 96, 119}
+        clock = _clock([(i, i + (6 if i in late else 0)) for i in range(120)])
+
+        assert clock.rate == 1.0
+        assert clock.to_unix_time(0) == pytest.approx(START.timestamp())
 
 
 def _gpx(path: Path, seconds: T.Iterable[float]) -> Path:
@@ -258,8 +301,8 @@ class TestGPXPlacement:
             assert placed[seconds] == pytest.approx(seconds - 0.1)
 
     def test_at_the_pace_of_a_clock_that_gains(self, tmp_path, monkeypatch):
-        # Over 30 seconds, as 12 are too few to tell 8/7 from 1x (by 1.7 s)
-        self.mock_video_gps(monkeypatch, [(i, i * 8 / 7) for i in range(30)])
+        # Over more than a minute, as less is too short to measure a pace off 1x
+        self.mock_video_gps(monkeypatch, [(i, i * 8 / 7) for i in range(70)])
         self.GPX_SECONDS = [float(s) for s in range(15)]
 
         placed = self._extract(tmp_path, video_sync=VideoSyncOption())
@@ -286,7 +329,7 @@ class TestGPXPlacement:
     ):
         # The timestamps of the video 100 seconds before the GPX, 8/7 times as
         # fast as the video
-        self.mock_video_gps(monkeypatch, [(i, i * 8 / 7 - 100) for i in range(30)])
+        self.mock_video_gps(monkeypatch, [(i, i * 8 / 7 - 100) for i in range(70)])
 
         placed = self._extract(
             tmp_path,
