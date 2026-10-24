@@ -218,3 +218,77 @@ class TestPlaceholderCaptureTimes:
         metadata = ImageEXIFExtractor(image).extract()
 
         assert metadata.time == 24 * 3600
+
+
+class TestCaptureTimeEdgeCases:
+    @pytest.mark.parametrize(
+        "date, offset, rejected",
+        [
+            (NO_DATE, None, "0001-01-01 00:00:00"),
+            # 1969-12-31 22:30 in UTC
+            ("1970:01:01 00:30:00", "+02:00", "1970-01-01 00:30:00+02:00"),
+            # Year 10000 in UTC, in which no capture time can be written
+            ("9999:12:31 23:00:00", "-05:00", "9999-12-31 23:00:00-05:00"),
+        ],
+    )
+    def test_exif_names_the_rejected_time(
+        self, tmp_path: Path, date: str, offset: T.Optional[str], rejected: str
+    ):
+        tags = {Base.DateTimeOriginal: date}
+        if offset is not None:
+            tags[Base.OffsetTimeOriginal] = offset
+        image = _write_image_with_dates(tmp_path / "image.jpg", tags)
+
+        with pytest.raises(exceptions.MapillaryGeoTaggingError) as info:
+            ImageEXIFExtractor(image).extract()
+
+        assert str(info.value) == (
+            f"Unable to extract timestamp from the image: invalid capture time {rejected}"
+        )
+
+    def test_exiftool_names_the_rejected_time(self, tmp_path: Path):
+        element = _exiftool_element(
+            {
+                "GPS:GPSLatitude": "24.5601",
+                "GPS:GPSLatitudeRef": "N",
+                "GPS:GPSLongitude": "81.8077",
+                "GPS:GPSLongitudeRef": "W",
+                "ExifIFD:DateTimeOriginal": "1970:01:01 00:30:00",
+                "ExifIFD:OffsetTimeOriginal": "+02:00",
+            }
+        )
+
+        with pytest.raises(exceptions.MapillaryGeoTaggingError) as info:
+            ImageExifToolExtractor(tmp_path / "image.jpg", element).extract()
+
+        assert str(info.value).endswith(
+            "invalid capture time 1970-01-01 00:30:00+02:00"
+        )
+
+    def test_1970_is_judged_in_utc(self, tmp_path: Path):
+        """1969-12-31 23:30 one hour west of UTC is 1970-01-01 00:30 in UTC"""
+        image = _write_image_with_dates(
+            tmp_path / "image.jpg",
+            {
+                Base.DateTimeOriginal: "1969:12:31 23:30:00",
+                Base.OffsetTimeOriginal: "-01:00",
+            },
+        )
+
+        metadata = ImageEXIFExtractor(image).extract()
+
+        assert metadata.time == 1800
+
+    def test_the_next_date_tag_is_read_after_a_rejected_time(self, tmp_path: Path):
+        image = _write_image_with_dates(
+            tmp_path / "image.jpg",
+            {
+                Base.DateTimeOriginal: "9999:12:31 23:00:00",
+                Base.OffsetTimeOriginal: "-05:00",
+                Base.DateTimeDigitized: "2020:01:02 03:04:05",
+            },
+        )
+
+        metadata = ImageEXIFExtractor(image).extract()
+
+        assert metadata.time == datetime.datetime(2020, 1, 2, 3, 4, 5).timestamp()

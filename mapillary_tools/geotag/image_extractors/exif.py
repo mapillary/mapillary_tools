@@ -20,22 +20,33 @@ from ... import exceptions, exif_read, types, utils
 from .base import BaseImageExtractor
 
 
+def _invalid_capture_time(capture_time: datetime.datetime) -> Exception:
+    return exceptions.MapillaryGeoTaggingError(
+        f"Unable to extract timestamp from the image: invalid capture time {capture_time}"
+    )
+
+
 def _capture_unix_time(capture_time: datetime.datetime) -> float:
     """
     The Unix time of the capture time of an image, assuming that a naive one
     is in the local timezone. Some cameras write 0001:01:01 00:00:00 for no
     date, which has no Unix time, and others other dates before 1970 (see
     exif_read.is_valid_capture_time()): raise as for an image with no capture
-    time, rather than let geo.as_unix_time() move it to 1970.
+    time, rather than let geo.as_unix_time() move it to 1970. So for a time
+    that the local timezone moves before 1970, or into year 10000, in which
+    no capture time can be written.
     """
+    if not exif_read.is_valid_capture_time(capture_time):
+        raise _invalid_capture_time(capture_time)
     try:
-        if not exif_read.is_valid_capture_time(capture_time):
-            raise ValueError(f"placeholder date {capture_time}")
-        return capture_time.timestamp()
+        unix_time = capture_time.timestamp()
+        # Raises for a time after year 9999
+        datetime.datetime.fromtimestamp(unix_time, datetime.timezone.utc)
     except (ValueError, OverflowError, OSError):
-        raise exceptions.MapillaryGeoTaggingError(
-            f"Unable to extract timestamp from the image: invalid capture time {capture_time}"
-        )
+        raise _invalid_capture_time(capture_time)
+    if unix_time < 0:
+        raise _invalid_capture_time(capture_time)
+    return unix_time
 
 
 class ImageEXIFExtractor(BaseImageExtractor):
@@ -62,6 +73,9 @@ class ImageEXIFExtractor(BaseImageExtractor):
 
             capture_time = exif.extract_capture_time()
             if capture_time is None:
+                if exif.rejected_capture_time is not None:
+                    # Say which date was no capture time, as for the only one
+                    raise _invalid_capture_time(exif.rejected_capture_time)
                 raise exceptions.MapillaryGeoTaggingError(
                     "Unable to extract timestamp from the image"
                 )
