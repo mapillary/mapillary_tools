@@ -729,3 +729,155 @@ class TestGapsInTheTrack:
             tmp_path, [(self.IMAGE_TIME - 60, 60), (self.IMAGE_TIME + 7200, 60)]
         )
         assert isinstance(metadata, types.ImageMetadata)
+
+
+class TestGapsInTheTrackUploadedWithTheVideo:
+    """
+    process uploads the track with the video, and the frames are placed along
+    it. Nothing can be interpolated across a gap of more than an hour: a video
+    that starts or ends in one takes the track from the far side of it no
+    further, and one with a gap inside fails, as sampling leaves out the frames
+    in the gap.
+    """
+
+    def _extract(
+        self, tmp_path: Path, parts: T.Sequence[tuple[float, float]], **kwargs
+    ) -> types.VideoMetadata:
+        video_path = _write_camm_mp4(tmp_path / "video.mp4", _video_track())
+        gpx_path = _write_gpx_parts(tmp_path / "track.gpx", parts)
+        return GPXVideoExtractor(
+            video_path, gpx_path, clip_to_video=True, **kwargs
+        ).extract()
+
+    def test_a_start_in_a_gap_starts_the_track_past_it(self, tmp_path, caplog):
+        """The trip before ended 2 hours before the video, and the next one starts 5 seconds into it"""
+        with caplog.at_level(logging.WARNING):
+            metadata = self._extract(
+                tmp_path, [(A_UNIX_TIME - 7260, 60), (A_UNIX_TIME + 5, 60)]
+            )
+        times = [p.time for p in metadata.points]
+        # No point at video time 0, interpolated across the gap
+        assert times[0] == pytest.approx(5.0)
+        assert times[-1] == pytest.approx(VIDEO_DURATION)
+        [warning] = _warnings(caplog)
+        assert "5 seconds of the video fall outside the track" in warning
+
+    def test_an_end_in_a_gap_ends_the_track_before_it(self, tmp_path, caplog):
+        """The trip ends 6 seconds into the video, and the next one starts 2 hours later"""
+        with caplog.at_level(logging.WARNING):
+            metadata = self._extract(
+                tmp_path, [(A_UNIX_TIME - 60, 66), (A_UNIX_TIME + 7200, 60)]
+            )
+        times = [p.time for p in metadata.points]
+        assert times[0] == 0
+        # No point at the end of the video, interpolated across the gap
+        assert times[-1] == pytest.approx(6.0)
+        [warning] = _warnings(caplog)
+        assert "6 seconds of the video fall outside the track" in warning
+
+    def test_a_gap_inside_the_video_fails_it(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(constants, "MAX_GPX_GAP_SECONDS", 3)
+        with pytest.raises(exceptions.MapillaryOutsideGPXTrackError) as info:
+            self._extract(tmp_path, [(A_UNIX_TIME - 10, 13), (A_UNIX_TIME + 7, 30)])
+        message = str(info.value)
+        assert (
+            "has a gap of 4 seconds, from 2026-08-12T08:26:30.979846+00:00 at (37.0, 14.0) "
+            "to 2026-08-12T08:26:34.979846+00:00 at (37.0, 14.0), inside the video"
+        ) in message
+        assert message.endswith(
+            "Sample the video with video_process and --video_geotag_source gpx, which leaves out the frames in the gap"
+        )
+        assert info.value.image_time == "2026_08_12_08_26_27_979"
+
+    def test_sampling_leaves_the_gap_inside_the_video_to_the_frames(
+        self, tmp_path, monkeypatch, caplog
+    ):
+        monkeypatch.setattr(constants, "MAX_GPX_GAP_SECONDS", 3)
+        video_path = _write_camm_mp4(tmp_path / "video.mp4", _video_track())
+        gpx_path = _write_gpx_parts(
+            tmp_path / "track.gpx", [(A_UNIX_TIME - 10, 13), (A_UNIX_TIME + 7, 30)]
+        )
+        with caplog.at_level(logging.WARNING):
+            metadata = GPXVideoExtractor(
+                video_path, gpx_path, video_sync=VideoSyncOption()
+            ).extract()
+        assert metadata.points
+        [warning] = _warnings(caplog)
+        assert "covers only part of the video" in warning
+
+    def test_a_gap_of_less_than_an_hour_is_interpolated(self, tmp_path):
+        metadata = self._extract(
+            tmp_path, [(A_UNIX_TIME - 1860, 60), (A_UNIX_TIME + 5, 60)]
+        )
+        first = metadata.points[0]
+        assert first.time == 0
+        assert first.get_unix_time() == pytest.approx(A_UNIX_TIME)
+
+    def test_the_limit_can_be_raised(self, tmp_path, monkeypatch):
+        """By MAPILLARY_TOOLS_MAX_GPX_GAP_SECONDS"""
+        monkeypatch.setattr(constants, "MAX_GPX_GAP_SECONDS", 3 * 3600)
+        metadata = self._extract(
+            tmp_path, [(A_UNIX_TIME - 7260, 60), (A_UNIX_TIME + 5, 60)]
+        )
+        assert metadata.points[0].time == 0
+
+    def test_started_with_the_video_ends_before_a_gap(self, tmp_path):
+        """--interpolation_use_gpx_start_time places the track, the clock gives its pace"""
+        metadata = self._extract(
+            tmp_path,
+            [(A_UNIX_TIME, 6), (A_UNIX_TIME + 7200, 60)],
+            sync_mode=SyncMode.REBASE,
+        )
+        times = [p.time for p in metadata.points]
+        assert times == [float(t) for t in range(7)]
+
+    def test_a_start_moved_into_a_gap_by_the_offset(self, tmp_path):
+        """
+        Without a GPS clock the track is assumed to start with the video, and
+        --interpolation_offset_time moves the start of the video into the gap
+        """
+        video_path = _write_camm_mp4(tmp_path / "video.mp4", UNTIMED_TRACK)
+        gpx_path = _write_gpx_parts(
+            tmp_path / "track.gpx", [(A_UNIX_TIME, 10), (A_UNIX_TIME + 7200, 60)]
+        )
+        metadata = GPXVideoExtractor(
+            video_path,
+            gpx_path,
+            interpolation=InterpolationOption(offset_time=7195),
+            clip_to_video=True,
+        ).extract()
+        times = [p.time for p in metadata.points]
+        assert times[0] == pytest.approx(5.0)
+        assert times[-1] == pytest.approx(65.0)
+
+    def test_a_video_started_at_a_lone_fix_falls_in_the_gap_after_it(self, tmp_path):
+        """
+        --interpolation_use_gpx_start_time starts the video at the first point
+        of the track, the only one before a gap of 2 hours: the track touches
+        the video at that instant alone
+        """
+        with pytest.raises(exceptions.MapillaryOutsideGPXTrackError) as info:
+            self._extract(
+                tmp_path,
+                [(A_UNIX_TIME, 0), (A_UNIX_TIME + 7200, 60)],
+                sync_mode=SyncMode.REBASE,
+            )
+        message = str(info.value)
+        assert (
+            "has a gap of 2.0 hours, from 2026-08-12T08:26:27.979846+00:00" in message
+        )
+        assert message.endswith("falls in. Trim the GPX to the video")
+
+    def test_a_video_assumed_to_start_at_a_lone_fix_falls_in_the_gap_after_it(
+        self, tmp_path
+    ):
+        video_path = _write_camm_mp4(tmp_path / "video.mp4", UNTIMED_TRACK)
+        gpx_path = _write_gpx_parts(
+            tmp_path / "track.gpx", [(A_UNIX_TIME, 0), (A_UNIX_TIME + 7200, 60)]
+        )
+        with pytest.raises(exceptions.MapillaryOutsideGPXTrackError) as info:
+            GPXVideoExtractor(video_path, gpx_path, clip_to_video=True).extract()
+        assert str(info.value).endswith(
+            "falls in. Trim the GPX to the video, or sample the video with "
+            "video_process and --video_start_time"
+        )
