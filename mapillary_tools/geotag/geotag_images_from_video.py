@@ -16,7 +16,7 @@ if sys.version_info >= (3, 12):
 else:
     from typing_extensions import override
 
-from .. import geo, types, utils
+from .. import exceptions, geo, types, utils
 from .base import GeotagImagesFromGeneric
 from .geotag_images_from_gpx import GeotagImagesFromGPX
 from .geotag_videos_from_video import GeotagVideosFromVideo
@@ -151,4 +151,20 @@ class GeotagImageSamplesFromVideo(GeotagImagesFromGeneric):
             offset_time=self.offset_time,
             num_processes=self.num_processes,
         )
-        return geotag.to_description(image_paths)
+        sample_metadatas = geotag.to_description(image_paths)
+
+        # An image that is not a frame of any of the videos has no position
+        # here. Say so, rather than leave it out of the results, as a source
+        # that can geotag it (e.g. exif after this one) may still do
+        sample_paths = {metadata.filename for metadata in sample_metadatas}
+        return sample_metadatas + [
+            types.describe_error_metadata(
+                exceptions.MapillaryGeoTaggingError(
+                    f"Not a frame of any video in {self.source_path}"
+                ),
+                image_path,
+                filetype=types.FileType.IMAGE,
+            )
+            for image_path in image_paths
+            if image_path not in sample_paths
+        ]

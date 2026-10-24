@@ -725,6 +725,38 @@ def test_process_filetypes_no_source_is_given(setup_data: py.path.local):
     assert {d["error"]["type"] for d in descs} == {"MapillaryGeoTaggingError"}
 
 
+def test_process_image_not_a_frame_of_any_video(setup_data: py.path.local):
+    """
+    The legacy sources that geotag images from videos left out an image that is
+    not a frame of any of the videos, as if it had not been given
+    """
+    video_path = setup_data.join("gopro_data").join("max-360mode.mp4")
+    image_dir = setup_data.mkdir("frames")
+    setup_data.join("images").join("DSC00001.JPG").copy(image_dir)
+    legacy_source = [
+        "--geotag_source=gopro_videos",
+        f"--geotag_source_path={video_path}",
+    ]
+
+    descs = run_process_for_descs([*legacy_source, str(image_dir)])
+    assert [(Path(d["filename"]).name, d["error"]) for d in descs] == [
+        (
+            "DSC00001.JPG",
+            {
+                "type": "MapillaryGeoTaggingError",
+                "message": f"Not a frame of any video in {video_path}",
+            },
+        )
+    ]
+
+    # A later source can still geotag it
+    descs = run_process_for_descs(
+        [*legacy_source, "--geotag_source=exif", str(image_dir)]
+    )
+    assert [Path(d["filename"]).name for d in descs] == ["DSC00001.JPG"]
+    assert "error" not in descs[0]
+
+
 def test_process_video_geotag_source_with_gpx_specified(setup_data: py.path.local):
     video_path = setup_data.join("videos").join("sample-5s.mp4")
     gpx_file = setup_data.join("gpx").join("sf_30km_h.gpx")
