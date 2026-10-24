@@ -240,7 +240,9 @@ description-level processing error are included in `processed_file_count`.
 Unsupported entries include their filename, category, stable reason code, and
 normalized extension. Hidden/system files and common GPS or metadata sidecars
 are ignored during directory discovery, but an explicitly supplied unsupported
-file is always reported. The report is written only to the requested local path
+file is always reported. Such a file also fails processing, with a
+`MapillaryUnsupportedFileError` entry in the image description file, whether
+or not the report is requested. The report is written only to the requested local path
 and contains absolute source filenames, so treat it as local capture metadata.
 
 ## Upload

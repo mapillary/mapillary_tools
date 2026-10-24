@@ -58,6 +58,13 @@ class MapillaryGeoTaggingError(MapillaryDescriptionError):
     pass
 
 
+class MapillaryUnsupportedFileError(MapillaryDescriptionError):
+    """
+    A file named for processing is neither an image nor a video that can be
+    processed
+    """
+
+
 class MapillaryVideoGPSUnusableError(MapillaryDescriptionError):
     """
     The video has no GPS track that can be used: none at all, an empty one, or

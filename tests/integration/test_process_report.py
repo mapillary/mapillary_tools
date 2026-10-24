@@ -4,9 +4,11 @@
 # LICENSE file in the root directory of this source tree.
 
 import json
+import subprocess
 from pathlib import Path
 
 import py.path
+import pytest
 
 from .fixtures import run_command
 
@@ -42,9 +44,16 @@ def test_process_report_counts_recognized_errors_and_explicit_unsupported(
 
     descs, report = _run_process_with_report([broken_image, unsupported], root)
 
-    assert len(descs) == 1
-    assert descs[0]["filename"] == str(broken_image.resolve())
-    assert "error" in descs[0]
+    descs_by_filename = {desc["filename"]: desc for desc in descs}
+    assert set(descs_by_filename) == {
+        str(broken_image.resolve()),
+        str(unsupported.resolve()),
+    }
+    assert "error" in descs_by_filename[str(broken_image.resolve())]
+    assert descs_by_filename[str(unsupported.resolve())]["error"] == {
+        "type": "MapillaryUnsupportedFileError",
+        "message": "Not a supported image or video",
+    }
     assert report == {
         "schema_version": 1,
         "discovered_file_count": 2,
@@ -86,7 +95,9 @@ def test_process_report_filters_folder_sidecars_but_reports_explicit_sidecars(
     explicit_output = root / "explicit"
     explicit_output.mkdir()
     descs, explicit_report = _run_process_with_report([sidecar], explicit_output)
-    assert descs == []
+    assert [desc["error"]["type"] for desc in descs] == [
+        "MapillaryUnsupportedFileError"
+    ]
     assert explicit_report["discovered_file_count"] == 1
     assert explicit_report["processed_file_count"] == 0
     assert explicit_report["skipped_file_count"] == 1
@@ -94,7 +105,9 @@ def test_process_report_filters_folder_sidecars_but_reports_explicit_sidecars(
     assert explicit_report["skipped_files"][0]["details"] == {"extension": ".gpx"}
 
 
-def test_process_without_report_preserves_unsupported_omission(tmpdir: py.path.local):
+def test_process_without_report_fails_an_explicit_unsupported_file(
+    tmpdir: py.path.local,
+):
     root = Path(str(tmpdir))
     unsupported = root / "unsupported.webp"
     desc_path = root / "description.json"
@@ -110,26 +123,42 @@ def test_process_without_report_preserves_unsupported_omission(tmpdir: py.path.l
         command="process",
     )
 
-    assert json.loads(desc_path.read_text(encoding="utf-8")) == []
+    assert json.loads(desc_path.read_text(encoding="utf-8")) == [
+        {
+            "error": {
+                "type": "MapillaryUnsupportedFileError",
+                "message": "Not a supported image or video",
+            },
+            "filename": str(unsupported.resolve()),
+        }
+    ]
     assert not (root / "process-report.json").exists()
 
 
-def test_process_warns_of_an_explicit_unsupported_file(tmpdir: py.path.local):
-    """It was skipped without a word"""
+def test_process_fails_an_explicit_unsupported_file(tmpdir: py.path.local):
+    """It was left out with only a warning, and the run succeeded"""
     root = Path(str(tmpdir))
     unsupported = root / "unsupported.webp"
+    unsupported_in_folder = root / "folder" / "unsupported.webp"
     desc_path = root / "description.json"
     unsupported.write_bytes(b"not supported")
+    unsupported_in_folder.parent.mkdir()
+    unsupported_in_folder.write_bytes(b"not supported")
 
-    result = run_command(
-        ["--desc_path", str(desc_path), str(unsupported)],
-        command="process",
-        capture_output=True,
-        text=True,
-    )
+    with pytest.raises(subprocess.CalledProcessError) as exc_info:
+        run_command(
+            [
+                "--desc_path",
+                str(desc_path),
+                str(unsupported),
+                str(unsupported_in_folder.parent),
+            ],
+            command="process",
+        )
 
-    assert json.loads(desc_path.read_text(encoding="utf-8")) == []
-    assert (
-        f"Skipping {unsupported}, which is not a supported image or video"
-        in result.stderr
-    )
+    assert exc_info.value.returncode == 6
+    # Only the file named explicitly: those found in a folder are left alone
+    assert [
+        (desc["filename"], desc["error"]["type"])
+        for desc in json.loads(desc_path.read_text(encoding="utf-8"))
+    ] == [(str(unsupported.resolve()), "MapillaryUnsupportedFileError")]
