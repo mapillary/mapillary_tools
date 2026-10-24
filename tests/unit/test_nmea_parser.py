@@ -319,6 +319,58 @@ def test_fields_cut_short_without_checksums_are_skipped(tmp_path, caplog, cut, e
     assert f"(malformed {error}: " in caplog.text
 
 
+def _read_bytes(tmp_path: Path, content: bytes):
+    path = tmp_path / "track.nmea"
+    path.write_bytes(content)
+    return [p.time for p in get_lat_lon_time_from_nmea(path)]
+
+
+def test_a_sentence_with_a_byte_that_is_not_text_is_skipped(tmp_path, caplog):
+    """A byte that is not UTF-8 failed the whole file"""
+    damaged = _gga("024636.50").replace(",N,", ",N,\0", 1).encode("ascii")
+    damaged = damaged.replace(b"\0", b"\xe9")
+    with caplog.at_level(logging.WARNING):
+        times = _read_bytes(
+            tmp_path,
+            b"\r\n".join(
+                [
+                    _rmc("024636.00").encode("ascii"),
+                    _gga("024636.00").encode("ascii"),
+                    damaged,
+                    _rmc("024637.00").encode("ascii"),
+                    _gga("024637.00").encode("ascii"),
+                ]
+            ),
+        )
+
+    assert len(times) == 2
+    assert "Skipping 1 of the 5 RMC and GGA sentences" in caplog.text
+    assert "on line 3 (a byte that is not text)" in caplog.text
+
+
+def test_a_byte_that_is_not_text_outside_the_sentences_is_ignored(tmp_path, caplog):
+    """Such as in a header line that a camera writes before the sentences"""
+    with caplog.at_level(logging.WARNING):
+        times = _read_bytes(
+            tmp_path,
+            b"@log/Z\xfcrich/\r\n"
+            + _rmc("024636.00").encode("ascii")
+            + b"\r\n"
+            + _gga("024636.00").encode("ascii"),
+        )
+
+    assert len(times) == 1
+    assert not caplog.text
+
+
+def test_bytes_that_are_not_text_and_no_fix_fail_the_file(tmp_path):
+    """As a file that is not text did before"""
+    with pytest.raises(ValueError):
+        _read_bytes(
+            tmp_path, b"\xca\xfe\r\n" + _rmc("024636.00", status="V").encode("ascii")
+        )
+
+
 @pytest.mark.parametrize(
     "lines",
     [
