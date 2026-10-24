@@ -223,6 +223,48 @@ def test_video_process_by_interval_with_the_default_geotag_sources(
         assert desc["MAPLongitude"] == pytest.approx(legacy["MAPLongitude"], abs=1e-7)
 
 
+def test_video_process_by_interval_leaves_out_the_samples_past_the_gpx(
+    setup_data: py.path.local,
+):
+    """
+    The GPX ends 2.6 seconds into the video. The samples after that would fail
+    geotagging, and fail the command: they are left out, with a warning
+    """
+    pytest_skip_if_not_ffmpeg_installed()
+
+    video_path = setup_data.join("videos").join("sample-5s.mp4")
+    gpx_file = setup_data.join("gpx").join("sf_30km_h.gpx")
+
+    with tempfile.TemporaryDirectory() as dir:
+        process = run_video_process(
+            [
+                "--video_sample_distance=-1",
+                "--video_sample_interval=1",
+                *["--video_start_time", "2025_03_14_07_01_31_000"],
+                "--geotag_source=gpx",
+                *["--geotag_source_path", str(gpx_file)],
+                *["--desc_path", str(Path(dir, "desc.json"))],
+                str(video_path),
+                str(Path(dir, "samples")),
+            ],
+            capture_output=True,
+            text=True,
+        )
+        with open(Path(dir, "desc.json")) as fp:
+            descs = json.load(fp)
+        samples = sorted(p.name for p in Path(dir, "samples").rglob("*.jpg"))
+
+    assert all("error" not in desc for desc in descs), descs
+    assert sorted(desc["MAPCaptureTime"] for desc in descs) == [
+        "2025_03_14_07_01_31_000",
+        "2025_03_14_07_01_32_000",
+        "2025_03_14_07_01_33_000",
+    ]
+    assert len(samples) == 3, samples
+    assert "samples of sample-5s.mp4 fall outside its GPS track" in process.stderr
+    assert "and were left out" in process.stderr
+
+
 def _with_creation_time(video: py.path.local, creation_time: str, dir: str) -> Path:
     """A copy of the video whose container records the creation time."""
     copy = Path(dir, video.basename)

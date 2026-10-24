@@ -29,7 +29,8 @@ from . import (
     utils,
 )
 from .exif_write import ExifEdit
-from .geotag import factory
+from .geotag import factory, geotag_images_from_gpx_file, geotag_images_from_nmea_file
+from .geotag.geotag_images_from_gpx import check_within_track
 from .geotag.options import (
     InterpolationOption,
     SourceOption,
@@ -37,7 +38,7 @@ from .geotag.options import (
     SourceType,
     VideoSyncOption,
 )
-from .geotag.video_extractors.gpx import GPXVideoExtractor, VideoClock
+from .geotag.video_extractors.gpx import GPXVideoExtractor, track_gaps, VideoClock
 from .geotag.video_extractors.native import NativeVideoExtractor
 from .geotag.video_extractors.nmea import NMEAVideoExtractor
 from .mp4 import mp4_sample_parser, simple_mp4_parser as sparser
@@ -166,6 +167,47 @@ def _parse_video_sources(
     return video_options
 
 
+def _parse_sample_sources(
+    geotag_source: list[str] | None,
+    geotag_source_path: Path | None,
+    video_import_path: Path,
+    interpolation: InterpolationOption,
+) -> list[SourceOption] | None:
+    """
+    The sources that the geotagging stage of video_process geotags the samples
+    by, as process_geotag_properties() picks them: those of --geotag_source,
+    or, without it, the default sources, which read the position that sampling
+    writes into a sample (an empty list here). None for the sample_video
+    command, which cannot tell how its samples will be geotagged
+    """
+    if geotag_source is None:
+        return None
+
+    if not geotag_source:
+        return []
+
+    options = factory.parse_source_options(
+        geotag_source=geotag_source,
+        video_geotag_source=[],
+        geotag_source_path=(
+            video_import_path if geotag_source_path is None else geotag_source_path
+        ),
+    )
+    for option in options:
+        if option.interpolation is None:
+            option.interpolation = interpolation
+    return options
+
+
+# Sources that geotag a sample by the time since the first sample of its video,
+# at which they place the start of the video: the legacy sources and
+# exiftool_xml, which geotag samples by the GPS of the videos they were taken
+# from (see GeotagImagesFromVideo)
+_FIRST_SAMPLE_SOURCES = frozenset(
+    {SourceType.GOPRO, SourceType.BLACKVUE, SourceType.CAMM, SourceType.EXIFTOOL_XML}
+)
+
+
 def sample_video(
     video_import_path: Path,
     import_path: Path,
@@ -217,16 +259,22 @@ def sample_video(
         duration_ratio=video_duration_ratio,
     )
 
+    interpolation = InterpolationOption(
+        offset_time=interpolation_offset_time,
+        use_gpx_start_time=interpolation_use_gpx_start_time,
+    )
     geotag_options = _parse_geotag_options(
         geotag_source,
         geotag_source_path,
         video_geotag_source,
         video_import_path,
         video_sync,
-        InterpolationOption(
-            offset_time=interpolation_offset_time,
-            use_gpx_start_time=interpolation_use_gpx_start_time,
-        ),
+        interpolation,
+    )
+    # The sources that the geotagging stage of video_process geotags the
+    # samples by, which tell which interval samples may be left out
+    sample_sources = _parse_sample_sources(
+        geotag_source, geotag_source_path, video_import_path, interpolation
     )
 
     if rerun:
@@ -286,6 +334,8 @@ def sample_video(
                     start_time=video_start_time_dt,
                     geotag_options=geotag_options,
                     video_sync=video_sync,
+                    sample_sources=sample_sources,
+                    single_video=len(video_list) == 1,
                 )
         except ffmpeglib.FFmpegNotFoundError as ex:
             # fatal error
@@ -765,6 +815,10 @@ def _sample_single_video_by_interval(
     start_time: datetime.datetime | None = None,
     geotag_options: T.Sequence[SourceOption] = (),
     video_sync: VideoSyncOption | None = None,
+    # How the samples are geotagged (see _parse_sample_sources())
+    sample_sources: T.Sequence[SourceOption] | None = None,
+    # Whether the video is the only one sampled
+    single_video: bool = True,
 ) -> None:
     ffmpeg = ffmpeglib.FFMPEG(constants.FFMPEG_PATH, constants.FFPROBE_PATH)
 
@@ -812,6 +866,11 @@ def _sample_single_video_by_interval(
     # Located along the video's own GPS track, as distance samples are
     track = _read_track_for_interval_samples(video_path, geotag_options)
     interpolator = geo.Interpolator([track.points]) if track is not None else None
+    # Or located by the geotagging stage along a GPX (or NMEA) track, by their
+    # capture times
+    file_track = (
+        _read_file_track_for_interval_samples(sample_sources) if track is None else None
+    )
 
     stream_specifier = _interval_stream_specifier(probe)
     # The stream sampled, whether it is the only one or not
@@ -830,6 +889,9 @@ def _sample_single_video_by_interval(
         frame_samples = ffmpeglib.FFMPEG.sort_selected_samples(
             wip_dir, video_path, selected_stream_specifiers=[stream_specifier]
         )
+
+        # (path, video time, capture time) of each sample
+        samples: list[tuple[Path, float, datetime.datetime]] = []
         for frame_idx_1based, sample_paths in frame_samples:
             assert len(sample_paths) == 1
             if sample_paths[0] is None:
@@ -837,16 +899,214 @@ def _sample_single_video_by_interval(
             # extract_frames() produces 1-based frame indices so we need to subtract 1 here
             video_time = (frame_idx_1based - 1) * sample_interval
             timestamp = start_time + datetime.timedelta(seconds=video_time * rate)
-            exif_edit = ExifEdit(sample_paths[0])
+            samples.append((sample_paths[0], video_time, timestamp))
+
+        if track is not None:
+            covered = [
+                _within_track_time_range_buffered(track.points, video_time)
+                for _, video_time, _ in samples
+            ]
+            left_out = _samples_to_leave_out(
+                covered,
+                keep_leading=_samples_placed_by_the_first(sample_sources),
+            )
+            track_range = (
+                start_time + datetime.timedelta(seconds=track.points[0].time * rate),
+                start_time + datetime.timedelta(seconds=track.points[-1].time * rate),
+            )
+        elif file_track is not None:
+            covered = file_track.covers(
+                [timestamp.timestamp() for _, _, timestamp in samples]
+            )
+            left_out = (
+                set()
+                if file_track.placed_by_the_first and not single_video
+                else _samples_to_leave_out(
+                    covered, keep_leading=file_track.placed_by_the_first
+                )
+            )
+            track_range = (
+                datetime.datetime.fromtimestamp(
+                    file_track.points[0].time, tz=datetime.timezone.utc
+                ),
+                datetime.datetime.fromtimestamp(
+                    file_track.points[-1].time, tz=datetime.timezone.utc
+                ),
+            )
+        else:
+            covered = [False] * len(samples)
+            left_out = set()
+
+        if left_out:
+            LOG.warning(
+                "%d of the %d samples of %s %s outside its GPS track (%s to %s) and %s left out",
+                len(left_out),
+                len(samples),
+                video_path.name,
+                "falls" if len(left_out) == 1 else "fall",
+                track_range[0].isoformat(),
+                track_range[1].isoformat(),
+                "was" if len(left_out) == 1 else "were",
+            )
+
+        for idx, (sample_path, video_time, timestamp) in enumerate(samples):
+            if idx in left_out:
+                sample_path.unlink()
+                continue
+            exif_edit = ExifEdit(sample_path)
             exif_edit.add_date_time_original(timestamp)
             exif_edit.add_gps_datetime(timestamp)
-            if (
-                track is not None
-                and interpolator is not None
-                and _within_track_time_range_buffered(track.points, video_time)
-            ):
+            if track is not None and interpolator is not None and covered[idx]:
                 _add_position(exif_edit, track, interpolator.interpolate(video_time))
             exif_edit.write()
+
+
+def _samples_to_leave_out(covered: T.Sequence[bool], keep_leading: bool) -> set[int]:
+    """
+    The indices of the interval samples to leave out, given which of them the
+    track that geotags them covers: those it does not, so that they do not
+    fail geotagging. If it covers none of them, none, so that the samples
+    fail rather than leave the video out without a word. With
+    **keep_leading**, not those before the first sample it covers either:
+    the geotagging stage places the samples by the time since the first one
+    (see _samples_placed_by_the_first())
+
+    >>> sorted(_samples_to_leave_out([False, True, True, False], keep_leading=False))
+    [0, 3]
+    >>> sorted(_samples_to_leave_out([False, True, False, True, False], keep_leading=True))
+    [2, 4]
+    >>> _samples_to_leave_out([False, False], keep_leading=False)
+    set()
+    """
+    if not any(covered):
+        return set()
+    first = covered.index(True)
+    return {
+        idx
+        for idx, is_covered in enumerate(covered)
+        if not is_covered and (first < idx or not keep_leading)
+    }
+
+
+def _samples_placed_by_the_first(
+    sample_sources: T.Sequence[SourceOption] | None,
+) -> bool:
+    """
+    Whether the geotagging stage may place the samples of a video by the time
+    since its first sample, so that leaving out the samples before the track
+    starts would misplace the others: the sources of _FIRST_SAMPLE_SOURCES,
+    and a GPX (or NMEA) track that --interpolation_use_gpx_start_time starts
+    at the first sample. The sample_video command cannot tell which sources
+    will geotag its samples
+
+    >>> _samples_placed_by_the_first(None)
+    True
+    >>> _samples_placed_by_the_first([])
+    False
+    >>> _samples_placed_by_the_first([SourceOption(SourceType.GOPRO)])
+    True
+    >>> _samples_placed_by_the_first([SourceOption(SourceType.EXIF)])
+    False
+    """
+    if sample_sources is None:
+        return True
+    return any(
+        option.source in _FIRST_SAMPLE_SOURCES
+        or (
+            option.source in factory.EXTERNAL_GPS_SOURCES
+            and option.interpolation is not None
+            and option.interpolation.use_gpx_start_time
+        )
+        for option in sample_sources
+    )
+
+
+@dataclasses.dataclass(frozen=True)
+class _FileTrack:
+    """
+    A GPX (or NMEA) track that the geotagging stage locates samples along by
+    their capture times, as GeotagImagesFromGPX locates images
+    """
+
+    # Sorted by time
+    points: T.Sequence[geo.Point]
+    gaps: T.Sequence[tuple[geo.Point, geo.Point]]
+    # --interpolation_offset_time
+    offset_time: float
+    # --interpolation_use_gpx_start_time: the track starts at the first sample
+    placed_by_the_first: bool
+
+    def covers(self, capture_times: T.Sequence[float]) -> list[bool]:
+        """
+        Whether the track covers each sample of a video, given their capture
+        times, in order
+        """
+        offset = self.offset_time
+        if self.placed_by_the_first and capture_times:
+            offset += self.points[0].time - capture_times[0]
+
+        covered = []
+        for capture_time in capture_times:
+            try:
+                check_within_track(capture_time + offset, self.points, self.gaps)
+            except exceptions.MapillaryOutsideGPXTrackError:
+                covered.append(False)
+            else:
+                covered.append(True)
+        return covered
+
+
+def _read_file_track_for_interval_samples(
+    sample_sources: T.Sequence[SourceOption] | None,
+) -> _FileTrack | None:
+    """
+    The GPX (or NMEA) track that the geotagging stage locates the interval
+    samples along by their capture times: that of the first such source of
+    --geotag_source, which geotags images. None if there is none, if it cannot
+    be read (the geotagging stage reports why), or if another source may
+    geotag the samples it misses: one that geotags them by the GPS of their
+    video, or another track file
+    """
+    if not sample_sources:
+        return None
+
+    track_sources = [
+        option
+        for option in sample_sources
+        if option.source in factory.EXTERNAL_GPS_SOURCES
+        and (option.filetypes is None or types.FileType.IMAGE in option.filetypes)
+    ]
+    if len(track_sources) != 1 or any(
+        option.source in _FIRST_SAMPLE_SOURCES for option in sample_sources
+    ):
+        return None
+
+    option = track_sources[0]
+    if option.source_path is None or option.source_path.source_path is None:
+        return None
+
+    try:
+        if option.source is SourceType.GPX:
+            points = geotag_images_from_gpx_file._read_gpx_points(
+                option.source_path.source_path
+            )
+        else:
+            points = geotag_images_from_nmea_file._read_nmea_points(
+                option.source_path.source_path
+            )
+    except exceptions.MapillaryInvalidGPXError:
+        return None
+
+    sorted_points = sorted(points, key=lambda point: point.time)
+    interpolation = option.interpolation
+    return _FileTrack(
+        points=sorted_points,
+        gaps=track_gaps(sorted_points, constants.MAX_GPX_GAP_SECONDS),
+        offset_time=0.0 if interpolation is None else interpolation.offset_time,
+        placed_by_the_first=(
+            interpolation is not None and interpolation.use_gpx_start_time
+        ),
+    )
 
 
 def _read_track_for_interval_samples(

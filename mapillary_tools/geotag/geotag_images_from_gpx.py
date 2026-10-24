@@ -28,6 +28,75 @@ from .video_extractors.gpx import describe_gap, track_gaps
 LOG = logging.getLogger(__name__)
 
 
+def check_within_track(
+    time: float,
+    sorted_points: T.Sequence[geo.Point],
+    gaps: T.Sequence[tuple[geo.Point, geo.Point]] = (),
+) -> None:
+    """
+    Raise MapillaryOutsideGPXTrackError if **time** falls outside the track of
+    **sorted_points**, with a tolerance of 1 ms: before its start, after its
+    end, or in one of its **gaps** (see track_gaps())
+
+    >>> track = [geo.Point(time=t, lat=0, lon=0, alt=None, angle=None) for t in (10, 20, 9000)]
+    >>> check_within_track(15.0, track)
+    >>> check_within_track(9000.0005, track)
+    >>> check_within_track(9.5, track)
+    Traceback (most recent call last):
+    ...
+    mapillary_tools.exceptions.MapillaryOutsideGPXTrackError: The image date time is 0.5 seconds behind the GPX start point
+    >>> check_within_track(4000.0, track, track_gaps(track, 3600))
+    Traceback (most recent call last):
+    ...
+    mapillary_tools.exceptions.MapillaryOutsideGPXTrackError: The GPX track has a gap of 2.5 hours, from 1970-01-01T00:00:20+00:00 at (0, 0) to 1970-01-01T02:30:00+00:00 at (0, 0), which the image time 1970-01-01T01:06:40+00:00 falls in
+    """
+    assert sorted_points, "must have at least one point"
+
+    if time < sorted_points[0].time:
+        delta = sorted_points[0].time - time
+        gpx_start_time = build_capture_time(sorted_points[0].time)
+        gpx_end_time = build_capture_time(sorted_points[-1].time)
+        # with the tolerance of 1ms
+        if 0.001 < delta:
+            raise exceptions.MapillaryOutsideGPXTrackError(
+                f"The image date time is {round(delta, 3)} seconds behind the GPX start point",
+                image_time=build_capture_time(time),
+                gpx_start_time=gpx_start_time,
+                gpx_end_time=gpx_end_time,
+            )
+
+    if sorted_points[-1].time < time:
+        delta = time - sorted_points[-1].time
+        gpx_start_time = build_capture_time(sorted_points[0].time)
+        gpx_end_time = build_capture_time(sorted_points[-1].time)
+        # with the tolerance of 1ms
+        if 0.001 < delta:
+            raise exceptions.MapillaryOutsideGPXTrackError(
+                f"The image time is {round(delta, 3)} seconds beyond the GPX end point",
+                image_time=build_capture_time(time),
+                gpx_start_time=gpx_start_time,
+                gpx_end_time=gpx_end_time,
+            )
+
+    # The last gap that starts at or before the image
+    idx = bisect.bisect_right([before.time for before, _ in gaps], time)
+    if idx:
+        before, after = gaps[idx - 1]
+        delta = min(time - before.time, after.time - time)
+        # with the tolerance of 1ms, as at the ends of the track
+        if 0.001 < delta:
+            captured_at = datetime.datetime.fromtimestamp(
+                time, tz=datetime.timezone.utc
+            ).isoformat()
+            track_gap = describe_gap(before, after, before.time, after.time)
+            raise exceptions.MapillaryOutsideGPXTrackError(
+                f"The GPX track has {track_gap}, which the image time {captured_at} falls in",
+                image_time=build_capture_time(time),
+                gpx_start_time=build_capture_time(sorted_points[0].time),
+                gpx_end_time=build_capture_time(sorted_points[-1].time),
+            )
+
+
 class GeotagImagesFromGPX(GeotagImagesFromGeneric):
     def __init__(
         self,
@@ -55,55 +124,7 @@ class GeotagImagesFromGPX(GeotagImagesFromGeneric):
         sorted_points: T.Sequence[geo.Point],
         gaps: T.Sequence[tuple[geo.Point, geo.Point]] = (),
     ) -> types.ImageMetadata:
-        assert sorted_points, "must have at least one point"
-
-        if image_metadata.time < sorted_points[0].time:
-            delta = sorted_points[0].time - image_metadata.time
-            gpx_start_time = build_capture_time(sorted_points[0].time)
-            gpx_end_time = build_capture_time(sorted_points[-1].time)
-            # with the tolerance of 1ms
-            if 0.001 < delta:
-                raise exceptions.MapillaryOutsideGPXTrackError(
-                    f"The image date time is {round(delta, 3)} seconds behind the GPX start point",
-                    image_time=build_capture_time(image_metadata.time),
-                    gpx_start_time=gpx_start_time,
-                    gpx_end_time=gpx_end_time,
-                )
-
-        if sorted_points[-1].time < image_metadata.time:
-            delta = image_metadata.time - sorted_points[-1].time
-            gpx_start_time = build_capture_time(sorted_points[0].time)
-            gpx_end_time = build_capture_time(sorted_points[-1].time)
-            # with the tolerance of 1ms
-            if 0.001 < delta:
-                raise exceptions.MapillaryOutsideGPXTrackError(
-                    f"The image time is {round(delta, 3)} seconds beyond the GPX end point",
-                    image_time=build_capture_time(image_metadata.time),
-                    gpx_start_time=gpx_start_time,
-                    gpx_end_time=gpx_end_time,
-                )
-
-        # The last gap that starts at or before the image
-        idx = bisect.bisect_right(
-            [before.time for before, _ in gaps], image_metadata.time
-        )
-        if idx:
-            before, after = gaps[idx - 1]
-            delta = min(
-                image_metadata.time - before.time, after.time - image_metadata.time
-            )
-            # with the tolerance of 1ms, as at the ends of the track
-            if 0.001 < delta:
-                captured_at = datetime.datetime.fromtimestamp(
-                    image_metadata.time, tz=datetime.timezone.utc
-                ).isoformat()
-                track_gap = describe_gap(before, after, before.time, after.time)
-                raise exceptions.MapillaryOutsideGPXTrackError(
-                    f"The GPX track has {track_gap}, which the image time {captured_at} falls in",
-                    image_time=build_capture_time(image_metadata.time),
-                    gpx_start_time=build_capture_time(sorted_points[0].time),
-                    gpx_end_time=build_capture_time(sorted_points[-1].time),
-                )
+        check_within_track(image_metadata.time, sorted_points, gaps)
 
         interpolated = geo.interpolate(sorted_points, image_metadata.time)
 
