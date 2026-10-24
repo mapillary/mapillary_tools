@@ -152,10 +152,15 @@ def parse_source_options(
     return parsed_options
 
 
-def _give_source_path(options: T.Sequence[SourceOption], source_path: Path) -> None:
+def _give_source_path(
+    options: T.Sequence[SourceOption],
+    source_path: Path,
+    given_by_the_user: bool = True,
+) -> None:
     """
     Give **source_path** to the options without a source path of their own,
-    keeping their patterns
+    keeping their patterns. Warn that the options with one ignore it, if it is
+    the --geotag_source_path that the user gave
     """
     for option in options:
         if option.source_path is None:
@@ -164,7 +169,7 @@ def _give_source_path(options: T.Sequence[SourceOption], source_path: Path) -> N
             source_path_option = option.source_path
             if source_path_option.source_path is None:
                 source_path_option.source_path = Path(source_path)
-            else:
+            elif given_by_the_user:
                 LOG.warning(
                     "The option --geotag_source_path is ignored for source %s",
                     option,
@@ -183,7 +188,9 @@ def give_video_import_path(
     for option in options:
         if option.source is SourceType.EXIFTOOL_XML and option.source_path is None:
             option.source_path = exiftool_xml_default_source_path(video_import_path)
-    _give_source_path(options, video_import_path)
+    # Without --geotag_source_path: a source with a path of its own ignores the
+    # video import path without a word
+    _give_source_path(options, video_import_path, given_by_the_user=False)
 
 
 def exiftool_xml_default_source_path(video_import_path: Path) -> SourcePathOption:
