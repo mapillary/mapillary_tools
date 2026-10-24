@@ -356,13 +356,26 @@ def process(
         sorted(reprocessable_paths - handed_paths), filetypes
     )
 
-    if video_types is not None and (unread_paths or sourceless_videos):
+    # Files that sources were let through, but that none of them described,
+    # nor said why, which they should not do: so that every file given gets
+    # one entry, but those that --filetypes leaves out
+    described_paths = {metadata.filename for metadata in final_metadatas}
+    unhandled_images, unhandled_videos = _filter_images_and_videos(
+        sorted(
+            (reprocessable_paths & handed_paths) - described_paths - set(unread_paths)
+        ),
+        filetypes,
+    )
+
+    if video_types is not None and (
+        unread_paths or sourceless_videos or unhandled_videos
+    ):
         # Limited to some types of video, a video that no source read may not
         # be of any of them. Those of other types are left out, as the videos
         # found to be of other types
         kept_paths = set(
             _videos_not_of_other_types(
-                unread_paths + sourceless_videos,
+                unread_paths + sourceless_videos + unhandled_videos,
                 video_types,
                 # The same for every option (see process_geotag_properties)
                 num_processes=next(iter(options)).num_processes,
@@ -370,6 +383,7 @@ def process(
         )
         unread_paths = [path for path in unread_paths if path in kept_paths]
         sourceless_videos = [path for path in sourceless_videos if path in kept_paths]
+        unhandled_videos = [path for path in unhandled_videos if path in kept_paths]
 
     final_metadatas.extend(
         _describe_unread_video(path, unread_videos[path]) for path in unread_paths
@@ -377,6 +391,10 @@ def process(
     final_metadatas.extend(
         _describe_sourceless_file(path, options, filetypes)
         for path in sourceless_images + sourceless_videos
+    )
+    final_metadatas.extend(
+        _describe_unhandled_file(path, options)
+        for path in unhandled_images + unhandled_videos
     )
 
     return final_metadatas
@@ -456,6 +474,43 @@ def _describe_sourceless_file(
         )
     return types.describe_error_metadata(
         exceptions.MapillaryVideoGPSNotFoundError(message),
+        path,
+        filetype=types.FileType.VIDEO,
+    )
+
+
+def _describe_unhandled_file(
+    path: Path, options: T.Iterable[SourceOption]
+) -> types.ErrorMetadata:
+    """
+    Describe a file that the sources of **options** were let through, but that
+    none of them described, rather than leave it out of the results as if it
+    had not been there
+
+    >>> options = [SourceOption(SourceType.NATIVE), SourceOption(SourceType.EXIFTOOL_RUNTIME)]
+    >>> _describe_unhandled_file(Path("i.jpg"), options).error
+    MapillaryGeoTaggingError('The geotag sources native, exiftool_runtime gave no result for this image')
+    >>> _describe_unhandled_file(Path("v.mp4"), options[:1]).error
+    MapillaryVideoGPSNotFoundError('The geotag source native gave no result for this video')
+    """
+    names = list(dict.fromkeys(option.source.value for option in options))
+    sources = (
+        f"The geotag sources {', '.join(names)}"
+        if len(names) > 1
+        else f"The geotag source {names[0]}"
+    )
+    if utils.is_image_file(path):
+        return types.describe_error_metadata(
+            exceptions.MapillaryGeoTaggingError(
+                f"{sources} gave no result for this image"
+            ),
+            path,
+            filetype=types.FileType.IMAGE,
+        )
+    return types.describe_error_metadata(
+        exceptions.MapillaryVideoGPSNotFoundError(
+            f"{sources} gave no result for this video"
+        ),
         path,
         filetype=types.FileType.VIDEO,
     )
