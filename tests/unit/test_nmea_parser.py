@@ -481,6 +481,40 @@ def test_a_byte_that_is_not_text_outside_the_sentences_is_ignored(tmp_path, capl
     assert not caplog.text
 
 
+@pytest.mark.parametrize(
+    "head",
+    [
+        # the start of an MP4 video
+        b"\x00\x00\x00\x18ftypmp42\x00\x00\x00\x00mp42isom",
+        # mostly bytes that are not UTF-8
+        b"\xca\xfe\xba\xbe" * 1000,
+    ],
+    ids=["video", "not UTF-8"],
+)
+def test_a_file_that_is_not_text_fails_without_being_read_whole(tmp_path, head):
+    """
+    A video given as an NMEA file was decoded whole, gigabytes of it: what its
+    first 64 KiB show is enough
+    """
+    padding = b"\xff" * (64 * 1024)
+    sentences = (_rmc("024636.00") + "\r\n" + _gga("024636.00") + "\r\n").encode()
+
+    with pytest.raises(ValueError, match="^it is not text$"):
+        _read_bytes(tmp_path, head + padding + sentences)
+
+
+def test_a_log_longer_than_what_tells_text_is_read_whole(tmp_path):
+    lines = []
+    for minute in range(60):
+        for second in range(10):
+            time = f"02{minute:02d}0{second}.00"
+            lines += [_rmc(time), _gga(time)]
+    content = "".join(f"{line}\r\n" for line in lines).encode("ascii")
+    assert 64 * 1024 < len(content)
+
+    assert len(_read_bytes(tmp_path, content)) == 600
+
+
 def test_bytes_that_are_not_text_and_no_fix_fail_the_file(tmp_path):
     """As a file that is not text did before"""
     with pytest.raises(ValueError):

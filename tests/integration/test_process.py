@@ -1022,6 +1022,25 @@ def test_process_video_from_nmea_with_some_checksums(setup_data: py.path.local):
     assert track(write_nmea("one.nmea", lambda body: "234450" in body)) == every
 
 
+def test_process_video_from_an_nmea_file_that_is_a_video(setup_data: py.path.local):
+    """A video given as the NMEA file, which was decoded whole, fails at once"""
+    video_path = setup_data.join("gopro_data").join("max-360mode.mp4")
+
+    [desc] = run_process_for_descs(
+        [
+            *["--geotag_source", "nmea"],
+            *["--geotag_source_path", str(video_path)],
+            str(video_path),
+        ]
+    )
+
+    assert desc["error"]["type"] == "MapillaryInvalidGPXError"
+    assert (
+        "max-360mode.mp4 is not a valid NMEA file: it is not text"
+        in desc["error"]["message"]
+    )
+
+
 def test_process_geotag_with_gpx_pattern_not_found(setup_data: py.path.local):
     video_path = setup_data.join("gopro_data").join("max-360mode.mp4")
 
