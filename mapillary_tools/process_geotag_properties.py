@@ -62,17 +62,21 @@ def process_geotag_properties(
             raise exceptions.MapillaryFileNotFoundError(
                 f"Import file or directory not found: {path}"
             )
-        # A directory is searched for the files it can process, but a file
-        # named explicitly is skipped only with a word. It is not failed:
-        # callers that pass the files a user selected find the skipped ones in
-        # the process report. A zip file is uploaded as it is, by
-        # process_and_upload too
-        if path.is_file() and not (
+
+    # A directory is searched for the files it can process, and the others in
+    # it are left alone, but a file named explicitly is failed if it cannot be
+    # processed: it was meant to be uploaded. A zip file is uploaded as it is,
+    # by process_and_upload
+    unsupported_metadatas = [
+        _describe_unsupported_file(path)
+        for path in import_paths
+        if path.is_file()
+        and not (
             utils.is_image_file(path)
             or utils.is_video_file(path)
             or path.suffix.lower() == ".zip"
-        ):
-            LOG.warning("Skipping %s, which is not a supported image or video", path)
+        )
+    ]
 
     if geotag_source_path is None:
         geotag_source_path = video_import_path
@@ -110,7 +114,30 @@ def process_geotag_properties(
 
     metadata_or_errors = process(image_paths + video_paths, options, filetypes)
 
-    return metadata_or_errors
+    return metadata_or_errors + unsupported_metadatas
+
+
+def _describe_unsupported_file(path: Path) -> types.ErrorMetadata:
+    """
+    The error of a file named for processing that is neither an image nor a
+    video that can be processed. An Insta360 original (.insv) is stitched first
+
+    >>> metadata = _describe_unsupported_file(Path("notes.txt"))
+    >>> str(metadata.error)
+    'Not a supported image or video'
+    >>> metadata.filetype is None
+    True
+    """
+    message = "Not a supported image or video"
+    if path.suffix.lower() == ".insv":
+        message += (
+            ". Stitch the Insta360 original with Insta360 Studio first, then"
+            " geotag the stitched video by the original with"
+            """ --video_geotag_source '{"source": "exiftool_runtime", "pattern": "../%g.insv"}'"""
+        )
+    return types.describe_error_metadata(
+        exceptions.MapillaryUnsupportedFileError(message), path, filetype=None
+    )
 
 
 def _apply_offsets(
@@ -215,8 +242,10 @@ def _show_stats(
 ) -> None:
     LOG.info("==> Process summary")
 
-    metadatas_by_filetype: dict[types.FileType, list[types.MetadataOrError]] = {}
+    # None for the files that are neither images nor videos
+    metadatas_by_filetype: dict[types.FileType | None, list[types.MetadataOrError]] = {}
     for metadata in metadatas:
+        filetype: types.FileType | None
         if isinstance(metadata, types.ImageMetadata):
             filetype = types.FileType.IMAGE
         else:
@@ -240,13 +269,15 @@ def _show_stats(
 
 def _show_stats_per_filetype(
     metadatas: T.Collection[types.MetadataOrError],
-    filetype: types.FileType,
+    filetype: types.FileType | None,
     skipped_process_errors: set[T.Type[Exception]],
 ):
     good_metadatas: list[types.Metadata]
     good_metadatas, error_metadatas = types.separate_errors(metadatas)
 
-    LOG.info(f"{len(metadatas)} {filetype.value} read in total")
+    LOG.info(
+        f"{len(metadatas)} {'other file' if filetype is None else filetype.value} read in total"
+    )
     if good_metadatas:
         total_filesize = sum(
             [0 if m.filesize is None else m.filesize for m in good_metadatas]

@@ -9,7 +9,7 @@ import typing as T
 from pathlib import Path
 
 import pytest
-from mapillary_tools import process_geotag_properties as pgp, types
+from mapillary_tools import exceptions, process_geotag_properties as pgp, types
 from mapillary_tools.geotag import factory
 from mapillary_tools.geotag.options import SourceOption, SourceType
 
@@ -100,3 +100,75 @@ class TestSourcesByFileType:
         assert self._sources(
             monkeypatch, import_dir, [], ["native"], filetypes={types.FileType.IMAGE}
         ) == {"image": self.DEFAULT, "video": []}
+
+
+class TestNamedUnsupportedFiles:
+    """
+    A file named for processing that is neither an image nor a video was left
+    out of the results with only a warning, as if it had not been named
+    """
+
+    @staticmethod
+    def _process(monkeypatch, import_paths: list[Path]) -> list[types.MetadataOrError]:
+        processed: list[Path] = []
+
+        def process(paths, options, filetypes=None):
+            processed.extend(paths)
+            return []
+
+        monkeypatch.setattr(pgp, "process", process)
+        metadatas = pgp.process_geotag_properties(
+            import_paths,
+            None,
+            geotag_source=[],
+            geotag_source_path=None,
+            video_geotag_source=[],
+        )
+        assert not processed, "only images and videos are geotagged"
+        return metadatas
+
+    def test_named_file_is_failed(self, monkeypatch, tmp_path: Path):
+        notes = tmp_path / "notes.txt"
+        notes.write_bytes(b"not an image")
+
+        [metadata] = self._process(monkeypatch, [notes])
+
+        assert isinstance(metadata, types.ErrorMetadata)
+        assert metadata.filename == notes
+        assert metadata.filetype is None
+        assert isinstance(metadata.error, exceptions.MapillaryUnsupportedFileError)
+        assert str(metadata.error) == "Not a supported image or video"
+
+    def test_insta360_original_is_told_to_be_stitched(
+        self, monkeypatch, tmp_path: Path
+    ):
+        original = tmp_path / "VID_00_001.insv"
+        original.write_bytes(b"not stitched")
+
+        [metadata] = self._process(monkeypatch, [original])
+
+        assert isinstance(metadata, types.ErrorMetadata)
+        message = str(metadata.error)
+        assert message.startswith("Not a supported image or video. ")
+        assert "Insta360 Studio" in message
+        assert '{"source": "exiftool_runtime", "pattern": "../%g.insv"}' in message
+
+    def test_named_zip_is_left_to_upload(self, monkeypatch, tmp_path: Path):
+        archive = tmp_path / "sequence.zip"
+        archive.write_bytes(b"PK")
+
+        assert self._process(monkeypatch, [archive]) == []
+
+    def test_files_in_a_named_directory_are_left_alone(
+        self, monkeypatch, tmp_path: Path
+    ):
+        (tmp_path / "notes.txt").write_bytes(b"not an image")
+        (tmp_path / "VID_00_001.insv").write_bytes(b"not stitched")
+
+        assert self._process(monkeypatch, [tmp_path]) == []
+
+    def test_a_file_named_twice_is_failed_once(self, monkeypatch, tmp_path: Path):
+        notes = tmp_path / "notes.txt"
+        notes.write_bytes(b"not an image")
+
+        assert len(self._process(monkeypatch, [notes, notes])) == 1

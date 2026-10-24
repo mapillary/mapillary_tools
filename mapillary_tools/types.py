@@ -87,7 +87,8 @@ class VideoMetadata:
 @dataclasses.dataclass
 class ErrorMetadata:
     filename: Path
-    filetype: FileType
+    # None for a file that is neither an image nor a video
+    filetype: FileType | None
     error: Exception
 
 
@@ -175,7 +176,7 @@ def separate_errors(
 
 
 def describe_error_metadata(
-    exc: Exception, filename: Path, filetype: FileType
+    exc: Exception, filename: Path, filetype: FileType | None
 ) -> ErrorMetadata:
     return ErrorMetadata(filename=filename, filetype=filetype, error=exc)
 

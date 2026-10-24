@@ -14,6 +14,7 @@ from .fixtures import (
     assert_same_image_descs,
     extract_all_uploaded_descs,
     pytest_skip_if_not_ffmpeg_installed,
+    run_command,
     run_process_and_upload_for_descs,
     setup_config,
     setup_data,
@@ -312,3 +313,28 @@ def test_video_process_and_upload_after_gpx(
 
     uploaded_descs = sum(extract_all_uploaded_descs(Path(setup_upload)), [])
     assert_same_image_descs(uploaded_descs, [])
+
+
+@pytest.mark.usefixtures("setup_config")
+def test_process_and_upload_named_zip_files(
+    tmpdir: py.path.local, setup_data: py.path.local, setup_upload: py.path.local
+):
+    """
+    A zip file named for upload is uploaded as it is, and a named file that is
+    neither an image nor a video gets an error of its own
+    """
+    run_command(["--file_types=image", str(setup_data)], command="process")
+    zip_dir = tmpdir.mkdir("zip_dir")
+    run_command([str(setup_data), str(zip_dir)], command="zip")
+    zip_paths = sorted(str(path) for path in zip_dir.listdir())
+    assert zip_paths
+    notes = tmpdir.join("notes.txt")
+    notes.write_binary(b"not an image")
+
+    descs = run_process_and_upload_for_descs([*zip_paths, str(notes)])
+
+    assert [(desc["filename"], desc["error"]["type"]) for desc in descs] == [
+        (str(Path(notes).resolve()), "MapillaryUnsupportedFileError")
+    ]
+    uploaded = extract_all_uploaded_descs(Path(setup_upload))
+    assert len(uploaded) == len(zip_paths)
