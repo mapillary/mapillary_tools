@@ -88,6 +88,17 @@ def _video_track(rate: float = 1.0) -> list[telemetry.CAMMGPSPoint]:
     ]
 
 
+def _long_video_track(rate: float) -> list[telemetry.CAMMGPSPoint]:
+    """
+    A GPS point every second of 2 minutes of video, its clock running rate
+    times faster: long enough for a rate near 1 to be measured
+    """
+    return [
+        _camm_point(time=float(t), epoch_time=A_UNIX_TIME + rate * t)
+        for t in range(121)
+    ]
+
+
 # GPS without timestamps, so the GPX can only be assumed to start with the video
 UNTIMED_TRACK = [
     geo.Point(time=float(t), lat=37.0, lon=14.0, alt=None, angle=None)
@@ -778,6 +789,14 @@ class TestGapsInTheTrack:
         )
         assert isinstance(metadata, types.ImageMetadata)
 
+    def test_an_image_in_a_gap_of_exactly_the_limit_is_interpolated(self, tmp_path):
+        """A gap of exactly the limit is no gap, also between fractional times"""
+        before = self.IMAGE_TIME - 1800.123457
+        metadata = self._process_image(
+            tmp_path, [(before - 60, 60), (before + 3600, 60)]
+        )
+        assert isinstance(metadata, types.ImageMetadata)
+
     def test_an_image_on_a_point_by_a_gap_is_on_the_track(self, tmp_path):
         """The last point before the gap is the image's own position"""
         metadata = self._process_image(
@@ -875,6 +894,48 @@ class TestGapsInTheTrackUploadedWithTheVideo:
             tmp_path, [(A_UNIX_TIME - 7260, 60), (A_UNIX_TIME + 5, 60)]
         )
         assert metadata.points[0].time == 0
+
+    # A LabPano clock rate, at which the gap in video seconds came out of a
+    # division a little more than the limit divided by the rate
+    @pytest.mark.parametrize("rate", [1.0, 1.142609374051617, 15.0])
+    @pytest.mark.parametrize("gap, interpolated", [(3600, True), (3600.5, False)])
+    def test_a_start_in_a_gap_of_the_limit(self, tmp_path, rate, gap, interpolated):
+        """
+        A gap of exactly the limit is no gap, also along a video whose clock
+        runs at another rate than 1: it is judged in GPS seconds
+        """
+        video_path = _write_camm_mp4(
+            tmp_path / "video.mp4", _long_video_track(rate), duration=125.0
+        )
+        # A fix before the video, and the track from a second into it
+        first = A_UNIX_TIME + rate
+        gpx_path = _write_gpx_parts(
+            tmp_path / "track.gpx", [(first - gap, 0), (first, 60)]
+        )
+        metadata = GPXVideoExtractor(video_path, gpx_path, clip_to_video=True).extract()
+        if interpolated:
+            assert metadata.points[0].time == 0
+        else:
+            assert metadata.points[0].time == pytest.approx(1.0)
+
+    @pytest.mark.parametrize("rate", [1.0, 1.142609374051617, 15.0])
+    def test_a_gap_of_the_limit_inside_the_video(self, tmp_path, monkeypatch, rate):
+        monkeypatch.setattr(constants, "MAX_GPX_GAP_SECONDS", 60)
+        video_path = _write_camm_mp4(
+            tmp_path / "video.mp4", _long_video_track(rate), duration=125.0
+        )
+
+        def extract(gap: float) -> types.VideoMetadata:
+            # The gap starts 22 GPS seconds into the video
+            gpx_path = _write_gpx_parts(
+                tmp_path / "track.gpx",
+                [(A_UNIX_TIME - 10, 32), (A_UNIX_TIME + 22 + gap, 120)],
+            )
+            return GPXVideoExtractor(video_path, gpx_path, clip_to_video=True).extract()
+
+        assert extract(60).points
+        with pytest.raises(exceptions.MapillaryOutsideGPXTrackError):
+            extract(60.5)
 
     def test_started_with_the_video_ends_before_a_gap(self, tmp_path):
         """--interpolation_use_gpx_start_time places the track, the clock gives its pace"""

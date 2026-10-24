@@ -40,6 +40,7 @@ from .geotag.options import (
 )
 from .geotag.video_extractors.gpx import (
     describe_gap,
+    gps_seconds_apart,
     GPXVideoExtractor,
     track_gaps,
     VideoClock,
@@ -887,7 +888,7 @@ def _sample_single_video_by_interval(
     track_from_file = track_read is not None and _placed_from_a_file(track_read[1])
     if track_read is not None and track_from_file:
         track = _start_at_the_first_sample(video_path, *track_read)
-        track_gaps_ = track_gaps(track.points, constants.MAX_GPX_GAP_SECONDS / rate)
+        track_gaps_ = track_gaps(track.points, constants.MAX_GPX_GAP_SECONDS, rate)
     interpolator = geo.Interpolator([track.points]) if track is not None else None
     # Or located by the geotagging stage along a GPX (or NMEA) track, by their
     # capture times
@@ -1047,8 +1048,7 @@ def _file_track_gaps(
     The gaps of a track placed on the video from a GPX (or NMEA) file, outside
     it as in the geotagging stage (see track_gaps()): between consecutive
     points more than constants.MAX_GPX_GAP_SECONDS apart by the GPS times they
-    keep, which a timelapse packs into less video, as interval sampling scales
-    the limit by the rate of the video
+    keep (see gps_seconds_apart()), which a timelapse packs into less video
     """
     gaps: list[tuple[geo.Point, geo.Point]] = []
     for before, after in geo.pairwise(points):
@@ -1056,7 +1056,7 @@ def _file_track_gaps(
         if (
             before_time is not None
             and after_time is not None
-            and constants.MAX_GPX_GAP_SECONDS < after_time - before_time
+            and constants.MAX_GPX_GAP_SECONDS < gps_seconds_apart(before, after)
         ):
             gaps.append((before, after))
     return gaps
