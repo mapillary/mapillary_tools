@@ -28,6 +28,26 @@ DEFAULT_GEOTAG_SOURCE_OPTIONS = [
     SourceType.EXIFTOOL_RUNTIME.value,
 ]
 
+# Files that cameras and other tools write beside images and videos: GoPro
+# thumbnails (.THM) and low-resolution proxies (.LRV), GPS logs, metadata,
+# subtitles (.SRT), notes and checksums. Selecting all the files of a camera
+# folder names them along with its images and videos
+_SIDECAR_EXTENSIONS = frozenset(
+    {
+        ".thm",
+        ".lrv",
+        ".gpx",
+        ".nmea",
+        ".xml",
+        ".json",
+        ".srt",
+        ".txt",
+        ".csv",
+        ".log",
+        ".md5",
+    }
+)
+
 
 def _normalize_import_paths(import_path: Path | T.Sequence[Path]) -> T.Sequence[Path]:
     import_paths: T.Sequence[Path]
@@ -63,10 +83,23 @@ def process_geotag_properties(
                 f"Import file or directory not found: {path}"
             )
 
+    # A named file that accompanies images and videos is skipped with a word,
+    # not failed: a user who names all the files of a camera folder means its
+    # images and videos. Zip files, also the AppleDouble file of one, are left
+    # to process_and_upload
+    sidecar_paths = [
+        path
+        for path in import_paths
+        if path.is_file() and path.suffix.lower() != ".zip" and _is_sidecar_file(path)
+    ]
+    for path in sidecar_paths:
+        LOG.warning("Skipping %s, which is not a supported image or video", path)
+    import_paths = [path for path in import_paths if path not in sidecar_paths]
+
     # A directory is searched for the files it can process, and the others in
-    # it are left alone, but a file named explicitly is failed if it cannot be
-    # processed: it was meant to be uploaded. A zip file is uploaded as it is,
-    # by process_and_upload
+    # it are left alone, but any other file named explicitly is failed if it
+    # cannot be processed: it was meant to be uploaded. A zip file is uploaded
+    # as it is, by process_and_upload
     unsupported_metadatas = [
         _describe_unsupported_file(path)
         for path in import_paths
@@ -117,6 +150,28 @@ def process_geotag_properties(
     metadata_or_errors = process(image_paths + video_paths, options, filetypes)
 
     return metadata_or_errors + unsupported_metadatas
+
+
+def _is_sidecar_file(path: Path) -> bool:
+    """
+    Whether a file is one that accompanies images and videos (see
+    _SIDECAR_EXTENSIONS), or one that macOS writes beside them: .DS_Store, and
+    the AppleDouble file ._NAME of each file it copies to a drive that cannot
+    hold its metadata, which has the extension of that file but is no image or
+    video
+
+    >>> [_is_sidecar_file(Path(name)) for name in ["GH010001.THM", "GL010001.LRV", "track.GPX"]]
+    [True, True, True]
+    >>> [_is_sidecar_file(Path(name)) for name in ["._GOPR0001.JPG", ".DS_Store"]]
+    [True, True]
+    >>> [_is_sidecar_file(Path(name)) for name in ["GOPR0001.JPG", "VID_00_001.insv", "photo.png"]]
+    [False, False, False]
+    """
+    return (
+        path.name.startswith("._")
+        or path.name.casefold() == ".ds_store"
+        or path.suffix.lower() in _SIDECAR_EXTENSIONS
+    )
 
 
 def _describe_unsupported_file(path: Path) -> types.ErrorMetadata:

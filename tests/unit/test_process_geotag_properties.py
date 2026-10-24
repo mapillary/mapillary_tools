@@ -129,13 +129,13 @@ class TestNamedUnsupportedFiles:
         return metadatas
 
     def test_named_file_is_failed(self, monkeypatch, tmp_path: Path):
-        notes = tmp_path / "notes.txt"
-        notes.write_bytes(b"not an image")
+        photo = tmp_path / "photo.png"
+        photo.write_bytes(b"not a supported image")
 
-        [metadata] = self._process(monkeypatch, [notes])
+        [metadata] = self._process(monkeypatch, [photo])
 
         assert isinstance(metadata, types.ErrorMetadata)
-        assert metadata.filename == notes
+        assert metadata.filename == photo
         assert metadata.filetype is None
         assert isinstance(metadata.error, exceptions.MapillaryUnsupportedFileError)
         assert str(metadata.error) == "Not a supported image or video"
@@ -169,10 +169,100 @@ class TestNamedUnsupportedFiles:
         assert self._process(monkeypatch, [tmp_path]) == []
 
     def test_a_file_named_twice_is_failed_once(self, monkeypatch, tmp_path: Path):
-        notes = tmp_path / "notes.txt"
-        notes.write_bytes(b"not an image")
+        photo = tmp_path / "photo.png"
+        photo.write_bytes(b"not a supported image")
 
-        assert len(self._process(monkeypatch, [notes, notes])) == 1
+        assert len(self._process(monkeypatch, [photo, photo])) == 1
+
+
+class TestNamedSidecarFiles:
+    """
+    The files that accompany images and videos, named along with them (as by
+    selecting all the files of a camera folder), failed the run, so that
+    nothing was uploaded
+    """
+
+    @staticmethod
+    def _process(
+        monkeypatch, import_paths: list[Path]
+    ) -> tuple[list[types.MetadataOrError], list[Path]]:
+        processed: list[Path] = []
+
+        def process(paths, options, filetypes=None):
+            processed.extend(paths)
+            return []
+
+        monkeypatch.setattr(pgp, "process", process)
+        metadatas = pgp.process_geotag_properties(
+            import_paths,
+            None,
+            geotag_source=[],
+            geotag_source_path=None,
+            video_geotag_source=[],
+        )
+        return metadatas, processed
+
+    @pytest.mark.parametrize(
+        "name",
+        [
+            "GH010001.THM",
+            "GL010001.LRV",
+            "track.gpx",
+            "track.NMEA",
+            "GH010001.xml",
+            "metadata.json",
+            "GH010001.SRT",
+            "notes.txt",
+            "track.csv",
+            "logger.log",
+            "checksums.md5",
+            ".DS_Store",
+        ],
+    )
+    def test_sidecar_is_skipped_with_a_warning(
+        self, monkeypatch, caplog, tmp_path: Path, name: str
+    ):
+        sidecar = tmp_path / name
+        sidecar.write_bytes(b"not an image")
+
+        with caplog.at_level("WARNING"):
+            metadatas, processed = self._process(monkeypatch, [sidecar])
+
+        assert metadatas == []
+        assert processed == []
+        assert (
+            f"Skipping {sidecar}, which is not a supported image or video"
+            in caplog.text
+        )
+
+    def test_apple_double_file_is_not_read_as_an_image(
+        self, monkeypatch, caplog, tmp_path: Path
+    ):
+        image = tmp_path / "GOPR0001.JPG"
+        image.write_bytes(b"an image")
+        apple_double = tmp_path / "._GOPR0001.JPG"
+        apple_double.write_bytes(b"\x00\x05\x16\x07")
+
+        with caplog.at_level("WARNING"):
+            metadatas, processed = self._process(monkeypatch, [image, apple_double])
+
+        assert metadatas == []
+        assert processed == [image]
+        assert f"Skipping {apple_double}" in caplog.text
+
+    def test_other_unsupported_files_are_still_failed(
+        self, monkeypatch, tmp_path: Path
+    ):
+        sidecar = tmp_path / "GH010001.THM"
+        original = tmp_path / "VID_00_001.insv"
+        for path in [sidecar, original]:
+            path.write_bytes(b"not an image")
+
+        [metadata], _ = self._process(monkeypatch, [sidecar, original])
+
+        assert isinstance(metadata, types.ErrorMetadata)
+        assert metadata.filename == original
+        assert isinstance(metadata.error, exceptions.MapillaryUnsupportedFileError)
 
 
 class TestVideoImportPath:

@@ -16,9 +16,11 @@ from .fixtures import (
     pytest_skip_if_not_ffmpeg_installed,
     run_command,
     run_process_and_upload_for_descs,
+    run_upload,
     setup_config,
     setup_data,
     setup_upload,
+    USERNAME,
 )
 
 EXPECTED_DESCS = {
@@ -328,13 +330,82 @@ def test_process_and_upload_named_zip_files(
     run_command([str(setup_data), str(zip_dir)], command="zip")
     zip_paths = sorted(str(path) for path in zip_dir.listdir())
     assert zip_paths
-    notes = tmpdir.join("notes.txt")
-    notes.write_binary(b"not an image")
+    photo = tmpdir.join("photo.png")
+    photo.write_binary(b"not a supported image")
 
-    descs = run_process_and_upload_for_descs([*zip_paths, str(notes)])
+    descs = run_process_and_upload_for_descs([*zip_paths, str(photo)])
 
     assert [(desc["filename"], desc["error"]["type"]) for desc in descs] == [
-        (str(Path(notes).resolve()), "MapillaryUnsupportedFileError")
+        (str(Path(photo).resolve()), "MapillaryUnsupportedFileError")
     ]
+    uploaded = extract_all_uploaded_descs(Path(setup_upload))
+    assert len(uploaded) == len(zip_paths)
+
+
+@pytest.mark.usefixtures("setup_config")
+def test_process_and_upload_named_files_with_their_sidecars(
+    tmpdir: py.path.local, setup_data: py.path.local, setup_upload: py.path.local
+):
+    """
+    Named along with zip files, as by selecting all the files of a camera
+    folder, the sidecar files beside them failed the run, and nothing was
+    uploaded
+    """
+    run_command(["--file_types=image", str(setup_data)], command="process")
+    zip_dir = tmpdir.mkdir("zip_dir")
+    run_command([str(setup_data), str(zip_dir)], command="zip")
+    zip_paths = sorted(str(path) for path in zip_dir.listdir())
+    assert zip_paths
+    sidecars = [
+        zip_dir.join("GH010001.THM"),
+        zip_dir.join("GL010001.LRV"),
+        zip_dir.join("notes.txt"),
+        zip_dir.join("._GOPR0001.JPG"),
+        # The AppleDouble file of a zip file, which was read as a zip file and
+        # stopped the run
+        zip_dir.join("._" + Path(zip_paths[0]).name),
+    ]
+    for sidecar in sidecars:
+        sidecar.write_binary(b"\x00\x05\x16\x07 not an image")
+    desc_path = tmpdir.join("desc.json")
+
+    # Exits 0 without --skip_process_errors
+    run_command(
+        [
+            "--dry_run",
+            "--user_name",
+            USERNAME,
+            "--desc_path",
+            str(desc_path),
+            *zip_paths,
+            *(str(sidecar) for sidecar in sidecars),
+        ],
+        command="process_and_upload",
+    )
+
+    uploaded = extract_all_uploaded_descs(Path(setup_upload))
+    assert len(uploaded) == len(zip_paths)
+
+
+@pytest.mark.usefixtures("setup_config")
+def test_upload_skips_the_apple_double_file_of_a_zip(
+    tmpdir: py.path.local, setup_data: py.path.local, setup_upload: py.path.local
+):
+    """
+    The AppleDouble file (._NAME) that macOS writes beside a zip file, named
+    for upload with it, was read as a zip file and stopped the run
+    """
+    run_command(["--file_types=image", str(setup_data)], command="process")
+    zip_dir = tmpdir.mkdir("zip_dir")
+    run_command([str(setup_data), str(zip_dir)], command="zip")
+    zip_paths = sorted(str(path) for path in zip_dir.listdir())
+    assert zip_paths
+    apple_double = zip_dir.join("._" + Path(zip_paths[0]).name)
+    apple_double.write_binary(b"\x00\x05\x16\x07\x00\x02\x00\x00Mac OS X")
+    desc_path = tmpdir.join("empty.json")
+    desc_path.write_text("[]", encoding="utf-8")
+
+    run_upload(["--desc_path", str(desc_path), str(apple_double), *zip_paths])
+
     uploaded = extract_all_uploaded_descs(Path(setup_upload))
     assert len(uploaded) == len(zip_paths)

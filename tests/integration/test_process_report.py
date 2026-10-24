@@ -95,9 +95,8 @@ def test_process_report_filters_folder_sidecars_but_reports_explicit_sidecars(
     explicit_output = root / "explicit"
     explicit_output.mkdir()
     descs, explicit_report = _run_process_with_report([sidecar], explicit_output)
-    assert [desc["error"]["type"] for desc in descs] == [
-        "MapillaryUnsupportedFileError"
-    ]
+    # Skipped with a warning, not failed, but still reported
+    assert descs == []
     assert explicit_report["discovered_file_count"] == 1
     assert explicit_report["processed_file_count"] == 0
     assert explicit_report["skipped_file_count"] == 1
@@ -162,3 +161,57 @@ def test_process_fails_an_explicit_unsupported_file(tmpdir: py.path.local):
         (desc["filename"], desc["error"]["type"])
         for desc in json.loads(desc_path.read_text(encoding="utf-8"))
     ] == [(str(unsupported.resolve()), "MapillaryUnsupportedFileError")]
+
+
+def test_process_skips_named_sidecars_of_a_camera_folder(tmpdir: py.path.local):
+    """
+    Named along with the images, as by selecting all the files of a camera
+    folder, the thumbnails, proxies and other files beside them failed the run
+    """
+    root = Path(str(tmpdir))
+    folder = root / "100GOPRO"
+    folder.mkdir()
+    sidecars = [
+        folder / "GH010001.THM",
+        folder / "GL010001.LRV",
+        folder / "GH010001.gpx",
+        folder / "GH010001.xml",
+        folder / ".DS_Store",
+        # The AppleDouble file of an image, which has its extension
+        folder / "._GOPR0001.JPG",
+    ]
+    for sidecar in sidecars:
+        sidecar.write_bytes(b"\x00\x05\x16\x07 not an image")
+    original = folder / "VID_00_001.insv"
+    original.write_bytes(b"not stitched")
+
+    descs, report = _run_process_with_report(sidecars, root)
+    assert descs == []
+    assert report["processed_file_count"] == 0
+    assert sorted(skipped["filename"] for skipped in report["skipped_files"]) == sorted(
+        str(sidecar.resolve()) for sidecar in sidecars
+    )
+
+    desc_path = root / "description.json"
+    run_command(
+        ["--desc_path", str(desc_path), *(str(sidecar) for sidecar in sidecars)],
+        command="process",
+    )
+    assert json.loads(desc_path.read_text(encoding="utf-8")) == []
+
+    # Any other unsupported file named with them still fails the run
+    with pytest.raises(subprocess.CalledProcessError) as exc_info:
+        run_command(
+            [
+                "--desc_path",
+                str(desc_path),
+                *(str(sidecar) for sidecar in sidecars),
+                str(original),
+            ],
+            command="process",
+        )
+    assert exc_info.value.returncode == 6
+    assert [
+        (desc["filename"], desc["error"]["type"])
+        for desc in json.loads(desc_path.read_text(encoding="utf-8"))
+    ] == [(str(original.resolve()), "MapillaryUnsupportedFileError")]

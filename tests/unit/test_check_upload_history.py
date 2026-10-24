@@ -154,6 +154,34 @@ def test_check_upload_history_for_zip(tmp_path, monkeypatch):
     assert history_record_path.read_bytes() == history_record
 
 
+def test_check_upload_history_skips_the_apple_double_file_of_a_zip(
+    tmp_path, monkeypatch, caplog
+):
+    """
+    The AppleDouble file (._NAME) that macOS writes beside a zip file, named
+    like a zip file but none, was read as one and stopped the run
+    """
+    monkeypatch.setattr(
+        constants, "MAPILLARY_UPLOAD_HISTORY_PATH", str(tmp_path / "history")
+    )
+    zip_path = tmp_path / "sequence.zip"
+    with zipfile.ZipFile(zip_path, "w") as zip_file:
+        zip_file.comment = json.dumps({"sequence_md5sum": "1" * 32}).encode()
+    apple_double = tmp_path / "._sequence.zip"
+    apple_double.write_bytes(b"\x00\x05\x16\x07\x00\x02\x00\x00Mac OS X")
+
+    with caplog.at_level("WARNING"):
+        results = upload.check_upload_history(
+            [apple_double, zip_path], _metadatas_from_process=[]
+        )
+
+    assert [result["filenames"] for result in results] == [[str(zip_path)]]
+    assert (
+        f"Skipping {apple_double}, which is not a supported image or video"
+        in caplog.text
+    )
+
+
 def test_check_upload_history_matches_subset_of_uploaded_image_sequence(
     tmp_path, monkeypatch
 ):

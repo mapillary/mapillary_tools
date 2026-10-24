@@ -63,6 +63,12 @@ _IGNORED_DISCOVERED_DIRNAMES = {"__macosx"}
 
 
 def _is_supported_process_file(path: Path) -> bool:
+    # An AppleDouble file (._NAME), which macOS writes beside each file it
+    # copies to a drive that cannot hold its metadata, has the extension of
+    # that file but is no image or video. A folder scan never finds it, as it
+    # is hidden
+    if path.name.startswith("._"):
+        return False
     return utils.is_image_file(path) or utils.is_video_file(path)
 
 
