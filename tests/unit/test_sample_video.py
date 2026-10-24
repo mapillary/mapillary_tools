@@ -594,11 +594,130 @@ class TestLocateIntervalSamples:
             in caplog.text
         )
 
+    def _file_points(self, video_times, gps_offset: float = 100.0) -> list[geo.Point]:
+        """
+        The points of a track from a file as GPX sync places them on the
+        video, at video times, keeping their own GPS times
+        """
+        return [
+            telemetry.CAMMGPSPoint(
+                time=float(t),
+                lat=40.0 + t * 0.001,
+                lon=-74.0,
+                alt=None,
+                angle=None,
+                epoch_time=self.GPS_START_TIME.timestamp() + gps_offset + t,
+                gps_fix_type=2,
+                horizontal_accuracy=0.0,
+                vertical_accuracy=0.0,
+                velocity_east=0.0,
+                velocity_north=0.0,
+                velocity_up=0.0,
+                speed_accuracy=0.0,
+            )
+            for t in video_times
+        ]
+
+    @pytest.mark.parametrize("source", ["gpx", "nmea"])
+    def test_located_along_a_video_track_file(
+        self, tmpdir, setup_mock, monkeypatch, caplog, source
+    ):
+        """
+        Along the track of --video_geotag_source as GPX sync placed it on the
+        video, and stamped with its times, as distance samples are. It ends 40
+        seconds into the video
+        """
+        track = self._file_points(range(41))
+        with caplog.at_level(logging.WARNING, logger=sample_video.LOG.name):
+            samples = self._sample(
+                tmpdir,
+                monkeypatch,
+                track,
+                video_geotag_source=[source],
+                geotag_source_path=Path(tmpdir) / f"track.{source}",
+            )
+
+        assert len(samples) == 21
+        _validate_interval(
+            samples, self.GPS_START_TIME + datetime.timedelta(seconds=100)
+        )
+        for idx, sample in enumerate(samples):
+            lon_lat = exif_read.ExifRead(sample).extract_lon_lat()
+            assert lon_lat == pytest.approx((-74.0, 40.0 + 2 * idx * 0.001))
+        [options] = self.track_calls
+        assert [o.source.value for o in options] == [source]
+        assert (
+            "9 of the 30 samples of hello.mp4 fall outside its GPS track "
+            "(2021-08-10T06:39:46+00:00 to 2021-08-10T06:40:26+00:00) and were left out"
+            in caplog.text
+        )
+
+    def test_samples_in_a_gap_of_a_video_track_file_are_left_out(
+        self, tmpdir, setup_mock, monkeypatch
+    ):
+        monkeypatch.setattr(sample_video.constants, "MAX_GPX_GAP_SECONDS", 5.0)
+        track = self._file_points([*range(11), *range(20, 61)])
+
+        samples = self._sample(
+            tmpdir,
+            monkeypatch,
+            track,
+            video_geotag_source=["gpx"],
+            geotag_source_path=Path(tmpdir) / "track.gpx",
+        )
+
+        # Not those at 12, 14, 16 and 18 seconds
+        assert [s.name for s in samples] == [
+            f"hello_v_{idx + 1:06d}.jpg" for idx in [*range(6), *range(10, 30)]
+        ]
+
+    def test_a_video_track_file_started_with_the_video_starts_at_the_first_sample(
+        self, tmpdir, setup_mock, monkeypatch
+    ):
+        """
+        GPX sync starts it at the first frame, 0.5 seconds into the video, and
+        ffmpeg cuts the first interval sample at time 0
+        """
+        monkeypatch.setattr(gpx_extractor, "_first_frame_time", lambda path: 0.5)
+        track = self._file_points([0.5 + t for t in range(61)], gps_offset=-0.5)
+
+        samples = self._sample(
+            tmpdir,
+            monkeypatch,
+            track,
+            video_geotag_source=["gpx"],
+            geotag_source_path=Path(tmpdir) / "track.gpx",
+            interpolation_use_gpx_start_time=True,
+        )
+
+        assert len(samples) == 30
+        _validate_interval(samples, self.GPS_START_TIME)
+        lon_lat = exif_read.ExifRead(samples[0]).extract_lon_lat()
+        assert lon_lat == pytest.approx((-74.0, 40.0005))
+
+    def test_none_left_out_of_a_video_track_file_where_the_video_source_may_geotag_them(
+        self, tmpdir, setup_mock, monkeypatch
+    ):
+        """The legacy gopro source geotags the samples by the GPS of the video"""
+        track = self._file_points(range(41))
+
+        samples = self._sample(
+            tmpdir,
+            monkeypatch,
+            track,
+            video_geotag_source=["gpx"],
+            geotag_source=["gopro"],
+            geotag_source_path=Path(tmpdir) / "track.gpx",
+        )
+
+        assert len(samples) == 30
+
     @pytest.mark.parametrize("source", [SourceType.GPX, SourceType.NMEA])
     def test_not_located_with_a_track_file(self, monkeypatch, source):
         """
-        The geotagging stage places the samples along a GPX or NMEA track by
-        their capture times, which interval sampling does not place the track by
+        The geotagging stage places the samples along a GPX or NMEA track of
+        --geotag_source by their capture times, which interval sampling does not
+        place the track by
         """
         process = mock.Mock()
         monkeypatch.setattr(sample_video.factory, "process", process)
@@ -2173,6 +2292,135 @@ class TestSampleVideoDistanceIntegration:
         ]
         assert capture_times == [
             gps_start_time + datetime.timedelta(seconds=seconds) for seconds in range(6)
+        ]
+
+    GPS_START_TIME = datetime.datetime(
+        2021, 8, 10, 6, 38, 6, tzinfo=datetime.timezone.utc
+    )
+
+    def _file_track(self, video_times, rate: float = 1.0) -> list[geo.Point]:
+        """
+        The points of a track from a GPX (or NMEA) file as GPX sync places
+        them on the video, at video times, keeping their own GPS times, of
+        which a timelapse packs **rate** into each second of video
+        """
+        return [
+            telemetry.CAMMGPSPoint(
+                time=float(t),
+                lat=40.0 + t * 0.001,
+                lon=-74.0,
+                alt=None,
+                angle=None,
+                epoch_time=self.GPS_START_TIME.timestamp() + t * rate,
+                gps_fix_type=2,
+                horizontal_accuracy=0.0,
+                vertical_accuracy=0.0,
+                velocity_east=0.0,
+                velocity_north=0.0,
+                velocity_up=0.0,
+                speed_accuracy=0.0,
+            )
+            for t in video_times
+        ]
+
+    def _sample_along_a_file_track(
+        self, tmp_path: Path, gps_points: T.Sequence[geo.Point], **kwargs
+    ) -> list[datetime.datetime | None]:
+        """Sample a frame a second by distance, and read their capture times"""
+        video_file = tmp_path / "test.mp4"
+        video_file.touch()
+        output_dir = tmp_path / "output"
+        mocks = self._setup_mocks(
+            tmp_path,
+            video_file,
+            gps_points=gps_points,
+            sample_times=[float(t) for t in range(int(gps_points[-1].time) + 1)],
+        )
+
+        with (
+            mocks["patches"]["ffmpeg_cls"],
+            mocks["patches"]["geotag_cls"],
+            mocks["patches"]["moov_parse"],
+        ):
+            sample_video.sample_video(
+                video_import_path=video_file,
+                import_path=output_dir,
+                video_sample_distance=0.0,
+                geotag_source_path=tmp_path / "track.gpx",
+                **kwargs,
+            )
+
+        frames = sorted((output_dir / "test.mp4").glob("*.jpg"))
+        return [exif_read.ExifRead(frame).extract_capture_time() for frame in frames]
+
+    @pytest.mark.parametrize("source", ["gpx", "nmea"])
+    def test_frames_in_a_gap_of_a_video_track_file_are_left_out(
+        self, tmp_path: Path, monkeypatch, caplog, source
+    ) -> None:
+        """
+        The track of --video_geotag_source has a gap of 10 seconds, over the
+        limit, from 10 to 20 seconds into the video. The frames in it were
+        placed across it, as they would be outside the track
+        """
+        monkeypatch.setattr(sample_video.constants, "MAX_GPX_GAP_SECONDS", 5.0)
+        video_times = [*range(11), *range(20, 31)]
+
+        with caplog.at_level(logging.WARNING, logger=sample_video.LOG.name):
+            capture_times = self._sample_along_a_file_track(
+                tmp_path, self._file_track(video_times), video_geotag_source=[source]
+            )
+
+        assert capture_times == [
+            self.GPS_START_TIME + datetime.timedelta(seconds=t) for t in video_times
+        ]
+        assert (
+            "9 frames of test.mp4 fall in a gap of its GPS track and were left out: "
+            "a gap of 10 seconds, from 2021-08-10T06:38:16+00:00 at (40.01, -74.0) "
+            "to 2021-08-10T06:38:26+00:00 at (40.02, -74.0)"
+        ) in caplog.text
+
+    def test_the_gap_limit_is_in_gps_seconds_in_a_timelapse(
+        self, tmp_path: Path, monkeypatch
+    ) -> None:
+        """
+        The gap of 2 seconds of video, from 10 to 12 seconds into it, spans 20
+        seconds of GPS time at 10x, over the limit
+        """
+        monkeypatch.setattr(sample_video.constants, "MAX_GPX_GAP_SECONDS", 15.0)
+        video_times = [*range(11), *range(12, 21)]
+
+        capture_times = self._sample_along_a_file_track(
+            tmp_path,
+            self._file_track(video_times, rate=10.0),
+            video_geotag_source=["gpx"],
+        )
+
+        assert capture_times == [
+            self.GPS_START_TIME + datetime.timedelta(seconds=t * 10)
+            for t in video_times
+        ]
+
+    @pytest.mark.parametrize(
+        "kwargs",
+        [
+            # The geotagging stage places the frames along the track of a file
+            # of --geotag_source by their capture times
+            {"geotag_source": ["gpx"]},
+            # The legacy gopro source geotags them by the GPS of their video
+            {"video_geotag_source": ["gpx"], "geotag_source": ["gopro"]},
+        ],
+    )
+    def test_frames_in_a_gap_are_left_where_the_geotagging_stage_places_them(
+        self, tmp_path: Path, monkeypatch, kwargs
+    ) -> None:
+        monkeypatch.setattr(sample_video.constants, "MAX_GPX_GAP_SECONDS", 5.0)
+
+        capture_times = self._sample_along_a_file_track(
+            tmp_path, self._file_track([*range(11), *range(20, 31)]), **kwargs
+        )
+
+        assert capture_times == [
+            self.GPS_START_TIME + datetime.timedelta(seconds=t) for t in range(31)
         ]
 
     def test_timelapse_frames_past_the_end_are_stamped_within_the_track(
