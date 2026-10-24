@@ -26,32 +26,7 @@ class NMEAVideoExtractor(GPXVideoExtractor):
 
     file_format = "NMEA"
 
-    # The tracks of the NMEA file, or the error reading it, once read_tracks()
-    # has read them
-    _tracks: list[list[geo.Point]] | exceptions.MapillaryInvalidGPXError | None = None
-
-    def read_tracks(self) -> None:
-        """
-        Read the tracks of the NMEA file now, for extract() to place, rather
-        than when it runs, which can be in another process
-        """
-        try:
-            self._tracks = self._read_tracks()
-        except exceptions.MapillaryInvalidGPXError as ex:
-            self._tracks = ex
-        except Exception:
-            # Left for extract() to raise again, and to be reported for the
-            # video as any unexpected error is
-            pass
-
     @override
-    def _parse_tracks(self) -> list[list[geo.Point]]:
-        if self._tracks is None:
-            return self._read_tracks()
-        if isinstance(self._tracks, exceptions.MapillaryInvalidGPXError):
-            raise self._tracks
-        return self._tracks
-
     def _read_tracks(self) -> list[list[geo.Point]]:
         try:
             points = get_lat_lon_time_from_nmea(self.gpx_path)

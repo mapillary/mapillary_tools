@@ -29,8 +29,7 @@ from ...camm import camm_parser
 from ...mp4 import construct_mp4_parser as cparser, simple_mp4_parser as sparser
 from ...mp4.mp4_sample_parser import MovieBoxParser
 from ...serializer.description import build_capture_time
-from .. import options
-from ..utils import parse_gpx
+from .. import options, utils as geotag_utils
 from .base import BaseVideoExtractor
 from .native import NativeVideoExtractor
 
@@ -175,6 +174,10 @@ class GPXVideoExtractor(BaseVideoExtractor):
     # The format of the track file, as messages name it
     file_format = "GPX"
 
+    # The tracks of the track file, or the error reading it, once read_tracks()
+    # has read them
+    _tracks: list[list[geo.Point]] | exceptions.MapillaryInvalidGPXError | None = None
+
     def __init__(
         self,
         video_path: Path,
@@ -285,39 +288,93 @@ class GPXVideoExtractor(BaseVideoExtractor):
 
         return dataclasses.replace(native_video_metadata, points=gpx_points)
 
+    def read_tracks(self) -> None:
+        """
+        Read the tracks of the track file now, for extract() to place, rather
+        than when it runs, which can be in another process: a file that
+        geotags several videos is then read, and warned about, once
+        """
+        try:
+            self._tracks = self._read_tracks()
+        except exceptions.MapillaryInvalidGPXError as ex:
+            self._tracks = ex
+        except Exception:
+            # Left for extract() to raise again, and to be reported for the
+            # video as any unexpected error is
+            pass
+        else:
+            self._warn_of_tracks(self._tracks)
+
     def _read_gpx_points(self) -> list[geo.Point]:
         """
         Read the points of the GPX file, merged into one track in time order
         """
+        warned = self._tracks is not None
         gpx_tracks = self._parse_tracks()
+        if not warned:
+            self._warn_of_tracks(gpx_tracks)
 
-        if 1 < len(gpx_tracks):
-            LOG.warning(
-                f"Found {len(gpx_tracks)} tracks in the {self.file_format} file {self.gpx_path}. Will merge points in all the tracks as a single track for interpolation"
-            )
-
-        all_points: list[geo.Point] = sum(gpx_tracks, [])
-        gpx_points = [p for p in all_points if _GPS_EPOCH <= p.time]
-        if len(gpx_points) < len(all_points):
-            LOG.warning(
-                "Ignoring %d of the %d points in the %s file %s, which are timestamped before 1980",
-                len(all_points) - len(gpx_points),
-                len(all_points),
-                self.file_format,
-                self.gpx_path,
-            )
+        # Copies, which are moved to the video: the tracks may be shared with
+        # other readers of the file
+        gpx_points = [
+            dataclasses.replace(p)
+            for track in gpx_tracks
+            for p in track
+            if _GPS_EPOCH <= p.time
+        ]
 
         # The tracks need not be in time order, and interpolation needs the
         # merged points to be
         gpx_points.sort(key=lambda p: p.time)
         return gpx_points
 
+    def _warn_of_tracks(self, gpx_tracks: list[list[geo.Point]]) -> None:
+        """
+        Warn of what reading the points of the tracks leaves out or merges,
+        once for each file
+        """
+        if 1 < len(gpx_tracks):
+            geotag_utils.warn_once(
+                self.gpx_path,
+                ("tracks", len(gpx_tracks)),
+                "Found %d tracks in the %s file %s. Will merge points in all the tracks as a single track for interpolation",
+                len(gpx_tracks),
+                self.file_format,
+                self.gpx_path,
+            )
+
+        num_points = sum(len(track) for track in gpx_tracks)
+        num_kept = sum(1 for track in gpx_tracks for p in track if _GPS_EPOCH <= p.time)
+        if num_kept < num_points:
+            geotag_utils.warn_once(
+                self.gpx_path,
+                ("before 1980", num_points - num_kept, num_points),
+                "Ignoring %d of the %d points in the %s file %s, which are timestamped before 1980",
+                num_points - num_kept,
+                num_points,
+                self.file_format,
+                self.gpx_path,
+            )
+
     def _parse_tracks(self) -> list[list[geo.Point]]:
         """
-        Parse the tracks of the GPX file, each a list of points with Unix times
+        The tracks of the track file, each a list of points with Unix times,
+        as read_tracks() read them, or read now. They may be shared with other
+        readers of the file, and must not be changed
+        """
+        if self._tracks is None:
+            return self._read_tracks()
+        if isinstance(self._tracks, exceptions.MapillaryInvalidGPXError):
+            raise self._tracks
+        return self._tracks
+
+    def _read_tracks(self) -> list[list[geo.Point]]:
+        """
+        Read the tracks of the GPX file, parsed once in a process (see
+        read_gpx_tracks())
         """
         try:
-            return parse_gpx(self.gpx_path)
+            return geotag_utils.read_gpx_tracks(self.gpx_path)
         except (OSError, UnicodeError, gpxpy.gpx.GPXException) as ex:
             raise exceptions.MapillaryInvalidGPXError(
                 f"{self.gpx_path.name} is not a valid GPX file. "

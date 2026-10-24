@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import collections
 import logging
 import sys
 import typing as T
@@ -16,7 +17,7 @@ else:
     from typing_extensions import override
 
 from .. import exceptions, types
-from . import options
+from . import options, utils
 from .base import GeotagVideosFromGeneric
 from .video_extractors.gpx import GPXVideoExtractor
 
@@ -72,4 +73,28 @@ class GeotagVideosFromGPX(GeotagVideosFromGeneric):
                         filetype=types.FileType.VIDEO,
                     )
                 )
+
+        # The videos are geotagged in a pool of processes, each of which would
+        # read the track file of its videos. Read here, once, and warn about
+        # once, a file that geotags several of them, or that this process read
+        # already (see _read_here())
+        extractors = [
+            result for result in results if isinstance(result, GPXVideoExtractor)
+        ]
+        num_videos = collections.Counter(
+            extractor.gpx_path.resolve() for extractor in extractors
+        )
+        for extractor in extractors:
+            if self._read_here(extractor, num_videos[extractor.gpx_path.resolve()]):
+                extractor.read_tracks()
+
         return results
+
+    def _read_here(self, extractor: GPXVideoExtractor, num_videos: int) -> bool:
+        """
+        Whether to read the track file of **extractor**, which geotags
+        **num_videos** videos, in this process rather than in the pool: if it
+        geotags several, or was parsed in this process already. A file of
+        each video is left to the pool, which parses them side by side
+        """
+        return 1 < num_videos or utils.was_gpx_read(extractor.gpx_path)
