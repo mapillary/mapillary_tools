@@ -257,6 +257,8 @@ def process(
     options: T.Collection[SourceOption],
     # --filetypes, which the filetypes of every option are limited to already
     filetypes: set[types.FileType] | None = None,
+    # If given, filled with the option that geotagged each file, of those geotagged
+    sources: dict[Path, SourceOption] | None = None,
 ) -> list[types.MetadataOrError]:
     if not options:
         raise ValueError("No geotag options provided")
@@ -378,10 +380,11 @@ def process(
                 reprocessable_paths.remove(metadata.filename)
                 pending_errors.pop(metadata.filename, None)
                 rejection = gpx_rejections.pop(metadata.filename, None)
-                if rejection is not None and not isinstance(
-                    metadata, types.ErrorMetadata
-                ):
-                    rescued.append((metadata, *rejection))
+                if not isinstance(metadata, types.ErrorMetadata):
+                    if sources is not None:
+                        sources[metadata.filename] = option
+                    if rejection is not None:
+                        rescued.append((metadata, *rejection))
 
         _warn_geotagged_despite_gpx(rescued, option)
 

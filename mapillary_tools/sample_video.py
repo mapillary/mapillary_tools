@@ -880,12 +880,13 @@ def _sample_single_video_by_interval(
     # Located along the video's own GPS track, or the GPX (or NMEA) track of
     # --video_geotag_source as GPX sync placed it on the video, as distance
     # samples are
-    track = _read_track_for_interval_samples(video_path, geotag_options)
+    track_read = _read_track_for_interval_samples(video_path, geotag_options)
+    track = track_read[0] if track_read is not None else None
     # The gaps of a track placed from a file, outside it (see track_gaps())
     track_gaps_: list[tuple[geo.Point, geo.Point]] = []
-    track_from_file = track is not None and _placed_from_a_file(geotag_options)
-    if track is not None and track_from_file:
-        track = _start_at_the_first_sample(video_path, track, geotag_options)
+    track_from_file = track_read is not None and _placed_from_a_file(track_read[1])
+    if track_read is not None and track_from_file:
+        track = _start_at_the_first_sample(video_path, *track_read)
         track_gaps_ = track_gaps(track.points, constants.MAX_GPX_GAP_SECONDS / rate)
     interpolator = geo.Interpolator([track.points]) if track is not None else None
     # Or located by the geotagging stage along a GPX (or NMEA) track, by their
@@ -1011,17 +1012,20 @@ def _sample_single_video_by_interval(
             exif_edit.write()
 
 
-def _placed_from_a_file(geotag_options: T.Sequence[SourceOption]) -> bool:
+def _placed_from_a_file(track_source: SourceOption | None) -> bool:
     """
-    Whether the track that the interval samples are located along was placed
-    on the video from a GPX (or NMEA) file: its only sources are such files
+    Whether the track of a video was placed on it from a GPX (or NMEA) file:
+    the source that read it, of those tried in turn, is such a file, whatever
+    the other sources are
     """
-    return bool(geotag_options) and all(
-        option.source in factory.EXTERNAL_GPS_SOURCES for option in geotag_options
+    return (
+        track_source is not None and track_source.source in factory.EXTERNAL_GPS_SOURCES
     )
 
 
-def _placed_from_a_video_file(geotag_options: T.Sequence[SourceOption]) -> bool:
+def _placed_from_a_video_file(
+    track_source: SourceOption | None, geotag_options: T.Sequence[SourceOption]
+) -> bool:
     """
     Whether the track that distance samples are sampled along is placed on
     the video from a GPX (or NMEA) file of --video_geotag_source, as interval
@@ -1029,8 +1033,9 @@ def _placed_from_a_video_file(geotag_options: T.Sequence[SourceOption]) -> bool:
     file of --geotag_source geotags the samples too, which the geotagging stage
     places along its track by their capture times
     """
-    return _placed_from_a_file(geotag_options) and not any(
-        option.filetypes is None or types.FileType.IMAGE in option.filetypes
+    return _placed_from_a_file(track_source) and not any(
+        option.source in factory.EXTERNAL_GPS_SOURCES
+        and (option.filetypes is None or types.FileType.IMAGE in option.filetypes)
         for option in geotag_options
     )
 
@@ -1067,16 +1072,15 @@ def _describe_file_track_gap(before: geo.Point, after: geo.Point) -> str:
 def _start_at_the_first_sample(
     video_path: Path,
     track: types.VideoMetadata,
-    geotag_options: T.Sequence[SourceOption],
+    option: SourceOption,
 ) -> types.VideoMetadata:
     """
     A track that --interpolation_use_gpx_start_time starts with the video,
     moved to start at the first interval sample: GPX sync starts it at the
     composition time of the first frame, at which distance sampling reads the
     first frame, and interval sampling stamps the samples from time 0, which
-    ffmpeg cuts the first one at
+    ffmpeg cuts the first one at. **option** is the source that placed it
     """
-    option = geotag_options[0]
     if option.interpolation is None or not option.interpolation.use_gpx_start_time:
         return track
     # As GPX sync starts it
@@ -1273,14 +1277,15 @@ def _read_file_track_for_interval_samples(
 
 def _read_track_for_interval_samples(
     video_path: Path, geotag_options: T.Sequence[SourceOption]
-) -> types.VideoMetadata | None:
+) -> tuple[types.VideoMetadata, SourceOption] | None:
     """
     The track that the interval samples of a video are located along, in
-    video time, as distance samples are: the video's own GPS track, or that of
-    a GPX (or NMEA) file of --video_geotag_source as GPX sync placed it on the
-    video. None to leave their positions to the geotagging stage: that places
-    them along the track of a GPX (or NMEA) file of --geotag_source, which
-    geotags images, by their capture times
+    video time, as distance samples are, and the source that read it: the
+    video's own GPS track, or that of a GPX (or NMEA) file of
+    --video_geotag_source as GPX sync placed it on the video. None to leave
+    their positions to the geotagging stage: that places them along the track
+    of a GPX (or NMEA) file of --geotag_source, which geotags images, by their
+    capture times
     """
     if any(
         option.source in factory.EXTERNAL_GPS_SOURCES
@@ -1290,17 +1295,10 @@ def _read_track_for_interval_samples(
         return None
 
     # Through the factory with the same sources as distance sampling, which
-    # reads the video's own GPS by default (see _parse_geotag_options()). One
-    # video is read in this process rather than in a pool of its own
-    video_metadatas = factory.process(
-        [video_path],
-        [
-            dataclasses.replace(option, num_processes=0)
-            for option in geotag_options or [SourceOption(SourceType.NATIVE)]
-        ],
+    # reads the video's own GPS by default (see _parse_geotag_options())
+    video_metadata, track_source = _read_video_track(
+        video_path, geotag_options or [SourceOption(SourceType.NATIVE)]
     )
-    assert len(video_metadatas) == 1, "expect 1 video metadata"
-    video_metadata = video_metadatas[0]
     if isinstance(video_metadata, types.ErrorMetadata):
         LOG.warning(
             "The samples of %s are not geotagged, as no GPS track was read from it: %s",
@@ -1319,7 +1317,30 @@ def _read_track_for_interval_samples(
         )
         return None
 
-    return video_metadata
+    assert track_source is not None, "expect the source of a video's track"
+    return video_metadata, track_source
+
+
+def _read_video_track(
+    video_path: Path, geotag_options: T.Sequence[SourceOption]
+) -> tuple[types.MetadataOrError, SourceOption | None]:
+    """
+    The track of a video, read through the factory by the first of
+    **geotag_options** that geotags it, as in the geotagging stage, and that
+    source (None if none does). The video is read in this process rather than
+    in a pool of its own, so that a GPX (or NMEA) file that geotags several
+    videos is read once
+    """
+    sources: dict[Path, SourceOption] = {}
+    video_metadatas = factory.process(
+        [video_path],
+        [dataclasses.replace(option, num_processes=0) for option in geotag_options],
+        sources=sources,
+    )
+    # Every option can read videos (see _parse_geotag_options()), so process()
+    # returns metadata for the video even if all of them fail
+    assert len(video_metadatas) == 1, "expect 1 video metadata"
+    return video_metadatas[0], sources.get(video_path)
 
 
 def _add_position(
@@ -1531,17 +1552,8 @@ def _sample_single_video_by_distance(
     # Go through the factory rather than reading the video's own telemetry
     # directly, so that --geotag_source is honoured here as well: a GPX is the
     # documented answer for a camera whose embedded GPS is unusable, and
-    # distance sampling needs positions just as much as geotagging does. The
-    # video is read in this process rather than in a pool of its own, so that a
-    # GPX (or NMEA) file that geotags several videos is read once
-    video_metadatas = factory.process(
-        [video_path],
-        [dataclasses.replace(option, num_processes=0) for option in geotag_options],
-    )
-    # Every option can read videos (see _parse_geotag_options()), so process()
-    # returns metadata for the video even if all of them fail
-    assert len(video_metadatas) == 1, "expect 1 video metadata"
-    video_metadata = video_metadatas[0]
+    # distance sampling needs positions just as much as geotagging does
+    video_metadata, track_source = _read_video_track(video_path, geotag_options)
 
     # Distance sampling needs positions to decide which frames to cut, so
     # failing to read them is a failed sample, not something to carry on past.
@@ -1579,7 +1591,7 @@ def _sample_single_video_by_distance(
     # GPS of their video instead
     gaps = (
         _file_track_gaps(video_metadata.points)
-        if _placed_from_a_video_file(geotag_options)
+        if _placed_from_a_video_file(track_source, geotag_options)
         and not any(
             option.source in _FIRST_SAMPLE_SOURCES for option in sample_sources or []
         )

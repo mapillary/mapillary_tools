@@ -24,7 +24,15 @@ import typing as T
 from pathlib import Path
 
 import pytest
-from mapillary_tools import constants, exceptions, geo, telemetry, types, uploader
+from mapillary_tools import (
+    constants,
+    exceptions,
+    geo,
+    sample_video,
+    telemetry,
+    types,
+    uploader,
+)
 from mapillary_tools.camm import camm_builder
 from mapillary_tools.geotag import factory
 from mapillary_tools.geotag.options import (
@@ -507,6 +515,53 @@ class TestFallThrough:
         [warning] = _warnings(caplog)
         assert "misses the video" in warning and "by 2.0 hours" in warning
         assert warning.endswith("Geotagged it from the native source instead")
+
+    @pytest.mark.parametrize(
+        "gpx_start, source",
+        [(A_UNIX_TIME, SourceType.GPX), (A_UNIX_TIME + 2 * 3600, SourceType.NATIVE)],
+    )
+    def test_the_source_that_geotagged_the_video_is_given(
+        self, tmp_path, gpx_start, source
+    ):
+        """
+        Interval and distance samples leave out the gaps of a track placed from
+        a GPX, and not those of the video's own track
+        """
+        video_path = _write_camm_mp4(tmp_path / "video.mp4", _video_track())
+        gpx_path = _write_gpx(tmp_path / "track.gpx", gpx_start, 10)
+        options = [
+            # As --video_geotag_source gpx --video_geotag_source native
+            SourceOption(
+                SourceType.GPX,
+                num_processes=0,
+                source_path=SourcePathOption(source_path=gpx_path),
+                filetypes={types.FileType.VIDEO},
+            ),
+            SourceOption(
+                SourceType.NATIVE, num_processes=0, filetypes={types.FileType.VIDEO}
+            ),
+        ]
+
+        sources: dict[Path, SourceOption] = {}
+        [metadata] = factory.process([video_path], options, sources=sources)
+        assert isinstance(metadata, types.VideoMetadata)
+        assert sources[video_path].source is source
+
+        read = sample_video._read_track_for_interval_samples(video_path, options)
+        assert read is not None
+        assert read[1].source is source
+        assert sample_video._placed_from_a_file(read[1]) is (source is SourceType.GPX)
+
+    def test_no_source_is_given_for_a_video_none_geotagged(self, tmp_path):
+        sources: dict[Path, SourceOption] = {}
+        [metadata] = factory.process(
+            [NO_GPS_VIDEO],
+            [SourceOption(SourceType.NATIVE, num_processes=0)],
+            sources=sources,
+        )
+
+        assert isinstance(metadata, types.ErrorMetadata)
+        assert sources == {}
 
     def _process_images(
         self, tmp_path: Path, sources: list[SourceType], count: int = 1
