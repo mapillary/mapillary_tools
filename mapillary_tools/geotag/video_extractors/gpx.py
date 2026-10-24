@@ -47,9 +47,7 @@ _IMPLAUSIBLE_OFFSET_SECONDS = 24 * 3600
 _MAX_RECORDING_SECONDS = 24 * 3600
 
 # A GPS clock that runs this much faster than the video clock is a timelapse,
-# and the steps between its timestamps show it too. One timestamp far off the
-# rest, or one step of the clock, can pull the least-squares slope of a normal
-# video past it
+# and the steps between its timestamps show it too
 _MIN_TIMELAPSE_RATE = 1.5
 
 # No GPS fix can be timestamped before the GPS epoch, 1980-01-06. GPX files
@@ -74,7 +72,7 @@ _STALE_STEP_RATE = 1.5
 # A GPS clock that runs within this fraction of the video's pace runs at it.
 # Over 20 seconds or more, cameras that record in real time measure within
 # 0.4% of 1x, or 1.6% for a GoPro MAX whose GPS glitches, while the clock of a
-# LabPano runs 9% to 14% faster than its video
+# LabPano runs 14% faster than its video
 _MAX_CLOCK_RATE_ERROR = 0.05
 
 # Nor can GPS timestamps measure a clock that departs from the video's pace by
@@ -82,6 +80,20 @@ _MAX_CLOCK_RATE_ERROR = 0.05
 # of points up to 1.7 seconds off the line through the rest, and clips a few
 # seconds long measure up to 15% off 1x, if by no more than 0.3 seconds
 _MAX_CLOCK_DRIFT_SECONDS = 2.0
+
+# Nor, below the timelapse rate, do timestamps over less than this, of video
+# or of GPS time, measure a pace off 1x: over 8 to 20 seconds of GoPro and
+# PANOX V2 videos, a few timestamps seconds off the rest measure 0.24x to
+# 1.33x, by least squares and by the median of slopes alike. The LabPano
+# videos, whose clocks gain on them, span 3 minutes or more
+_MIN_CLOCK_SPAN_SECONDS = 60.0
+
+# The rate is the median of the slopes between pairs of timestamps, which a
+# few timestamps off the rest, or a step of the clock, do not move: a clock
+# that steps 18 seconds ahead two thirds into a 2-minute video pulls the
+# least-squares slope to 1.2x. Over more timestamps than this, an evenly spaced
+# selection of them measures it to within 0.01%
+_MAX_RATE_TIMESTAMPS = 300
 
 
 class SyncMode(enum.Enum):
@@ -927,13 +939,25 @@ class GPXVideoExtractor(BaseVideoExtractor):
             # See _MAX_CLOCK_RATE_ERROR and _MAX_CLOCK_DRIFT_SECONDS
             rate = 1.0
         elif _MIN_TIMELAPSE_RATE < rate:
-            # A timestamp far off the rest, or a step of the clock, can pull the
-            # least-squares slope far off, so a timelapse must show in the
-            # median step between neighbouring pairs too. That is too coarse to
-            # measure the rate, but not to tell a timelapse from a normal video
-            step_rate = cls._median_step_rate(pairs)
-            if step_rate is None or step_rate <= _MIN_TIMELAPSE_RATE:
+            # A timelapse must show in the steps between neighbouring pairs
+            # too: in their median, which is too coarse to measure the rate, but
+            # not to tell a timelapse from a normal video. Not in one step, nor
+            # in one of two: where a GPS stamps a fix seconds late, a few
+            # seconds of a video that records in real time can hold only 3
+            # timestamps, which measure 3.5x or 4x
+            steps = cls._step_rates(pairs)
+            if (
+                len(steps) < 2
+                or (min(steps) if len(steps) == 2 else statistics.median(steps))
+                <= _MIN_TIMELAPSE_RATE
+            ):
                 rate = 1.0
+        elif (
+            min(pairs[-1][0] - pairs[0][0], pairs[-1][1] - pairs[0][1])
+            < _MIN_CLOCK_SPAN_SECONDS
+        ):
+            # See _MIN_CLOCK_SPAN_SECONDS
+            rate = 1.0
 
         # Anchored at its own video time, which is not 0 when the video's GPS
         # starts late (e.g. GoPro drops noisy fixes at the start of a recording),
@@ -1009,23 +1033,35 @@ class GPXVideoExtractor(BaseVideoExtractor):
         cls, pairs: T.Sequence[tuple[float, float]]
     ) -> float | None:
         """
-        Least-squares slope of the Unix time over the video time, or None
-        without two pairs at different video times
+        The slope of the Unix time over the video time: the median of the slopes
+        between pairs of the pairs (the Theil-Sen estimator), of an evenly
+        spaced selection of them if there are many (see _MAX_RATE_TIMESTAMPS).
+        None without two pairs at different video times
 
         >>> GPXVideoExtractor._estimate_clock_rate([(0, 100), (1, 115), (2, 130)])
         15.0
         >>> GPXVideoExtractor._estimate_clock_rate([(0, 100)]) is None
         True
-        """
-        if len(pairs) < 2 or pairs[-1][0] <= pairs[0][0]:
-            return None
 
-        n = len(pairs)
-        mean_video_time = sum(v for v, _ in pairs) / n
-        mean_unix_time = sum(u for _, u in pairs) / n
-        covariance = sum((v - mean_video_time) * (u - mean_unix_time) for v, u in pairs)
-        variance = sum((v - mean_video_time) ** 2 for v, _ in pairs)
-        return covariance / variance
+        One timestamp far off the rest does not move it:
+
+        >>> GPXVideoExtractor._estimate_clock_rate([(i, 100 + i) for i in range(9)] + [(9, 130)])
+        1.0
+        """
+        if len(pairs) > _MAX_RATE_TIMESTAMPS:
+            last = len(pairs) - 1
+            pairs = [
+                pairs[round(idx * last / (_MAX_RATE_TIMESTAMPS - 1))]
+                for idx in range(_MAX_RATE_TIMESTAMPS)
+            ]
+
+        slopes = [
+            (u2 - u1) / (v2 - v1)
+            for idx, (v1, u1) in enumerate(pairs)
+            for v2, u2 in pairs[idx + 1 :]
+            if v1 < v2
+        ]
+        return statistics.median(slopes) if slopes else None
 
     @classmethod
     def _median_step_rate(cls, pairs: T.Sequence[tuple[float, float]]) -> float | None:
@@ -1037,12 +1073,22 @@ class GPXVideoExtractor(BaseVideoExtractor):
         >>> GPXVideoExtractor._median_step_rate(pairs)
         1.0
         """
-        steps = [
+        steps = cls._step_rates(pairs)
+        return statistics.median(steps) if steps else None
+
+    @classmethod
+    def _step_rates(cls, pairs: T.Sequence[tuple[float, float]]) -> list[float]:
+        """
+        The rates of the GPS clock between neighbouring pairs
+
+        >>> GPXVideoExtractor._step_rates([(0, 100), (1, 101), (1.5, 104)])
+        [1.0, 6.0]
+        """
+        return [
             (u2 - u1) / (v2 - v1)
             for (v1, u1), (v2, u2) in zip(pairs, pairs[1:])
             if v1 < v2
         ]
-        return statistics.median(steps) if steps else None
 
 
 def track_gaps(
