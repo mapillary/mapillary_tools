@@ -408,7 +408,7 @@ class GPXVideoExtractor(BaseVideoExtractor):
         """
         video_duration = _video_duration(self.video_path)
         gpx_points = _leave_out_far_side_of_gaps(
-            gpx_points, constants.MAX_GPX_GAP_SECONDS / rate, video_duration
+            gpx_points, constants.MAX_GPX_GAP_SECONDS, video_duration, rate
         )
         if clock is None:
             return _clip_track(gpx_points, None)
@@ -551,7 +551,8 @@ class GPXVideoExtractor(BaseVideoExtractor):
         # The gaps of the track, and its parts between them, in video seconds
         gap_points = track_gaps(
             sorted(gpx_points, key=lambda p: p.time),
-            constants.MAX_GPX_GAP_SECONDS / rate,
+            constants.MAX_GPX_GAP_SECONDS,
+            rate,
         )
         gaps = [(before.time, after.time) for before, after in gap_points]
         parts = list(
@@ -1144,11 +1145,12 @@ class GPXVideoExtractor(BaseVideoExtractor):
 
 
 def track_gaps(
-    points: T.Sequence[geo.Point], max_gap: float
+    points: T.Sequence[geo.Point], max_gap: float, rate: float = 1.0
 ) -> list[tuple[geo.Point, geo.Point]]:
     """
     The gaps of a track, sorted by time, between consecutive points more than
-    **max_gap** seconds apart, as the points either side
+    **max_gap** GPS seconds apart (see gps_seconds_apart()), as the points
+    either side
 
     >>> track = [geo.Point(time=t, lat=0, lon=0, alt=None, angle=None) for t in (0, 1, 5000, 5001, 9000)]
     >>> [(before.time, after.time) for before, after in track_gaps(track, 3600)]
@@ -1157,12 +1159,43 @@ def track_gaps(
     [(1, 5000)]
     >>> track_gaps(track[:2], 3600)
     []
+
+    A gap of exactly **max_gap** is none, also along a video whose clock runs
+    at another rate than 1:
+
+    >>> placed = [geo.Point(time=t / 1.1426, lat=0, lon=0, alt=None, angle=None) for t in (0, 3600)]
+    >>> track_gaps(placed, 3600, rate=1.1426)
+    []
     """
     return [
         (left, right)
         for left, right in geo.pairwise(points)
-        if max_gap < right.time - left.time
+        if max_gap < gps_seconds_apart(left, right, rate)
     ]
+
+
+def gps_seconds_apart(left: geo.Point, right: geo.Point, rate: float = 1.0) -> float:
+    """
+    The GPS seconds between two points of a track: those between the GPS
+    times they keep, where both keep one, and otherwise between their times
+    at **rate** GPS seconds per second of their time, as a track placed along
+    a timelapse packs several GPS seconds into each second of video. Rounded to
+    the millisecond, which no GPS time is recorded more finely than, so that
+    neither a division by the rate nor a fractional timestamp makes a gap of
+    exactly the limit more than it
+
+    >>> p = lambda t: geo.Point(time=t, lat=0, lon=0, alt=None, angle=None)
+    >>> gps_seconds_apart(p(1.0), p(3.5), rate=2.0)
+    5.0
+    >>> gps_seconds_apart(p(0), p(3600 / 1.1426), rate=1.1426)
+    3600.0
+    """
+    left_time, right_time = left.get_unix_time(), right.get_unix_time()
+    if left_time is None or right_time is None:
+        seconds = (right.time - left.time) * rate
+    else:
+        seconds = right_time - left_time
+    return round(seconds, 3)
 
 
 def describe_gap(
@@ -1208,12 +1241,15 @@ def describe_long_track(
 
 
 def _leave_out_far_side_of_gaps(
-    points: T.Sequence[geo.Point], max_gap: float, end: float | None
+    points: T.Sequence[geo.Point],
+    max_gap: float,
+    end: float | None,
+    rate: float = 1.0,
 ) -> list[geo.Point]:
     """
     Leave out of a track, sorted by time, the points on the far side of a gap
-    of more than **max_gap** seconds that time 0, or **end** (None if
-    unknown), falls in
+    of more than **max_gap** GPS seconds (see gps_seconds_apart()) that time 0,
+    or **end** (None if unknown), falls in
 
     >>> track = [geo.Point(time=t, lat=t, lon=0, alt=None, angle=None) for t in (-9000, 99, 200, 9000)]
     >>> [p.time for p in _leave_out_far_side_of_gaps(track, 3600, 300)]
@@ -1225,7 +1261,7 @@ def _leave_out_far_side_of_gaps(
     """
     start, stop = 0, len(points)
     for idx, (before, after) in enumerate(geo.pairwise(points)):
-        if after.time - before.time <= max_gap:
+        if gps_seconds_apart(before, after, rate) <= max_gap:
             continue
         if before.time < 0 < after.time:
             start = idx + 1
