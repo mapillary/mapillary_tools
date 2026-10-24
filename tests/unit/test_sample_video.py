@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 import datetime
 import json
 import logging
@@ -511,15 +512,69 @@ class TestLocateIntervalSamples:
             (SourceType.NATIVE, 0)
         ]
 
-    def test_samples_past_the_track_are_not_located(
-        self, tmpdir, setup_mock, monkeypatch
+    def test_samples_past_the_track_are_left_out(
+        self, tmpdir, setup_mock, monkeypatch, caplog
     ):
         # The track ends 20 seconds into the video
-        samples = self._sample(tmpdir, monkeypatch, self._points(21))
+        with caplog.at_level(logging.WARNING, logger=sample_video.LOG.name):
+            samples = self._sample(tmpdir, monkeypatch, self._points(21))
 
+        assert [s.name for s in samples] == [
+            f"hello_v_{idx + 1:06d}.jpg" for idx in range(11)
+        ]
         lon_lats = [exif_read.ExifRead(s).extract_lon_lat() for s in samples]
         assert lon_lats[10] == pytest.approx((-74.0, 40.020))
-        assert all(lon_lat == self.MOCK_SAMPLE_LON_LAT for lon_lat in lon_lats[11:])
+        assert (
+            "19 of the 30 samples of hello.mp4 fall outside its GPS track "
+            "(2021-08-10T06:38:06+00:00 to 2021-08-10T06:38:26+00:00) and were left out"
+            in caplog.text
+        )
+
+    @pytest.mark.parametrize(
+        "geotag_source, left_out",
+        [
+            # video_process with the default sources, which read the positions
+            # written into the samples
+            ([], True),
+            (["exif"], True),
+            # The sample_video command, whose samples may be geotagged later
+            # by the time since the first sample
+            (None, False),
+            (["gopro"], False),
+            (['{"source": "exiftool_xml", "pattern": "%g.xml"}'], False),
+        ],
+    )
+    def test_samples_before_the_track(
+        self, tmpdir, setup_mock, monkeypatch, geotag_source, left_out
+    ):
+        # The track starts 5 seconds into the video
+        track = self._points(60)[5:]
+        kwargs = {} if geotag_source is None else {"geotag_source": geotag_source}
+
+        samples = self._sample(tmpdir, monkeypatch, track, **kwargs)
+
+        names = [s.name for s in samples]
+        if left_out:
+            assert names[0] == "hello_v_000004.jpg"
+            assert len(samples) == 27
+        else:
+            # Left in, without a position, so that the others keep theirs
+            assert names[0] == "hello_v_000001.jpg"
+            assert len(samples) == 30
+            lon_lats = [exif_read.ExifRead(s).extract_lon_lat() for s in samples]
+            assert all(lon_lat == self.MOCK_SAMPLE_LON_LAT for lon_lat in lon_lats[:3])
+            assert lon_lats[3] == pytest.approx((-74.0, 40.006))
+
+    def test_none_left_out_if_the_track_covers_none(
+        self, tmpdir, setup_mock, monkeypatch, caplog
+    ):
+        """So that a video that misses its track does not go without a word"""
+        track = [dataclasses.replace(p, time=p.time + 100.0) for p in self._points(10)]
+        with caplog.at_level(logging.WARNING, logger=sample_video.LOG.name):
+            samples = self._sample(tmpdir, monkeypatch, track, geotag_source=[])
+
+        assert len(samples) == 30
+        assert "left out" not in caplog.text
 
     def test_not_located_without_a_track(self, tmpdir, setup_mock, monkeypatch, caplog):
         with caplog.at_level(logging.WARNING, logger=sample_video.LOG.name):
@@ -606,13 +661,15 @@ class TestSampleNoisyTimelapseByInterval:
             ),
         )
 
-    def _write_gpx(self, path: Path, start: datetime.datetime) -> Path:
-        # Over the 610 seconds that the 61 seconds of video span
+    def _write_gpx(
+        self, path: Path, start: datetime.datetime, num_points: int = 62
+    ) -> Path:
+        # By default over the 610 seconds that the 61 seconds of video span
         trkpts = "".join(
             f'<trkpt lat="{40.0 + i * 1e-4:.7f}" lon="-74.0"><time>'
             f"{(start + datetime.timedelta(seconds=10 * i)).strftime('%Y-%m-%dT%H:%M:%SZ')}"
             "</time></trkpt>"
-            for i in range(62)
+            for i in range(num_points)
         )
         path.write_text(
             '<?xml version="1.0"?><gpx version="1.1" creator="test" '
@@ -692,6 +749,93 @@ class TestSampleNoisyTimelapseByInterval:
             self.GPS_START_TIME,
             seconds_per_sample=20,
         )
+
+    def test_samples_outside_the_gpx_are_left_out(
+        self, tmpdir, setup_mock, monkeypatch, caplog
+    ):
+        """
+        The geotagging stage locates them along the GPX by their capture
+        times, and would fail the 5 samples before it starts
+        """
+        self._mock_noisy_telemetry(monkeypatch, self.GPS_START_TIME.timestamp())
+        gpx_start = self.GPS_START_TIME + datetime.timedelta(seconds=100)
+        gpx = self._write_gpx(Path(tmpdir) / "track.gpx", gpx_start)
+
+        with caplog.at_level(logging.WARNING, logger=sample_video.LOG.name):
+            samples = self._sample(
+                tmpdir, geotag_source=["gpx"], geotag_source_path=gpx
+            )
+
+        assert sorted(s.name for s in samples) == [
+            f"hello_v_{idx + 1:06d}.jpg" for idx in range(5, 30)
+        ]
+        assert (
+            "5 of the 30 samples of hello.mp4 fall outside its GPS track "
+            "(2021-08-10T06:39:46+00:00 to 2021-08-10T06:49:56+00:00) and were left out"
+            in caplog.text
+        )
+
+    def test_samples_past_the_gpx_started_with_the_video_are_left_out(
+        self, tmpdir, setup_mock, monkeypatch
+    ):
+        self._mock_noisy_telemetry(monkeypatch, self.GPS_START_TIME.timestamp())
+        # 200 seconds long: the samples 20 seconds apart until then
+        gpx = self._write_gpx(Path(tmpdir) / "track.gpx", self.GPS_START_TIME, 21)
+
+        samples = self._sample(
+            tmpdir,
+            geotag_source=["gpx"],
+            geotag_source_path=gpx,
+            interpolation_use_gpx_start_time=True,
+        )
+
+        _validate_interval(samples, self.GPS_START_TIME, seconds_per_sample=20)
+        assert len(samples) == 11
+
+    def test_none_left_out_where_the_video_source_may_geotag_them(
+        self, tmpdir, setup_mock, monkeypatch
+    ):
+        """The legacy gopro source geotags the samples by the GPS of the video"""
+        self._mock_noisy_telemetry(monkeypatch, self.GPS_START_TIME.timestamp())
+        gpx_start = self.GPS_START_TIME + datetime.timedelta(seconds=100)
+        gpx = self._write_gpx(Path(tmpdir) / "track.gpx", gpx_start)
+
+        samples = self._sample(
+            tmpdir, geotag_source=["gpx", "gopro"], geotag_source_path=gpx
+        )
+
+        assert len(samples) == 30
+
+    def test_none_left_out_of_several_videos_started_with_the_gpx(
+        self, tmp_path, setup_mock, monkeypatch
+    ):
+        """
+        The geotagging stage starts the GPX at the first sample of them all,
+        which the sampling of one video does not know
+        """
+        self._mock_noisy_telemetry(monkeypatch, self.GPS_START_TIME.timestamp())
+        gpx = self._write_gpx(tmp_path / "track.gpx", self.GPS_START_TIME, 21)
+        interpolation = InterpolationOption(use_gpx_start_time=True)
+        geotag_options = sample_video._parse_geotag_options(
+            ["gpx"], gpx, None, tmp_path, VideoSyncOption(), interpolation
+        )
+        sample_sources = sample_video._parse_sample_sources(
+            ["gpx"], gpx, tmp_path, interpolation
+        )
+        video = _PWD.joinpath("data/mock_sample_video/videos/hello.mp4")
+
+        for single_video, num_samples in [(True, 11), (False, 30)]:
+            sample_dir = tmp_path / f"samples_{single_video}"
+            sample_video._sample_single_video_by_interval(
+                video,
+                sample_dir,
+                sample_interval=2,
+                duration_ratio=1.0,
+                geotag_options=geotag_options,
+                sample_sources=sample_sources,
+                single_video=single_video,
+            )
+            assert len(list(sample_dir.iterdir())) == num_samples
 
     def test_not_by_a_placeholder_clock(self, tmpdir, setup_mock, monkeypatch):
         """Which GPX sync does not place the GPX by either"""
