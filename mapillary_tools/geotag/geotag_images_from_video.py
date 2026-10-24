@@ -32,10 +32,15 @@ class GeotagImagesFromVideo(GeotagImagesFromGeneric):
         video_metadatas: T.Sequence[types.VideoMetadataOrError],
         offset_time: float = 0.0,
         num_processes: int | None = None,
+        # The samples of each video, as found among all the videos the samples
+        # could be of (see utils.find_image_samples), or None to find them
+        # among the videos of video_metadatas
+        samples_by_video: T.Mapping[Path, T.Sequence[Path]] | None = None,
     ):
         super().__init__(num_processes=num_processes)
         self.video_metadatas = video_metadatas
         self.offset_time = offset_time
+        self.samples_by_video = samples_by_video
 
     @override
     def to_description(
@@ -48,9 +53,25 @@ class GeotagImagesFromVideo(GeotagImagesFromGeneric):
             self.video_metadatas
         )
 
+        # Found once among all the videos: a sample of one of several videos
+        # of the same name is a sample of that one only
+        if self.samples_by_video is None:
+            samples_by_video: T.Mapping[Path, T.Sequence[Path]] = (
+                utils.find_all_image_samples(
+                    image_paths,
+                    [metadata.filename for metadata in self.video_metadatas],
+                )
+            )
+        else:
+            given_paths = set(image_paths)
+            samples_by_video = {
+                video_path: [path for path in paths if path in given_paths]
+                for video_path, paths in self.samples_by_video.items()
+            }
+
         for video_error_metadata in video_error_metadatas:
             video_path = video_error_metadata.filename
-            sample_paths = list(utils.filter_video_samples(image_paths, video_path))
+            sample_paths = list(samples_by_video.get(video_path, []))
             LOG.debug(
                 "Found %d sample images from video %s with error: %s",
                 len(sample_paths),
@@ -68,7 +89,7 @@ class GeotagImagesFromVideo(GeotagImagesFromGeneric):
         for video_metadata in video_metadatas:
             video_path = video_metadata.filename
 
-            sample_paths = list(utils.filter_video_samples(image_paths, video_path))
+            sample_paths = list(samples_by_video.get(video_path, []))
             LOG.debug(
                 "Found %d sample images from video %s",
                 len(sample_paths),
@@ -138,7 +159,7 @@ class GeotagImageSamplesFromVideo(GeotagImagesFromGeneric):
         self, image_paths: T.Sequence[Path]
     ) -> list[types.ImageMetadataOrError]:
         video_paths = utils.find_videos([self.source_path])
-        image_samples_by_video_path = utils.find_all_image_samples(
+        image_samples_by_video_path, ambiguous_samples = utils.find_image_samples(
             image_paths, video_paths
         )
         video_paths_with_image_samples = list(image_samples_by_video_path.keys())
@@ -150,6 +171,7 @@ class GeotagImageSamplesFromVideo(GeotagImagesFromGeneric):
             video_metadatas,
             offset_time=self.offset_time,
             num_processes=self.num_processes,
+            samples_by_video=image_samples_by_video_path,
         )
         sample_metadatas = geotag.to_description(image_paths)
 
@@ -158,7 +180,9 @@ class GeotagImageSamplesFromVideo(GeotagImagesFromGeneric):
         # that can geotag it (e.g. exif after this one) may still do
         sample_paths = {metadata.filename for metadata in sample_metadatas}
         return sample_metadatas + [
-            types.describe_error_metadata(
+            describe_ambiguous_sample(image_path, ambiguous_samples[image_path])
+            if image_path in ambiguous_samples
+            else types.describe_error_metadata(
                 exceptions.MapillaryGeoTaggingError(
                     f"Not a frame of any video in {self.source_path}"
                 ),
@@ -168,3 +192,26 @@ class GeotagImageSamplesFromVideo(GeotagImagesFromGeneric):
             for image_path in image_paths
             if image_path not in sample_paths
         ]
+
+
+def describe_ambiguous_sample(
+    image_path: Path, video_paths: T.Sequence[Path]
+) -> types.ErrorMetadata:
+    """
+    Describe a sample that could be of any of the videos of the same name
+    **video_paths**, as its folder does not tell which (see
+    utils.find_image_samples), rather than place it along one of them
+
+    >>> describe_ambiguous_sample(
+    ...     Path("clip.mp4/clip_0_000001.jpg"), [Path("x/clip.mp4"), Path("y/clip.mp4")]
+    ... ).error
+    MapillaryGeoTaggingError('Cannot tell which of the 2 videos named clip.mp4 this is a frame of')
+    """
+    return types.describe_error_metadata(
+        exceptions.MapillaryGeoTaggingError(
+            f"Cannot tell which of the {len(video_paths)} videos named "
+            f"{video_paths[0].name} this is a frame of"
+        ),
+        image_path,
+        filetype=types.FileType.IMAGE,
+    )

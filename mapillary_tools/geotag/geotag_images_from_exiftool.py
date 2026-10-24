@@ -20,7 +20,7 @@ from .. import constants, exceptions, exiftool_read, types, utils
 from ..exiftool_runner import ExiftoolRunner
 from . import options
 from .base import GeotagImagesFromGeneric
-from .geotag_images_from_video import GeotagImagesFromVideo
+from .geotag_images_from_video import describe_ambiguous_sample, GeotagImagesFromVideo
 from .geotag_videos_from_exiftool import GeotagVideosFromExifToolXML
 from .image_extractors.exiftool import ImageExifToolExtractor
 
@@ -172,7 +172,9 @@ class GeotagImagesFromExifToolWithSamples(GeotagImagesFromGeneric):
         source_path: options.SourcePathOption,
     ) -> list[types.ImageMetadataOrError]:
         # Find all video paths that have sample images
-        samples_by_video = utils.find_all_image_samples(image_paths, video_paths)
+        samples_by_video, ambiguous_samples = utils.find_image_samples(
+            image_paths, video_paths
+        )
 
         video_metadata_or_errors = GeotagVideosFromExifToolXML(
             source_path, num_processes=self.num_processes
@@ -182,9 +184,13 @@ class GeotagImagesFromExifToolWithSamples(GeotagImagesFromGeneric):
             video_metadata_or_errors,
             offset_time=self.offset_time,
             num_processes=self.num_processes,
+            samples_by_video=samples_by_video,
         ).to_description(sample_paths)
 
-        return sample_metadata_or_errors
+        return sample_metadata_or_errors + [
+            describe_ambiguous_sample(image_path, candidates)
+            for image_path, candidates in ambiguous_samples.items()
+        ]
 
     @override
     def to_description(
