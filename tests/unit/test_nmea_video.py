@@ -193,25 +193,33 @@ class TestPlacedAsAGPX:
 
 class TestInvalidNMEAFile:
     @pytest.mark.parametrize(
-        "content",
+        "content, reason",
         [
             # not text
-            b"\xca\xfe\xba\xbe" * 100,
+            (b"\xca\xfe\xba\xbe" * 100, "it is not text"),
             # a wrong checksum
-            b"$GPRMC,024636.00,A,3735.30670,N,12220.25810,W,0.0,0.0,221222,,,A*00\r\n",
+            (
+                b"$GPRMC,024636.00,A,3735.30670,N,12220.25810,W,0.0,0.0,221222,,,A*00\r\n",
+                "the first on line 1 (checksum does not match: 00 != 47)",
+            ),
             # a malformed time
-            b"$GPRMC,024636.00,A,3735.30670,N,12220.25810,W,0.0,0.0,221222,,,A*47\r\n"
-            b"$GPGGA,0246,3735.30670,N,12220.25810,W,1,08,1.0,0.0,M,0.0,M,,*64\r\n",
+            (
+                b"$GPRMC,024636.00,A,3735.30670,N,12220.25810,W,0.0,0.0,221222,,,A*47\r\n"
+                b"$GPGGA,0246,3735.30670,N,12220.25810,W,1,08,1.0,0.0,M,0.0,M,,*64\r\n",
+                "the first on line 2 (malformed timestamp: '0246')",
+            ),
         ],
     )
-    def test_it_is_reported_as_invalid(self, tmp_path, content):
+    def test_it_is_reported_as_invalid(self, tmp_path, content, reason):
         nmea = tmp_path / "track.nmea"
         nmea.write_bytes(content)
 
         with pytest.raises(exceptions.MapillaryInvalidGPXError) as excinfo:
             NMEAVideoExtractor(GPS_VIDEO, nmea).extract()
 
-        assert "track.nmea is not a valid NMEA file" in str(excinfo.value)
+        assert "track.nmea is not a valid NMEA file: " in str(excinfo.value)
+        # Why, which it did not say
+        assert reason in str(excinfo.value)
 
 
 class TestNMEAFileWithoutDatedFixes:

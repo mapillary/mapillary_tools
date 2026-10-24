@@ -978,6 +978,50 @@ def test_process_video_from_nmea(setup_data: py.path.local):
         assert nmea_point == pytest.approx(gpx_point, abs=1e-6)
 
 
+def test_process_video_from_nmea_with_some_checksums(setup_data: py.path.local):
+    """
+    Checksums are optional in NMEA. Where some sentences had one, those
+    without were all taken for cut short, and the file failed
+    """
+    video_path = setup_data.join("gopro_data").join("max-360mode.mp4")
+    start = datetime.datetime(2019, 11, 18, 23, 44, 40, tzinfo=datetime.timezone.utc)
+
+    def write_nmea(name: str, with_checksum) -> py.path.local:
+        sentences = []
+        for i in range(21):
+            time = start + datetime.timedelta(seconds=i)
+            hhmmss = time.strftime("%H%M%S.00")
+            position = f"3700.{i * 100:04d},N,12200.0000,W"
+            for body in [
+                f"GPRMC,{hhmmss},A,{position},0.0,0.0,{time.strftime('%d%m%y')},,,A",
+                f"GPGGA,{hhmmss},{position},1,08,1.0,,M,,M,,",
+            ]:
+                checksum = 0
+                for char in body:
+                    checksum ^= ord(char)
+                ending = f"*{checksum:02X}" if with_checksum(body) else ""
+                sentences.append(f"${body}{ending}\r\n")
+        nmea_file = setup_data.join(name)
+        nmea_file.write_binary("".join(sentences).encode("ascii"))
+        return nmea_file
+
+    def track(nmea_file: py.path.local):
+        [desc] = run_process_for_descs(
+            [
+                *["--geotag_source", "nmea"],
+                *["--geotag_source_path", str(nmea_file)],
+                str(video_path),
+            ]
+        )
+        assert "error" not in desc, desc
+        return desc["MAPGPSTrack"]
+
+    every = track(write_nmea("every.nmea", lambda body: True))
+    assert every
+    assert track(write_nmea("gga.nmea", lambda body: body.startswith("GPGGA"))) == every
+    assert track(write_nmea("one.nmea", lambda body: "234450" in body)) == every
+
+
 def test_process_geotag_with_gpx_pattern_not_found(setup_data: py.path.local):
     video_path = setup_data.join("gopro_data").join("max-360mode.mp4")
 

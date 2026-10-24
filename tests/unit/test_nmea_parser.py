@@ -260,7 +260,7 @@ def test_a_sentence_cut_inside_its_date_is_skipped(tmp_path, caplog, gga_first):
         ] + ([_fix("00:00:01")] if gga_first else [])
 
     assert "Skipping 1 of the" in caplog.text
-    assert "(no checksum)" in caplog.text
+    assert "(malformed datestamp: '2212')" in caplog.text
 
 
 def test_sentences_cut_short_are_skipped_with_one_warning(tmp_path, caplog):
@@ -318,6 +318,123 @@ def test_fields_cut_short_without_checksums_are_skipped(tmp_path, caplog, cut, e
         ) == [_fix("02:46:36")]
 
     assert f"(malformed {error}: " in caplog.text
+
+
+def _bare(sentence: str) -> str:
+    """The sentence without its checksum, which is optional"""
+    return sentence.rsplit("*", 1)[0]
+
+
+def _log(seconds: int = 4) -> list[str]:
+    lines = []
+    for second in range(seconds):
+        lines += [_rmc(f"02463{second}.00"), _gga(f"02463{second}.00")]
+    return lines
+
+
+def _fixes(seconds: int = 4) -> list:
+    return [_fix(f"02:46:3{second}") for second in range(seconds)]
+
+
+def test_a_log_with_one_checksum_is_read(tmp_path, caplog):
+    """The sentences without one were all taken for cut short: no fix was left"""
+    lines = [_bare(line) for line in _log()]
+    lines[3] = _log()[3]
+
+    with caplog.at_level(logging.WARNING):
+        assert _read(tmp_path, *lines) == _fixes()
+
+    assert not caplog.text
+
+
+def test_a_log_with_checksums_on_gga_sentences_only_is_read(tmp_path, caplog):
+    lines = [line if "GGA," in line else _bare(line) for line in _log()]
+
+    with caplog.at_level(logging.WARNING):
+        assert _read(tmp_path, *lines) == _fixes()
+
+    assert not caplog.text
+
+
+def test_logs_with_and_without_checksums_concatenated_are_read(tmp_path, caplog):
+    """The half without checksums was skipped"""
+    lines = _log()
+    lines = lines[:4] + [_bare(line) for line in lines[4:]]
+
+    with caplog.at_level(logging.WARNING):
+        assert _read(tmp_path, *lines) == _fixes()
+
+    assert not caplog.text
+
+
+@pytest.mark.parametrize(
+    "rmc_tail",
+    [
+        # NMEA 2.0 to 2.2: no mode
+        ",,",
+        # NMEA 2.3: the mode
+        ",,,A",
+        # NMEA 4.1: the mode and the navigational status
+        ",,,A,V",
+    ],
+)
+def test_complete_sentences_without_checksums_are_read(tmp_path, caplog, rmc_tail):
+    rmc = "$GPRMC,024636.00,A,3735.30670,N,12220.25810,W,0.0,0.0,221222" + rmc_tail
+    gga = _bare(_gga("024636.00"))
+
+    with caplog.at_level(logging.WARNING):
+        assert _read(tmp_path, rmc, gga) == [_fix("02:46:36")]
+
+    assert not caplog.text
+
+
+@pytest.mark.parametrize(
+    "cut, reason",
+    [
+        # Whole fields, the last of them maybe cut short too
+        (
+            "$GPRMC,024637.00,A,3735.30670,N,12220.25810,W,0.0,0.0,221222",
+            "cut short: 9 of the 11 fields of an RMC sentence",
+        ),
+        (
+            "$GPGGA,024637.00,3735.30670,N,12220.25810,W,1,08,1.0,12",
+            "cut short: 9 of the 14 fields of a GGA sentence",
+        ),
+        # A time that does not parse
+        ("$GPGGA,02463", "malformed timestamp: '02463'"),
+    ],
+)
+def test_sentences_cut_short_by_their_own_fields_are_skipped(
+    tmp_path, caplog, cut, reason
+):
+    with caplog.at_level(logging.WARNING):
+        assert _read(tmp_path, *_log(1), cut) == _fixes(1)
+
+    assert f"on line 3 ({reason}): {cut}" in caplog.text
+
+
+def test_a_sentence_with_its_checksum_is_not_judged_by_its_fields(tmp_path, caplog):
+    """A checksum shows where the sentence ends, however few fields it has"""
+    short_gga = _sentence("GPGGA,024636.00,3735.30670,N,12220.25810,W,1,08,1.0,12.5,M")
+
+    with caplog.at_level(logging.WARNING):
+        assert _read(tmp_path, _rmc("024636.00"), short_gga) == [_fix("02:46:36")]
+
+    assert not caplog.text
+
+
+def test_a_file_that_fails_says_why(tmp_path):
+    """It failed as "not a valid NMEA file", without a reason"""
+    good = _rmc("024636.00")
+    lines = [good[:-2] + "00", _bare(_gga("024636.00"))[:30]]
+
+    with pytest.raises(ValueError) as excinfo:
+        _read(tmp_path, *lines)
+
+    assert str(excinfo.value) == (
+        "2 of its 2 RMC and GGA sentences are malformed, the first on line 1 "
+        f"(checksum does not match: 00 != {good[-2:]}): {lines[0]}"
+    )
 
 
 def _read_bytes(tmp_path: Path, content: bytes):
