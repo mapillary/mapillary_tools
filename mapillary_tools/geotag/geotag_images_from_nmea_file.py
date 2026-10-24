@@ -37,6 +37,10 @@ _READ: dict[tuple[str, str], list[geo.Point] | ValueError] = {}
 # What a byte that is not text decodes to
 _NOT_TEXT = "\ufffd"
 
+# How much of a file tells whether it is text at all, before it is read whole:
+# a video given as an NMEA file is gigabytes
+_SNIFF_BYTES = 64 * 1024
+
 # The checksum that ends a sentence: *HH. It is optional
 _CHECKSUM_RE = re.compile(r"\*[0-9A-Fa-f]{2}\s*$")
 
@@ -150,9 +154,16 @@ def get_lat_lon_time_from_nmea(nmea_file: Path) -> list[geo.Point]:
     own fields show it. A file of which no fix can be read raises ValueError,
     which says why, if it has malformed sentences or bytes that are not text.
 
+    A file that is not text at all, which its first bytes show, raises
+    ValueError without being read further.
+
     A file is read once in a process, however many times it is asked for.
     """
-    data = nmea_file.read_bytes()
+    with nmea_file.open("rb") as f:
+        head = f.read(_SNIFF_BYTES)
+        if not _looks_like_text(head):
+            raise ValueError("it is not text")
+        data = head + f.read()
     key = (str(nmea_file.resolve()), hashlib.sha256(data).hexdigest())
     read = _READ.get(key)
     if read is None:
@@ -166,6 +177,27 @@ def get_lat_lon_time_from_nmea(nmea_file: Path) -> list[geo.Point]:
         raise read.with_traceback(None)
     # Copies, which the caller may change
     return [dataclasses.replace(p) for p in read]
+
+
+def _looks_like_text(head: bytes) -> bool:
+    r"""
+    Whether the first bytes **head** of a file can be those of a text file:
+    without NUL bytes, and mostly bytes that decode as UTF-8, where a log may
+    have a few bytes damaged
+
+    >>> _looks_like_text(b"$GPRMC,024636.00,A,3735.30670,N\r\n")
+    True
+    >>> _looks_like_text(b"$GPRMC,024636.00,\xe9,3735.30670,N\r\n")
+    True
+    >>> _looks_like_text(b"\x00\x00\x00\x18ftypmp42")
+    False
+    >>> _looks_like_text(b"\xca\xfe\xba\xbe" * 100)
+    False
+    """
+    if b"\x00" in head:
+        return False
+    text = head.decode("utf-8", errors="replace")
+    return text.count(_NOT_TEXT) * 2 <= len(text)
 
 
 def _read_nmea_data(nmea_file: Path, data: bytes) -> list[geo.Point]:
