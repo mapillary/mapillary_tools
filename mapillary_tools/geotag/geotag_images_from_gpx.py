@@ -28,6 +28,23 @@ from .video_extractors.gpx import describe_gap, track_gaps
 LOG = logging.getLogger(__name__)
 
 
+def _format_time(time: float) -> str:
+    """
+    The time as a description file writes it, or the Unix time itself if it
+    cannot be written as a date (a time offset can move it past year 9999),
+    so that the error that names it is still reported
+
+    >>> _format_time(0)
+    '1970_01_01_00_00_00_000'
+    >>> _format_time(1e12)
+    '1000000000000.0'
+    """
+    try:
+        return build_capture_time(time)
+    except exceptions.MapillaryMetadataValidationError:
+        return str(time)
+
+
 def check_within_track(
     time: float,
     sorted_points: T.Sequence[geo.Point],
@@ -60,7 +77,7 @@ def check_within_track(
         if 0.001 < delta:
             raise exceptions.MapillaryOutsideGPXTrackError(
                 f"The image date time is {round(delta, 3)} seconds behind the GPX start point",
-                image_time=build_capture_time(time),
+                image_time=_format_time(time),
                 gpx_start_time=gpx_start_time,
                 gpx_end_time=gpx_end_time,
             )
@@ -73,7 +90,7 @@ def check_within_track(
         if 0.001 < delta:
             raise exceptions.MapillaryOutsideGPXTrackError(
                 f"The image time is {round(delta, 3)} seconds beyond the GPX end point",
-                image_time=build_capture_time(time),
+                image_time=_format_time(time),
                 gpx_start_time=gpx_start_time,
                 gpx_end_time=gpx_end_time,
             )
@@ -91,7 +108,7 @@ def check_within_track(
             track_gap = describe_gap(before, after, before.time, after.time)
             raise exceptions.MapillaryOutsideGPXTrackError(
                 f"The GPX track has {track_gap}, which the image time {captured_at} falls in",
-                image_time=build_capture_time(time),
+                image_time=_format_time(time),
                 gpx_start_time=build_capture_time(sorted_points[0].time),
                 gpx_end_time=build_capture_time(sorted_points[-1].time),
             )

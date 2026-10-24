@@ -1583,3 +1583,51 @@ def test_process_image_with_a_placeholder_capture_time_and_offset(
     by_name = {Path(desc["filename"]).name: desc for desc in descs}
     assert by_name["placeholder.jpg"]["error"]["type"] == "MapillaryGeoTaggingError"
     assert by_name["valid.jpg"]["MAPCaptureTime"] == "2020_01_02_02_04_05_000"
+
+
+def test_process_images_with_capture_times_outside_the_writable_range(
+    tmpdir: py.path.local,
+):
+    """
+    A capture time judged in UTC before 1970, or in year 10000, which no
+    description can be written with: geotagged by a GPX, the latter stopped
+    the run without a description
+    """
+    from PIL import Image
+    from PIL.ExifTags import Base, IFD
+
+    folder = tmpdir.mkdir("images")
+    for name, date, offset in [
+        ("valid.jpg", "2020:01:02 03:04:05", "+01:00"),
+        ("before_1970_in_utc.jpg", "1970:01:01 00:30:00", "+02:00"),
+        ("year_10000_in_utc.jpg", "9999:12:31 23:00:00", "-05:00"),
+    ]:
+        img = Image.new("RGB", (4, 4), (0, 0, 0))
+        exif = img.getexif()
+        exif.get_ifd(IFD.Exif)[Base.DateTimeOriginal] = date
+        exif.get_ifd(IFD.Exif)[Base.OffsetTimeOriginal] = offset
+        img.save(str(folder.join(name)), format="JPEG", exif=exif)
+    gpx = tmpdir.join("track.gpx")
+    gpx.write(
+        '<?xml version="1.0"?>\n'
+        '<gpx version="1.1" creator="test" xmlns="http://www.topografix.com/GPX/1/1">'
+        "<trk><trkseg>"
+        '<trkpt lat="24.56" lon="-81.80"><time>2020-01-02T02:00:00Z</time></trkpt>'
+        '<trkpt lat="24.57" lon="-81.81"><time>2020-01-02T02:10:00Z</time></trkpt>'
+        "</trkseg></trk></gpx>"
+    )
+
+    descs = run_process_for_descs(
+        ["--geotag_source=gpx", f"--geotag_source_path={gpx}", str(folder)]
+    )
+
+    by_name = {Path(desc["filename"]).name: desc for desc in descs}
+    assert by_name["valid.jpg"]["MAPCaptureTime"] == "2020_01_02_02_04_05_000"
+    for name, rejected in [
+        ("before_1970_in_utc.jpg", "1970-01-01 00:30:00+02:00"),
+        ("year_10000_in_utc.jpg", "9999-12-31 23:00:00-05:00"),
+    ]:
+        assert by_name[name]["error"] == {
+            "type": "MapillaryGeoTaggingError",
+            "message": f"Unable to extract timestamp from the image: invalid capture time {rejected}",
+        }
