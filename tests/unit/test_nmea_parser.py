@@ -16,6 +16,7 @@ from pathlib import Path
 
 import pynmea2
 import pytest
+from mapillary_tools.geotag import geotag_images_from_nmea_file
 from mapillary_tools.geotag.geotag_images_from_nmea_file import (
     get_lat_lon_time_from_nmea,
 )
@@ -405,3 +406,60 @@ def test_no_fixes_give_no_points(tmp_path, caplog):
         )
 
     assert not caplog.text
+
+
+def test_a_long_malformed_sentence_is_quoted_short(tmp_path, caplog):
+    """A line of 20 kB of garbage gave a warning of 40 kB"""
+    with caplog.at_level(logging.WARNING):
+        assert _read(
+            tmp_path, _rmc("024636.00"), _gga("024636.00"), "$GPGGA," + "x" * 20_000
+        ) == [_fix("02:46:36")]
+
+    [record] = caplog.records
+    assert "Skipping 1 of the 3 RMC and GGA sentences" in record.getMessage()
+    assert len(record.getMessage()) < 500
+
+
+def test_a_file_is_read_once(tmp_path, caplog, monkeypatch):
+    """Each video geotagged from it read it again, and warned about it again"""
+    reads = []
+    read = geotag_images_from_nmea_file._read_nmea_data
+    monkeypatch.setattr(
+        geotag_images_from_nmea_file,
+        "_read_nmea_data",
+        lambda nmea_file, data: reads.append(nmea_file) or read(nmea_file, data),
+    )
+    lines = [_rmc("024636.00"), _gga("024636.00"), _gga("0246")]
+
+    with caplog.at_level(logging.WARNING):
+        first = _read(tmp_path, *lines)
+        second = _read(tmp_path, *lines)
+
+    assert first == second == [_fix("02:46:36")]
+    assert len(reads) == 1
+    assert caplog.text.count("Skipping 1 of the 3") == 1
+
+    # Changed, it is read again
+    assert _read(tmp_path, *lines, _rmc("024637.00"), _gga("024637.00")) == [
+        _fix("02:46:36"),
+        _fix("02:46:37"),
+    ]
+    assert len(reads) == 2
+
+
+def test_a_file_that_failed_to_read_fails_again(tmp_path):
+    lines = [_rmc("024636.00")[:-2] + "00", _gga("024636.00")[:-2] + "00"]
+    for _ in range(2):
+        with pytest.raises(ValueError):
+            _read(tmp_path, *lines)
+
+
+def test_the_points_of_a_file_read_again_are_its_own(tmp_path):
+    path = tmp_path / "track.nmea"
+    path.write_bytes(f"{_rmc('024636.00')}\r\n{_gga('024636.00')}\r\n".encode())
+
+    [point] = get_lat_lon_time_from_nmea(path)
+    point.time += 3600
+
+    [again] = get_lat_lon_time_from_nmea(path)
+    assert again.time == point.time - 3600

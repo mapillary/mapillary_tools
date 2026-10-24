@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import datetime
 import logging
+import pickle
 from pathlib import Path
 
 import pynmea2
@@ -26,6 +27,8 @@ from mapillary_tools.geotag.options import (
     SourceType,
     VideoSyncOption,
 )
+from mapillary_tools.geotag import geotag_images_from_nmea_file
+from mapillary_tools.geotag.video_extractors import nmea as nmea_extractor
 from mapillary_tools.geotag.video_extractors.gpx import GPXVideoExtractor
 from mapillary_tools.geotag.video_extractors.nmea import NMEAVideoExtractor
 
@@ -275,3 +278,74 @@ class TestGeotagVideosFromNMEA:
 
         assert isinstance(metadata, types.VideoMetadata)
         assert metadata.points
+
+
+class TestNMEAFileReadOnce:
+    def _videos(self, tmp_path: Path, count: int) -> list[Path]:
+        videos = []
+        for i in range(count):
+            video = tmp_path / f"video{i}.mp4"
+            video.write_bytes(GPS_VIDEO.read_bytes())
+            videos.append(video)
+        return videos
+
+    def test_videos_geotagged_from_one_file_read_it_once(
+        self, tmp_path, caplog, monkeypatch
+    ):
+        """Each video read it again, in its own process, and warned again"""
+        nmea = _write_nmea(tmp_path / "track.nmea", seconds=20)
+        with nmea.open("ab") as f:
+            f.write(b"$GPGGA,0246\r\n")
+        reads = []
+        read = geotag_images_from_nmea_file._read_nmea_data
+        monkeypatch.setattr(
+            geotag_images_from_nmea_file,
+            "_read_nmea_data",
+            lambda nmea_file, data: reads.append(nmea_file) or read(nmea_file, data),
+        )
+
+        with caplog.at_level(logging.WARNING):
+            metadatas = GeotagVideosFromNMEA(
+                source_path=SourcePathOption(source_path=nmea), num_processes=0
+            ).to_description(self._videos(tmp_path, 3))
+
+        assert all(
+            isinstance(metadata, types.VideoMetadata) and metadata.points
+            for metadata in metadatas
+        )
+        assert len(reads) == 1
+        assert caplog.text.count("Skipping 1 of the") == 1
+
+    def test_the_track_is_read_before_the_videos_are_geotagged(
+        self, tmp_path, monkeypatch
+    ):
+        """
+        In a process of a pool, which gets the extractor pickled, the track
+        is not read again
+        """
+        nmea = _write_nmea(tmp_path / "track.nmea", seconds=20)
+        [extractor] = GeotagVideosFromNMEA(
+            source_path=SourcePathOption(source_path=nmea), num_processes=0
+        )._generate_video_extractors([GPS_VIDEO])
+        extractor = pickle.loads(pickle.dumps(extractor))
+
+        def read_again(nmea_file):
+            raise AssertionError(f"{nmea_file} read again")
+
+        monkeypatch.setattr(nmea_extractor, "get_lat_lon_time_from_nmea", read_again)
+
+        metadata = extractor.extract()
+        assert metadata.points
+
+    def test_an_invalid_file_is_reported_for_every_video(self, tmp_path):
+        nmea = tmp_path / "track.nmea"
+        nmea.write_bytes(b"\xca\xfe\xba\xbe" * 100)
+
+        metadatas = GeotagVideosFromNMEA(
+            source_path=SourcePathOption(source_path=nmea), num_processes=0
+        ).to_description(self._videos(tmp_path, 2))
+
+        for metadata in metadatas:
+            assert isinstance(metadata, types.ErrorMetadata)
+            assert isinstance(metadata.error, exceptions.MapillaryInvalidGPXError)
+            assert "track.nmea is not a valid NMEA file" in str(metadata.error)
