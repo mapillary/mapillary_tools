@@ -265,6 +265,89 @@ def test_video_process_by_interval_leaves_out_the_samples_past_the_gpx(
     assert "and were left out" in process.stderr
 
 
+def test_video_process_by_interval_with_a_video_gpx(setup_data: py.path.local):
+    """
+    The samples are located along the GPX of --video_geotag_source as GPX sync
+    placed it on the video, where a GPX of --geotag_source puts them. They used
+    to carry no position, and failed geotagging
+    """
+    pytest_skip_if_not_ffmpeg_installed()
+
+    video_path = setup_data.join("videos").join("sample-5s.mp4")
+    gpx_file = setup_data.join("gpx").join("sf_30km_h.gpx")
+    args = [
+        "--video_sample_distance=-1",
+        "--video_sample_interval=1",
+        *["--video_start_time", "2025_03_14_07_00_30_000"],
+        *["--geotag_source_path", str(gpx_file)],
+        str(video_path),
+    ]
+
+    with tempfile.TemporaryDirectory() as dir:
+        descs = run_video_process_for_descs(
+            ["--video_geotag_source=gpx", *args, str(Path(dir, "samples"))]
+        )
+    with tempfile.TemporaryDirectory() as dir:
+        gpx_descs = run_video_process_for_descs(
+            ["--geotag_source=gpx", *args, str(Path(dir, "samples"))]
+        )
+
+    assert descs
+    assert all("error" not in desc for desc in descs), descs
+    by_name = {Path(d["filename"]).name: d for d in gpx_descs}
+    assert len(by_name) == len(descs)
+    for desc in descs:
+        gpx_desc = by_name[Path(desc["filename"]).name]
+        assert desc["MAPCaptureTime"] == gpx_desc["MAPCaptureTime"]
+        assert desc["MAPLatitude"] == pytest.approx(gpx_desc["MAPLatitude"], abs=1e-7)
+        assert desc["MAPLongitude"] == pytest.approx(gpx_desc["MAPLongitude"], abs=1e-7)
+
+
+def test_video_process_by_distance_leaves_out_the_frames_in_a_gap_of_a_video_gpx(
+    setup_data: py.path.local,
+):
+    """
+    Without its point at 07:00:33.088, the GPX has a gap from 07:00:31.533 to
+    07:00:34.379, over the limit, inside the video. The frames in it were
+    placed across it
+    """
+    pytest_skip_if_not_ffmpeg_installed()
+
+    video_path = setup_data.join("videos").join("sample-5s.mp4")
+    gpx = setup_data.join("gpx").join("sf_30km_h.gpx").read_text("utf-8")
+    gpx_with_gap = re.sub(
+        r"<trkpt (?:(?!</trkpt>).)*?<time>2025-03-14T07:00:33\.088Z</time>.*?</trkpt>",
+        "",
+        gpx,
+        flags=re.S,
+    )
+    assert gpx_with_gap != gpx
+
+    with tempfile.TemporaryDirectory() as dir:
+        gpx_file = Path(dir, "gap.gpx")
+        gpx_file.write_text(gpx_with_gap, encoding="utf-8")
+        descs = run_video_process_for_descs(
+            [
+                "--video_geotag_source=gpx",
+                *["--geotag_source_path", str(gpx_file)],
+                *["--video_start_time", "2025_03_14_07_00_30_000"],
+                str(video_path),
+                str(Path(dir, "samples")),
+            ],
+            env={**os.environ, "MAPILLARY_TOOLS_MAX_GPX_GAP_SECONDS": "2.5"},
+        )
+
+    assert all("error" not in desc for desc in descs), descs
+    capture_times = sorted(desc["MAPCaptureTime"] for desc in descs)
+    assert capture_times[0] < "2025_03_14_07_00_31_533", capture_times
+    assert "2025_03_14_07_00_34_379" < capture_times[-1], capture_times
+    assert not [
+        capture_time
+        for capture_time in capture_times
+        if "2025_03_14_07_00_31_534" < capture_time < "2025_03_14_07_00_34_378"
+    ], capture_times
+
+
 def _with_creation_time(video: py.path.local, creation_time: str, dir: str) -> Path:
     """A copy of the video whose container records the creation time."""
     copy = Path(dir, video.basename)
