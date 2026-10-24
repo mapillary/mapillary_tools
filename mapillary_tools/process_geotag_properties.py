@@ -14,7 +14,7 @@ import humanize
 from tqdm import tqdm
 
 from . import constants, exceptions, exif_write, types, utils
-from .geotag.factory import parse_source_options, process
+from .geotag.factory import give_video_import_path, parse_source_options, process
 from .geotag.options import InterpolationOption, SourceOption, SourceType
 from .serializer.description import (
     DescriptionJSONSerializer,
@@ -78,9 +78,6 @@ def process_geotag_properties(
         )
     ]
 
-    if geotag_source_path is None:
-        geotag_source_path = video_import_path
-
     if not geotag_source and not video_geotag_source:
         geotag_source = [*DEFAULT_GEOTAG_SOURCE_OPTIONS]
 
@@ -89,6 +86,11 @@ def process_geotag_properties(
         video_geotag_source=video_geotag_source or [],
         geotag_source_path=geotag_source_path,
     )
+
+    # In video_process, the sources without a path of their own read the video
+    # import path
+    if geotag_source_path is None and video_import_path is not None:
+        give_video_import_path(options, video_import_path)
 
     # --video_geotag_source applies to videos only. Without --geotag_source,
     # images (such as the frames that video_process samples) are geotagged by
