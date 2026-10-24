@@ -37,8 +37,14 @@ _READ: dict[tuple[str, str], list[geo.Point] | ValueError] = {}
 # What a byte that is not text decodes to
 _NOT_TEXT = "\ufffd"
 
-# The checksum that ends a sentence: *HH
+# The checksum that ends a sentence: *HH. It is optional
 _CHECKSUM_RE = re.compile(r"\*[0-9A-Fa-f]{2}\s*$")
+
+# The fields of a complete sentence: an RMC sentence has 11 (NMEA 2.0 to
+# 2.2), 12 with the mode of NMEA 2.3, and 13 with the navigational status of
+# NMEA 4.1; a GGA sentence has 14. One without its checksum that has fewer was
+# cut short, such as the last one of a log when the recording stopped
+_MIN_FIELDS = {"RMC": 11, "GGA": 14}
 
 # The time of a sentence (hhmmss, and a fraction of a second), and the date of
 # an RMC sentence (ddmmyy). pynmea2 reads a field cut short as another time or
@@ -85,8 +91,7 @@ def _read_nmea_points(source_path: Path) -> list[geo.Point]:
     # UnboundLocalError: GGA sentences but no RMC sentence to give their date
     except (OSError, ValueError, TypeError, UnboundLocalError) as ex:
         raise exceptions.MapillaryInvalidGPXError(
-            f"{source_path.name} is not a valid NMEA file. "
-            "Replace it with a valid NMEA file."
+            describe_invalid_nmea(source_path, ex)
         ) from ex
 
     if not points:
@@ -95,6 +100,29 @@ def _read_nmea_points(source_path: Path) -> list[geo.Point]:
         )
 
     return points
+
+
+def describe_invalid_nmea(nmea_file: Path, ex: Exception) -> str:
+    """
+    The message of the error for the NMEA file **nmea_file** that reading it
+    failed with **ex**, which says why
+
+    >>> describe_invalid_nmea(Path("a/track.nmea"), ValueError("it is not text"))
+    'track.nmea is not a valid NMEA file: it is not text. Replace it with a valid NMEA file.'
+    >>> describe_invalid_nmea(Path("track.nmea"), PermissionError(13, "Permission denied"))
+    'track.nmea is not a valid NMEA file: Permission denied. Replace it with a valid NMEA file.'
+    """
+    if isinstance(ex, OSError):
+        reason = ex.strerror or str(ex)
+    elif isinstance(ex, ValueError):
+        reason = str(ex)
+    else:
+        reason = ""
+    because = f": {reason}" if reason else ""
+    return (
+        f"{nmea_file.name} is not a valid NMEA file{because}. "
+        "Replace it with a valid NMEA file."
+    )
 
 
 def get_lat_lon_time_from_nmea(nmea_file: Path) -> list[geo.Point]:
@@ -117,9 +145,10 @@ def get_lat_lon_time_from_nmea(nmea_file: Path) -> list[geo.Point]:
     time.
 
     A malformed sentence, such as one whose checksum does not match, one cut
-    short, or one with a byte that is not text, is skipped with a warning. A
-    file of which no fix can be read raises ValueError if it has malformed
-    sentences or bytes that are not text.
+    short, or one with a byte that is not text, is skipped with a warning.
+    Checksums are optional: a sentence without one is cut short only if its
+    own fields show it. A file of which no fix can be read raises ValueError,
+    which says why, if it has malformed sentences or bytes that are not text.
 
     A file is read once in a process, however many times it is asked for.
     """
@@ -158,29 +187,28 @@ def _read_nmea_data(nmea_file: Path, data: bytes) -> list[geo.Point]:
         for number, line in enumerate(lines, start=1)
         if _SENTENCE_RE.search(line)
     ]
-    # Receivers end each sentence with its checksum, or none of them. One
-    # without, where the others have theirs, was cut short, such as the last
-    # one of a log when the recording stopped
-    checksummed = any(_CHECKSUM_RE.search(line) for _, line in sentences)
 
     messages = []
     # (line number, line, error) of each malformed sentence
     malformed: list[tuple[int, str, ValueError]] = []
     for number, line in sentences:
         try:
-            messages.append(_parse_sentence(line, checksummed=checksummed))
+            messages.append(_parse_sentence(line))
         except ValueError as ex:
             malformed.append((number, line, ex))
 
     points = _read_fixes(messages, nmea_file)
 
     if not points and not_text and not malformed:
-        raise ValueError(f"{nmea_file} is not text")
+        raise ValueError("it is not text")
 
     if malformed:
         number, line, error = malformed[0]
         if not points:
-            raise error
+            raise ValueError(
+                f"{len(malformed)} of its {len(sentences)} RMC and GGA sentences are malformed, "
+                f"the first on line {number} ({_quote(str(error))}): {_quote(line)}"
+            ) from error
         LOG.warning(
             "Skipping %d of the %d RMC and GGA sentences of the NMEA file %s, which are malformed, the first on line %d (%s): %s",
             len(malformed),
@@ -259,14 +287,14 @@ def _read_fixes(
     return points
 
 
-def _parse_sentence(line: str, checksummed: bool = False) -> pynmea2.NMEASentence:
+def _parse_sentence(line: str) -> pynmea2.NMEASentence:
     """
     Parse an NMEA sentence, raising ValueError if it is malformed: if it does
-    not parse or its checksum does not match, if it has no checksum but should
-    (**checksummed**), if its time or the date of an RMC sentence is not
-    hhmmss[.ss] or ddmmyy, or if a field that a fix is read from does not
-    parse, which pynmea2 leaves a string, or if it has a byte that is not
-    text, decoded as U+FFFD
+    not parse or its checksum does not match, if it has no checksum and fewer
+    fields than a complete sentence (see _MIN_FIELDS), if its time or the date
+    of an RMC sentence is not hhmmss[.ss] or ddmmyy, or if a field that a fix
+    is read from does not parse, which pynmea2 leaves a string, or if it has a
+    byte that is not text, decoded as U+FFFD
 
     >>> _parse_sentence("$GPGGA,0246,3735.30670,N,12220.25810,W,1,08,1.0,0.0,M,0.0,M,,*64")
     Traceback (most recent call last):
@@ -276,20 +304,23 @@ def _parse_sentence(line: str, checksummed: bool = False) -> pynmea2.NMEASentenc
     Traceback (most recent call last):
     ...
     ValueError: checksum does not match: 00 != 4F
-    >>> _parse_sentence("$GPRMC,024636.00,A,3735.30670,N,12220.25810,W,0.0,0.0,2212", checksummed=True)
-    Traceback (most recent call last):
-    ...
-    ValueError: no checksum
     >>> _parse_sentence("$GPRMC,024636.00,A,3735.30670,N,12220.25810,W,0.0,0.0,2212")
     Traceback (most recent call last):
     ...
     ValueError: malformed datestamp: '2212'
+    >>> _parse_sentence("$GPRMC,024636.00,A,3735.30670,N,12220.25810,W,0.0,0.0,221222")
+    Traceback (most recent call last):
+    ...
+    ValueError: cut short: 9 of the 11 fields of an RMC sentence
+    >>> _parse_sentence("$GPGGA,024636.00,3735.30670,N,12220.25810,W,1,08,1.0,12")
+    Traceback (most recent call last):
+    ...
+    ValueError: cut short: 9 of the 14 fields of a GGA sentence
+    >>> type(_parse_sentence("$GPGGA,024636.00,3735.30670,N,12220.25810,W,1,08,1.0,12.5,M,0.0,M,,")).__name__
+    'GGA'
     """
     if _NOT_TEXT in line:
         raise ValueError("a byte that is not text")
-
-    if checksummed and not _CHECKSUM_RE.search(line):
-        raise ValueError("no checksum")
 
     try:
         message = pynmea2.parse(line)
@@ -305,6 +336,15 @@ def _parse_sentence(line: str, checksummed: bool = False) -> pynmea2.NMEASentenc
         # An empty field is no time or date, as before a fix
         if value and not pattern.fullmatch(value):
             raise ValueError(f"malformed {name}: {value!r}")
+
+    # A sentence with its checksum ended where it ends: pynmea2 checks it
+    if not _CHECKSUM_RE.search(line):
+        kind = message.sentence_type
+        if kind in _MIN_FIELDS and len(message.data) < _MIN_FIELDS[kind]:
+            article = "an" if kind == "RMC" else "a"
+            raise ValueError(
+                f"cut short: {len(message.data)} of the {_MIN_FIELDS[kind]} fields of {article} {kind} sentence"
+            )
 
     fields: dict[str, type] = {}
     if isinstance(message, pynmea2.RMC):

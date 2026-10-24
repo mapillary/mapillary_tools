@@ -13,7 +13,10 @@ else:
     from typing_extensions import override
 
 from ... import exceptions, geo
-from ..geotag_images_from_nmea_file import get_lat_lon_time_from_nmea
+from ..geotag_images_from_nmea_file import (
+    describe_invalid_nmea,
+    get_lat_lon_time_from_nmea,
+)
 from ..utils import track_point
 from .gpx import GPXVideoExtractor
 
@@ -34,8 +37,7 @@ class NMEAVideoExtractor(GPXVideoExtractor):
         # malformed sentences and no fix
         except (OSError, ValueError) as ex:
             raise exceptions.MapillaryInvalidGPXError(
-                f"{self.gpx_path.name} is not a valid NMEA file. "
-                "Replace it with a valid NMEA file."
+                describe_invalid_nmea(self.gpx_path, ex)
             ) from ex
 
         return [[track_point(p.time, p.lat, p.lon, p.alt) for p in points]]
