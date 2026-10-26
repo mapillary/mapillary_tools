@@ -503,6 +503,54 @@ def test_a_file_that_is_not_text_fails_without_being_read_whole(tmp_path, head):
         _read_bytes(tmp_path, head + padding + sentences)
 
 
+def test_a_log_padded_with_nul_bytes_is_read(tmp_path, caplog):
+    """
+    A logger leaves NUL bytes in a log after a power cut, such as on an SD card:
+    one NUL byte failed the whole log as not text
+    """
+    lines = [_rmc("024636.00"), _gga("024636.00"), _rmc("024637.00"), _gga("024637.00")]
+
+    with caplog.at_level(logging.WARNING):
+        times = _read_bytes(tmp_path, _crlf(lines) + b"\x00" * 4096)
+
+    assert len(times) == 2
+    assert not caplog.text
+
+
+def test_nul_bytes_before_the_first_sentence_are_skipped(tmp_path, caplog):
+    lines = [_rmc("024636.00"), _gga("024636.00")]
+
+    with caplog.at_level(logging.WARNING):
+        times = _read_bytes(tmp_path, b"\x00" * 512 + _crlf(lines))
+
+    assert len(times) == 1
+    assert not caplog.text
+
+
+def test_nul_bytes_end_a_sentence_as_a_line_end_does(tmp_path, caplog):
+    """A logger that resumed after a power cut wrote on after the NUL bytes"""
+    first = (_rmc("024636.00") + "\r\n" + _gga("024636.00")).encode("ascii")
+    second = _crlf([_rmc("024637.00"), _gga("024637.00")])
+
+    with caplog.at_level(logging.WARNING):
+        times = _read_bytes(tmp_path, first + b"\x00" * 64 + second)
+
+    assert len(times) == 2
+    assert not caplog.text
+
+
+def test_a_sentence_with_nul_bytes_inside_is_skipped(tmp_path, caplog):
+    damaged = _gga("024637.00").replace(",N,", ",N\0\0", 1)
+    lines = [_rmc("024636.00"), _gga("024636.00"), _rmc("024637.00"), damaged]
+    content = "".join(f"{line}\r\n" for line in lines).encode("ascii")
+
+    with caplog.at_level(logging.WARNING):
+        times = _read_bytes(tmp_path, content)
+
+    assert len(times) == 1
+    assert "Skipping 1 of the 4 RMC and GGA sentences" in caplog.text
+
+
 def test_a_log_longer_than_what_tells_text_is_read_whole(tmp_path):
     lines = []
     for minute in range(60):
@@ -543,13 +591,14 @@ def test_logs_with_byte_order_marks_appended_are_read(tmp_path, caplog):
     assert not caplog.text
 
 
-def test_a_utf16_log_is_not_read(tmp_path):
-    """As one that is not text: NMEA is ASCII"""
+@pytest.mark.parametrize("encoding", ["utf-16", "utf-16-le", "utf-16-be"])
+def test_a_utf16_log_is_not_read(tmp_path, encoding):
+    """NMEA is ASCII: UTF-16 is not read, and the error says it is UTF-16"""
     content = "".join(
         f"{line}\r\n" for line in [_rmc("024636.00"), _gga("024636.00")]
-    ).encode("utf-16")
+    ).encode(encoding)
 
-    with pytest.raises(ValueError, match="^it is not text$"):
+    with pytest.raises(ValueError, match="^it is UTF-16 text, which is not read"):
         _read_bytes(tmp_path, content)
 
 
