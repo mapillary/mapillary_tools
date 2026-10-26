@@ -217,6 +217,15 @@ class TestNamedSidecarFiles:
             "logger.log",
             "checksums.md5",
             ".DS_Store",
+            "photo.XMP",
+            "track.kml",
+            "track.KMZ",
+            "ride.fit",
+            "DJI_0001.LRF",
+            "IMG_0001.AAE",
+            "Thumbs.db",
+            "desktop.ini",
+            "Desktop.INI",
         ],
     )
     def test_sidecar_is_skipped_with_a_warning(
