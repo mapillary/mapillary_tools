@@ -54,11 +54,14 @@ _NUL = "\x00"
 # The checksum that ends a sentence: *HH. It is optional
 _CHECKSUM_RE = re.compile(r"\*[0-9A-Fa-f]{2}\s*$")
 
-# The fields of a complete sentence: an RMC sentence has 11 (NMEA 2.0 to
-# 2.2), 12 with the mode of NMEA 2.3, and 13 with the navigational status of
-# NMEA 4.1; a GGA sentence has 14. One without its checksum that has fewer was
-# cut short, such as the last one of a log when the recording stopped
-_MIN_FIELDS = {"RMC": 11, "GGA": 14}
+# The fields that a fix is read from: those of an RMC sentence through the
+# date, the 9th, and those of a GGA sentence through the altitude and its
+# unit, the 10th. One without its checksum that has fewer was cut short, such
+# as the last one of a log when the recording stopped. The fields after them
+# are optional, and receivers leave them off: the magnetic variation, the mode
+# and the navigational status of an RMC sentence, the height of the geoid and
+# the DGPS fields of a GGA sentence
+_MIN_FIELDS = {"RMC": 9, "GGA": 10}
 
 # The time of a sentence (hhmmss, and a fraction of a second), and the date of
 # an RMC sentence (ddmmyy). pynmea2 reads a field cut short as another time or
@@ -363,7 +366,7 @@ def _parse_sentence(line: str) -> pynmea2.NMEASentence:
     """
     Parse an NMEA sentence, raising ValueError if it is malformed: if it does
     not parse or its checksum does not match, if it has no checksum and fewer
-    fields than a complete sentence (see _MIN_FIELDS), if its time or the date
+    fields than a fix is read from (see _MIN_FIELDS), if its time or the date
     of an RMC sentence is not hhmmss[.ss] or ddmmyy, or if a field that a fix
     is read from does not parse, which pynmea2 leaves a string, or if it has a
     byte that is not text, decoded as U+FFFD
@@ -380,15 +383,17 @@ def _parse_sentence(line: str) -> pynmea2.NMEASentence:
     Traceback (most recent call last):
     ...
     ValueError: malformed datestamp: '2212'
-    >>> _parse_sentence("$GPRMC,024636.00,A,3735.30670,N,12220.25810,W,0.0,0.0,221222")
+    >>> _parse_sentence("$GPRMC,024636.00,A,3735.30670,N,12220.25810,W,0.0,0.0")
     Traceback (most recent call last):
     ...
-    ValueError: cut short: 9 of the 11 fields of an RMC sentence
+    ValueError: cut short: 8 of the 9 fields of an RMC sentence that a fix is read from
+    >>> type(_parse_sentence("$GPRMC,024636.00,A,3735.30670,N,12220.25810,W,0.0,0.0,221222")).__name__
+    'RMC'
     >>> _parse_sentence("$GPGGA,024636.00,3735.30670,N,12220.25810,W,1,08,1.0,12")
     Traceback (most recent call last):
     ...
-    ValueError: cut short: 9 of the 14 fields of a GGA sentence
-    >>> type(_parse_sentence("$GPGGA,024636.00,3735.30670,N,12220.25810,W,1,08,1.0,12.5,M,0.0,M,,")).__name__
+    ValueError: cut short: 9 of the 10 fields of a GGA sentence that a fix is read from
+    >>> type(_parse_sentence("$GPGGA,024636.00,3735.30670,N,12220.25810,W,1,08,1.0,12.5,M")).__name__
     'GGA'
     """
     if _NOT_TEXT in line:
@@ -415,7 +420,7 @@ def _parse_sentence(line: str) -> pynmea2.NMEASentence:
         if kind in _MIN_FIELDS and len(message.data) < _MIN_FIELDS[kind]:
             article = "an" if kind == "RMC" else "a"
             raise ValueError(
-                f"cut short: {len(message.data)} of the {_MIN_FIELDS[kind]} fields of {article} {kind} sentence"
+                f"cut short: {len(message.data)} of the {_MIN_FIELDS[kind]} fields of {article} {kind} sentence that a fix is read from"
             )
 
     fields: dict[str, type] = {}

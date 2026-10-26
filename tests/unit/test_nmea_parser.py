@@ -269,7 +269,7 @@ def test_sentences_cut_short_are_skipped_with_one_warning(tmp_path, caplog):
         lines += [_rmc(f"02463{second}.00"), _gga(f"02463{second}.00")]
     # Every other fix cut short, at another field each time
     for idx in range(1, 20, 4):
-        lines[idx] = lines[idx][: 10 + 3 * idx]
+        lines[idx] = lines[idx][: 6 + 3 * idx]
 
     with caplog.at_level(logging.WARNING):
         points = _read(tmp_path, *lines)
@@ -389,16 +389,42 @@ def test_complete_sentences_without_checksums_are_read(tmp_path, caplog, rmc_tai
 
 
 @pytest.mark.parametrize(
+    "rmc, gga",
+    [
+        # Through the date, and without the height of the geoid and the DGPS
+        # fields
+        (
+            "$GPRMC,024636.00,A,3735.30670,N,12220.25810,W,0.0,0.0,221222",
+            "$GPGGA,024636.00,3735.30670,N,12220.25810,W,1,08,1.0,12.5,M",
+        ),
+        # Through the magnetic variation, and without the DGPS fields
+        (
+            "$GPRMC,024636.00,A,3735.30670,N,12220.25810,W,0.0,0.0,221222,",
+            "$GPGGA,024636.00,3735.30670,N,12220.25810,W,1,08,1.0,12.5,M,0.0,M",
+        ),
+    ],
+    ids=["9 and 10 fields", "10 and 12 fields"],
+)
+def test_sentences_without_their_optional_fields_are_read(tmp_path, caplog, rmc, gga):
+    """A log without checksums whose sentences left them off was failed whole"""
+    with caplog.at_level(logging.WARNING):
+        fixes = _read(tmp_path, rmc, gga)
+
+    assert fixes == [_fix("02:46:36")]
+    assert not caplog.text
+
+
+@pytest.mark.parametrize(
     "cut, reason",
     [
         # Whole fields, the last of them maybe cut short too
         (
-            "$GPRMC,024637.00,A,3735.30670,N,12220.25810,W,0.0,0.0,221222",
-            "cut short: 9 of the 11 fields of an RMC sentence",
+            "$GPRMC,024637.00,A,3735.30670,N,12220.25810,W,0.0,0.0",
+            "cut short: 8 of the 9 fields of an RMC sentence that a fix is read from",
         ),
         (
             "$GPGGA,024637.00,3735.30670,N,12220.25810,W,1,08,1.0,12",
-            "cut short: 9 of the 14 fields of a GGA sentence",
+            "cut short: 9 of the 10 fields of a GGA sentence that a fix is read from",
         ),
         # A time that does not parse
         ("$GPGGA,02463", "malformed timestamp: '02463'"),
