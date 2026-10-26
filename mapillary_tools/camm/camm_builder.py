@@ -111,6 +111,28 @@ def _sample_duration_overflow_message(
     )
 
 
+def check_point_times(times: T.Iterable[float], movie_timescale: int) -> None:
+    """
+    Raise SampleDurationOverflowError if two consecutive points at these
+    times (in seconds) are too far apart to be stored in the CAMM track that
+    camm_sample_generator2 builds for a video with this movie timescale
+    """
+    timescale = _media_timescale(movie_timescale)
+    # The track leaves out the points before the start of the video
+    sorted_times = sorted(t for t in times if 0 <= t)
+    for time, next_time in geo.pairwise(sorted_times):
+        # The same as UINT32_MAX < int(duration), without failing on infinity
+        if builder.UINT32_MAX + 1 <= (next_time - time) * timescale:
+            raise SampleDurationOverflowError(
+                _sample_duration_overflow_message(time, next_time, timescale)
+            )
+
+
+def _media_timescale(movie_timescale: int) -> int:
+    # Make sure the precision of timedeltas not lower than 0.001 (1ms)
+    return max(1000, movie_timescale)
+
+
 def convert_telemetry_to_raw_samples(
     measurements: T.Sequence[camm_parser.TelemetryMeasurement],
     timescale: int,
@@ -271,8 +293,7 @@ def camm_sample_generator2(camm_info: camm_parser.CAMMInfo):
         moov_children: list[builder.BoxDict],
     ) -> T.Generator[io.IOBase, None, None]:
         movie_timescale = builder.find_movie_timescale(moov_children)
-        # Make sure the precision of timedeltas not lower than 0.001 (1ms)
-        media_timescale = max(1000, movie_timescale)
+        media_timescale = _media_timescale(movie_timescale)
 
         # Carry creation/modification times from the source video's mvhd
         mvhd = cparser.find_box_at_pathx(moov_children, [b"mvhd"])

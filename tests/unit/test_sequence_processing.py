@@ -18,6 +18,7 @@ from mapillary_tools import (
     process_sequence_properties as psp,
     types,
 )
+from mapillary_tools.mp4 import construct_mp4_parser as cparser
 from mapillary_tools.serializer import description
 
 
@@ -711,6 +712,85 @@ def test_video_error(tmpdir: py.path.local):
         metadata_by_filename["test_video_too_fast.mp4"].error,
         exceptions.MapillaryCaptureSpeedTooFastError,
     )
+
+
+def _write_empty_mp4(path: Path, timescale: int) -> None:
+    mvhd: cparser.BoxDict = {
+        "type": b"mvhd",
+        "data": {
+            "creation_time": 0,
+            "modification_time": 0,
+            "timescale": timescale,
+            "duration": 10 * timescale,
+        },
+    }
+    path.write_bytes(
+        cparser.MP4WithoutSTBLBuilderConstruct.build_boxlist(
+            [{"type": b"ftyp", "data": b"test"}, {"type": b"moov", "data": [mvhd]}]
+        )
+    )
+
+
+@pytest.mark.parametrize(
+    "timescale, times, too_far_apart",
+    [
+        # 79740 s is 4784400000 ticks of 1/60000 s, more than 32 bits can hold
+        (60000, [0, 79740], True),
+        (60000, [79740, 0], True),
+        # Just within what 32 bits can hold
+        (60000, [0, 71582.788], False),
+        # Timescales below 1000 are raised to 1000: up to 49.7 days
+        (1000, [0, 79740], False),
+        (600, [0, 79740], False),
+        (1000, [0, 4294967.296], True),
+        # Points before the start of the video are left out of the upload
+        (60000, [-79740, 0, 10], False),
+    ],
+)
+def test_video_points_too_far_apart(
+    tmpdir: py.path.local, timescale: int, times: list[float], too_far_apart: bool
+):
+    video_path = Path(tmpdir) / "video.mp4"
+    _write_empty_mp4(video_path, timescale)
+    video = types.VideoMetadata(
+        video_path,
+        types.FileType.VIDEO,
+        points=[
+            geo.Point(time, 1 + idx * 0.001, 1, None, angle=None)
+            for idx, time in enumerate(times)
+        ],
+        filesize=123,
+    )
+
+    [metadata] = psp.process_sequence_properties([video])
+
+    if too_far_apart:
+        assert isinstance(metadata, types.ErrorMetadata)
+        assert isinstance(metadata.error, exceptions.MapillaryGPSPointsTooFarApartError)
+        assert str(metadata.error).startswith(
+            f"Points at 0.000 s and {max(times):.3f} s of the video are"
+        )
+    else:
+        assert isinstance(metadata, types.VideoMetadata)
+
+
+def test_video_points_too_far_apart_unreadable_video(tmpdir: py.path.local):
+    # Without the timescale of the video, nothing is checked
+    for name, content in [("missing.mp4", None), ("not_an_mp4.mp4", b"not an mp4")]:
+        video_path = Path(tmpdir) / name
+        if content is not None:
+            video_path.write_bytes(content)
+        video = types.VideoMetadata(
+            video_path,
+            types.FileType.VIDEO,
+            points=[
+                geo.Point(0, 1, 1, None, angle=None),
+                geo.Point(79740, 1.001, 1, None, angle=None),
+            ],
+            filesize=123,
+        )
+        [metadata] = psp.process_sequence_properties([video])
+        assert isinstance(metadata, types.VideoMetadata)
 
 
 def test_image_null_island(tmpdir: py.path.local):
