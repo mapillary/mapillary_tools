@@ -274,8 +274,10 @@ def test_upload_continues_after_points_too_far_apart(
         )
     }
     assert isinstance(results["a_bad.mp4"].error, uploader.GPSPointsTooFarApartError)
-    assert "a_bad.mp4: Points at 0.000 s and 79740.000 s of the video" in str(
-        results["a_bad.mp4"].error
+    assert str(results["a_bad.mp4"].error) == (
+        "a_bad.mp4: The GPS timestamps of the video jump by 22.1 hours between "
+        "0.000 s and 79740.000 s, more than the uploaded video can store (19.9 "
+        "hours); a GPS timestamp of the video is probably wrong"
     )
     assert results["b_good.mp4"].error is None
     assert results["b_good.mp4"].result == "0"

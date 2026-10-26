@@ -877,7 +877,8 @@ def test_sample_duration_overflow():
     # A tick longer fails with an error naming both points, not an assertion
     with pytest.raises(
         camm_builder.SampleDurationOverflowError,
-        match=r"Points at 0\.000 s and 4294967296\.000 s of the video",
+        match=r"The GPS timestamps of the video jump by 1193046\.5 hours between "
+        r"0\.000 s and 4294967296\.000 s",
     ):
         list(
             camm_builder.convert_telemetry_to_raw_samples(
