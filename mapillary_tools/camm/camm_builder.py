@@ -104,10 +104,10 @@ def _sample_duration_overflow_message(
     time: float, next_time: float, timescale: int
 ) -> str:
     return (
-        f"Points at {time:.3f} s and {next_time:.3f} s of the video are "
-        f"{next_time - time:.3f} s apart, more than the "
-        f"{builder.UINT32_MAX / timescale:.3f} s that can be stored between "
-        "two points in the uploaded video"
+        f"The GPS timestamps of the video jump by {(next_time - time) / 3600:.1f} "
+        f"hours between {time:.3f} s and {next_time:.3f} s, more than the "
+        f"uploaded video can store ({builder.UINT32_MAX / timescale / 3600:.1f} "
+        "hours); a GPS timestamp of the video is probably wrong"
     )
 
 

@@ -768,7 +768,8 @@ def test_video_points_too_far_apart(
         assert isinstance(metadata, types.ErrorMetadata)
         assert isinstance(metadata.error, exceptions.MapillaryGPSPointsTooFarApartError)
         assert str(metadata.error).startswith(
-            f"Points at 0.000 s and {max(times):.3f} s of the video are"
+            "The GPS timestamps of the video jump by "
+            f"{max(times) / 3600:.1f} hours between 0.000 s and {max(times):.3f} s"
         )
     else:
         assert isinstance(metadata, types.VideoMetadata)
