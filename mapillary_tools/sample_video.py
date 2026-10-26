@@ -203,10 +203,13 @@ def _parse_sample_sources(
     options = factory.parse_source_options(
         geotag_source=geotag_source,
         video_geotag_source=[],
-        geotag_source_path=(
-            video_import_path if geotag_source_path is None else geotag_source_path
-        ),
+        geotag_source_path=geotag_source_path,
     )
+    # Without --geotag_source_path, the sources without a path of their own
+    # read the video import path, as process_geotag_properties() gives it, and
+    # those with one ignore it without a word
+    if geotag_source_path is None:
+        factory.give_video_import_path(options, video_import_path)
     for option in options:
         if option.interpolation is None:
             option.interpolation = interpolation

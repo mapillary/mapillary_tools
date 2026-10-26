@@ -3198,3 +3198,48 @@ class TestTrackThatMissesTheVideo:
         assert "none of its frames falls within its GPS track" in caplog.text
         assert "before the video starts" in caplog.text
         assert not Path(tmpdir).joinpath("hello.mp4").exists()
+
+
+class TestSampleSourcesPath:
+    """
+    The sources that the geotagging stage geotags the samples by read the
+    video import path when --geotag_source_path is not given. A source with a
+    path of its own was warned to ignore --geotag_source_path, although it was
+    not given
+    """
+
+    _WARNING = "The option --geotag_source_path is ignored"
+
+    @staticmethod
+    def _sources(geotag_source_path: Path | None) -> list[SourceOption]:
+        options = sample_video._parse_sample_sources(
+            [
+                '{"source": "gpx", "source_path": "/data/track.gpx"}',
+                "nmea",
+            ],
+            geotag_source_path,
+            Path("/data/videos"),
+            InterpolationOption(),
+        )
+        assert options is not None
+        return options
+
+    def test_not_warned_without_geotag_source_path(self, caplog):
+        with caplog.at_level(logging.WARNING):
+            gpx, nmea = self._sources(None)
+
+        assert self._WARNING not in caplog.text
+        assert gpx.source_path is not None
+        assert gpx.source_path.source_path == Path("/data/track.gpx")
+        assert nmea.source_path is not None
+        assert nmea.source_path.source_path == Path("/data/videos")
+
+    def test_warned_when_given_and_ignored(self, caplog):
+        with caplog.at_level(logging.WARNING):
+            gpx, nmea = self._sources(Path("/data/other.gpx"))
+
+        assert caplog.text.count(self._WARNING) == 1
+        assert gpx.source_path is not None
+        assert gpx.source_path.source_path == Path("/data/track.gpx")
+        assert nmea.source_path is not None
+        assert nmea.source_path.source_path == Path("/data/other.gpx")
