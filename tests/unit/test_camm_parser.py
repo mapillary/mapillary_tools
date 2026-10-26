@@ -8,6 +8,7 @@ import io
 import typing as T
 from pathlib import Path
 
+import pytest
 from mapillary_tools import geo, telemetry, types, uploader
 from mapillary_tools.camm import camm_builder, camm_parser
 from mapillary_tools.mp4 import (
@@ -859,3 +860,27 @@ def test_gpspoint_timestamps_round_trip_as_unix():
     decoded = encode_decode_empty_camm_mp4(metadata).points
 
     assert T.cast(telemetry.CAMMGPSPoint, decoded[0]).epoch_time == unix_time
+
+
+def test_sample_duration_overflow():
+    def _point(time: float) -> geo.Point:
+        return geo.Point(time=time, lat=1, lon=1, alt=None, angle=None)
+
+    # The longest sample duration that fits 32 bits
+    samples = list(
+        camm_builder.convert_telemetry_to_raw_samples(
+            [_point(0), _point(simple_mp4_builder.UINT32_MAX)], 1
+        )
+    )
+    assert [simple_mp4_builder.UINT32_MAX, 0] == [s.timedelta for s in samples]
+
+    # A tick longer fails with an error naming both points, not an assertion
+    with pytest.raises(
+        camm_builder.SampleDurationOverflowError,
+        match=r"Points at 0\.000 s and 4294967296\.000 s of the video",
+    ):
+        list(
+            camm_builder.convert_telemetry_to_raw_samples(
+                [_point(0), _point(simple_mp4_builder.UINT32_MAX + 1)], 1
+            )
+        )

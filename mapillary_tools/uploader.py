@@ -165,6 +165,13 @@ class InvalidMapillaryZipFileError(SequenceError):
     pass
 
 
+class GPSPointsTooFarApartError(SequenceError):
+    """
+    Two consecutive points of a video are too far apart in time to be stored
+    in the uploaded video
+    """
+
+
 # BELOW demonstrates the pseudocode for a typical upload workflow
 # and when upload events are emitted
 #################################################################
@@ -285,7 +292,16 @@ class VideoUploader:
 
         with video_metadata.filename.open("rb") as src_fp:
             # Build the mp4 stream with the CAMM samples
-            yield simple_mp4_builder.transform_mp4(src_fp, camm_sample_generator)
+            try:
+                camm_fp = simple_mp4_builder.transform_mp4(
+                    src_fp, camm_sample_generator
+                )
+            except camm_builder.SampleDurationOverflowError as ex:
+                # Fail this video only: the others can still be uploaded
+                raise GPSPointsTooFarApartError(
+                    f"{video_metadata.filename.name}: {ex}"
+                ) from ex
+            yield camm_fp
 
     @classmethod
     def prepare_camm_info(

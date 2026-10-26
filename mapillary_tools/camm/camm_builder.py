@@ -92,6 +92,25 @@ def _create_edit_list_from_points(
     }
 
 
+class SampleDurationOverflowError(ValueError):
+    """
+    Two consecutive measurements are too far apart for a CAMM track to store
+    the time between them: a sample duration is a 32-bit count of the media
+    timescale
+    """
+
+
+def _sample_duration_overflow_message(
+    time: float, next_time: float, timescale: int
+) -> str:
+    return (
+        f"Points at {time:.3f} s and {next_time:.3f} s of the video are "
+        f"{next_time - time:.3f} s apart, more than the "
+        f"{builder.UINT32_MAX / timescale:.3f} s that can be stored between "
+        "two points in the uploaded video"
+    )
+
+
 def convert_telemetry_to_raw_samples(
     measurements: T.Sequence[camm_parser.TelemetryMeasurement],
     timescale: int,
@@ -104,9 +123,15 @@ def convert_telemetry_to_raw_samples(
         else:
             timedelta = 0
 
-        assert 0 <= timedelta <= builder.UINT32_MAX, (
-            f"expected timedelta {timedelta} between {measurements[idx]} and {measurements[idx + 1]} with timescale {timescale} to be <= UINT32_MAX"
+        assert 0 <= timedelta, (
+            f"expected measurements sorted by time but got {measurement} before {measurements[idx + 1]}"
         )
+        if builder.UINT32_MAX < timedelta:
+            raise SampleDurationOverflowError(
+                _sample_duration_overflow_message(
+                    measurement.time, measurements[idx + 1].time, timescale
+                )
+            )
 
         yield sample_parser.RawSample(
             # will update later

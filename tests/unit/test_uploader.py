@@ -10,7 +10,8 @@ from unittest.mock import patch
 
 import py.path
 import pytest
-from mapillary_tools import api_v4, uploader
+from mapillary_tools import api_v4, geo, types, upload, uploader
+from mapillary_tools.mp4 import construct_mp4_parser as cparser
 from mapillary_tools.serializer import description
 
 from ..integration.fixtures import extract_all_uploaded_descs, setup_upload
@@ -223,6 +224,72 @@ def test_upload_blackvue(tmpdir: py.path.local, setup_upload: py.path.local):
     assert setup_upload.join("this_is_a_blackvue.mp4").exists()
     with open(setup_upload.join("this_is_a_blackvue.mp4"), "rb") as fp:
         assert fp.read() == b"this is a fake video"
+
+
+def _write_empty_mp4(path: Path, timescale: int) -> None:
+    mvhd: cparser.BoxDict = {
+        "type": b"mvhd",
+        "data": {
+            "creation_time": 0,
+            "modification_time": 0,
+            "timescale": timescale,
+            "duration": 10 * timescale,
+        },
+    }
+    path.write_bytes(
+        cparser.MP4WithoutSTBLBuilderConstruct.build_boxlist(
+            [{"type": b"ftyp", "data": b"test"}, {"type": b"moov", "data": [mvhd]}]
+        )
+    )
+
+
+def test_upload_continues_after_points_too_far_apart(
+    tmpdir: py.path.local, setup_upload: py.path.local, caplog
+):
+    video_dir = Path(tmpdir.mkdir("videos"))
+    metadatas = []
+    # 79740 s is 4784400000 ticks of 1/60000 s, more than 32 bits can hold
+    for name, last_time in [("a_bad.mp4", 79740.0), ("b_good.mp4", 1.0)]:
+        _write_empty_mp4(video_dir / name, 60000)
+        metadatas.append(
+            types.VideoMetadata(
+                video_dir / name,
+                types.FileType.VIDEO,
+                points=[
+                    geo.Point(time=0.0, lat=1, lon=1, alt=None, angle=None),
+                    geo.Point(time=last_time, lat=1.0001, lon=1, alt=None, angle=None),
+                ],
+            )
+        )
+
+    results = {
+        metadata.filename.name: result
+        for metadata, result in uploader.VideoUploader.upload_videos(
+            uploader.Uploader(
+                uploader.UploadOptions(
+                    {"user_upload_token": "YOUR_USER_ACCESS_TOKEN"}, dry_run=True
+                )
+            ),
+            metadatas,
+        )
+    }
+    assert isinstance(results["a_bad.mp4"].error, uploader.GPSPointsTooFarApartError)
+    assert "a_bad.mp4: Points at 0.000 s and 79740.000 s of the video" in str(
+        results["a_bad.mp4"].error
+    )
+    assert results["b_good.mp4"].error is None
+    assert results["b_good.mp4"].result == "0"
+
+    # The whole upload goes on to the next video instead of stopping
+    upload.upload(
+        video_dir,
+        {"user_upload_token": "YOUR_USER_ACCESS_TOKEN"},
+        num_upload_workers=1,
+        _metadatas_from_process=metadatas,
+        reupload=True,
+        dry_run=True,
+    )
+    assert "GPSPointsTooFarApartError: a_bad.mp4" in caplog.text
 
 
 def test_upload_zip_with_emitter(
