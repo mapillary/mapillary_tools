@@ -11,7 +11,7 @@ import logging
 import typing as T
 import xml.etree.ElementTree as ET
 
-from . import exif_read, exiftool_read, geo
+from . import constants, exif_read, exiftool_read, geo
 from .telemetry import GPSFix, GPSPoint
 from .utils import sanitize_serial
 
@@ -121,6 +121,45 @@ def _deduplicate_gps_points(
     return deduplicated_track
 
 
+def _split_off_far_points(
+    track: list[GPSPoint], max_gap_seconds: float
+) -> tuple[list[GPSPoint], list[GPSPoint]]:
+    """
+    Split the track, sorted by GPS time, where two consecutive points are more
+    than **max_gap_seconds** apart, and return the segment with the most
+    points (the earliest of them on a tie) and the points of the others.
+
+    A receiver at cold start, or a wrong date, can write a GPS timestamp far
+    from the others, which would put every other point that far into the
+    video once the times are made relative to the first point.
+
+    >>> def point(time):
+    ...     return GPSPoint(time=time, lat=1, lon=1, alt=None, angle=None, epoch_time=time, fix=None, precision=None, ground_speed=None)
+    >>> kept, far = _split_off_far_points([point(t) for t in [0, 79738, 79739, 79740]], 3600)
+    >>> [p.time for p in kept], [p.time for p in far]
+    ([79738, 79739, 79740], [0])
+    >>> kept, far = _split_off_far_points([point(t) for t in [0, 3600, 7200, 7300]], 3600)
+    >>> [p.time for p in kept], [p.time for p in far]
+    ([0, 3600, 7200, 7300], [])
+    >>> kept, far = _split_off_far_points([point(t) for t in [0, 3601]], 3600)
+    >>> [p.time for p in kept], [p.time for p in far]
+    ([0], [3601])
+    """
+    segments: list[list[GPSPoint]] = []
+    for point in track:
+        if not segments or max_gap_seconds < point.time - segments[-1][-1].time:
+            segments.append([])
+        segments[-1].append(point)
+
+    if len(segments) <= 1:
+        return track, []
+
+    kept = max(segments, key=len)
+    return kept, [
+        point for segment in segments if segment is not kept for point in segment
+    ]
+
+
 def _aggregate_float_values_same_length(
     texts_by_tag: dict[str, list[str]],
     tag: str | None,
@@ -215,12 +254,16 @@ def _aggregate_gps_track(
     gps_time_tag: str | None = None,
     direction_tag: str | None = None,
     ground_speed_tag: str | None = None,
+    far_points: list[GPSPoint] | None = None,
 ) -> list[GPSPoint]:
     """
     Aggregate all GPS data by the tags.
     It requires lat, lon to be present, and their lengths must match.
     Some cameras store time information in the SimpleTime tag (and each simple has multiple GPS data points),
     therefore the time_tag is optional. If it is None, then all returned points will have time = 0.0.
+    With the time_tag, the points whose GPS times are far from the most points
+    are left out (see _split_off_far_points()), and added to **far_points**
+    if it is given.
     """
 
     # aggregate coordinates (required)
@@ -303,6 +346,9 @@ def _aggregate_gps_track(
     track = _deduplicate_gps_points(track, same_gps_point=_same_gps_point)
 
     if time_tag is not None:
+        track, far = _split_off_far_points(track, constants.MAX_GPX_GAP_SECONDS)
+        if far_points is not None:
+            far_points.extend(far)
         if track:
             first_time = track[0].time
             for point in track:
@@ -371,11 +417,14 @@ def _aggregate_gps_track_by_record(
     alt_tag: str,
     direction_tag: str,
     record_start_tag: str | None = None,
+    far_points: list[GPSPoint] | None = None,
 ) -> list[GPSPoint]:
     """
     Aggregate the GPS records that ExifTool lists one after another, each with
     its GPS time in **time_tag**, into a track whose times start at 0. Every
-    point takes its altitude and direction from its own record.
+    point takes its altitude and direction from its own record. The points
+    whose GPS times are far from the most points are left out (see
+    _split_off_far_points()), and added to **far_points** if it is given.
     """
     expanded_time_tag = expand_tag(time_tag)
     expanded_lon_tag = expand_tag(lon_tag)
@@ -417,6 +466,10 @@ def _aggregate_gps_track_by_record(
     # A BlackVue video holds a copy of its GPS log in the low resolution
     # recording embedded in it, which ExifTool lists as well
     track = _deduplicate_gps_points(track, same_gps_point=_same_gps_point)
+
+    track, far = _split_off_far_points(track, constants.MAX_GPX_GAP_SECONDS)
+    if far_points is not None:
+        far_points.extend(far)
 
     if track:
         first_time = track[0].time
@@ -535,8 +588,13 @@ class ExifToolReadVideo:
             raise ValueError("ElementTree root is None")
         self._texts_by_tag = _index_text_by_tag(root)
         self._all_tags = set(self._texts_by_tag.keys())
+        # The points that extract_gps_track() left out for GPS times far from
+        # the most points
+        self.far_gps_points: list[GPSPoint] = []
 
     def extract_gps_track(self) -> list[geo.Point]:
+        self.far_gps_points = []
+
         # blackvue and many other cameras
         track_with_fix = self._extract_gps_track_from_quicktime()
         if track_with_fix:
@@ -719,4 +777,5 @@ class ExifToolReadVideo:
             alt_tag=f"{namespace}:GPSAltitude",
             direction_tag=f"{namespace}:GPSTrack",
             record_start_tag=f"{namespace}:SampleTime",
+            far_points=self.far_gps_points,
         )

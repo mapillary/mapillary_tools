@@ -6,7 +6,9 @@
 from __future__ import annotations
 
 import dataclasses
+import logging
 import xml.etree.ElementTree as ET
+from pathlib import Path
 
 import pytest
 from mapillary_tools import constants
@@ -22,6 +24,7 @@ from mapillary_tools.exiftool_read_video import (
     ExifToolReadVideo,
     expand_tag,
 )
+from mapillary_tools.geotag.video_extractors.exiftool import VideoExifToolExtractor
 from mapillary_tools.gpmf.gpmf_gps_filter import remove_noisy_points
 from mapillary_tools.telemetry import GPSFix, GPSPoint
 
@@ -439,6 +442,28 @@ class TestAggregateGpsTrack:
         # epoch_time should be set from gps_time_tag
         for p in track:
             assert p.epoch_time is not None
+
+    def test_far_timestamp_left_out_before_times_start_at_0(self):
+        """A stale first GPS timestamp does not push the others into the video"""
+        texts = {
+            expand_tag("QuickTime:GPSLongitude"): ["28.1", "28.2", "28.3"],
+            expand_tag("QuickTime:GPSLatitude"): ["37.1", "37.2", "37.3"],
+            expand_tag("QuickTime:GPSDateTime"): [
+                "2019:09:01 12:14:30.00Z",
+                "2019:09:02 10:23:29.00Z",
+                "2019:09:02 10:23:30.00Z",
+            ],
+        }
+        far_points: list[GPSPoint] = []
+        track = _aggregate_gps_track(
+            texts,
+            time_tag="QuickTime:GPSDateTime",
+            lon_tag="QuickTime:GPSLongitude",
+            lat_tag="QuickTime:GPSLatitude",
+            far_points=far_points,
+        )
+        assert [(p.time, p.lat) for p in track] == [(0.0, 37.2), (1.0, 37.3)]
+        assert [p.lat for p in far_points] == [37.1]
 
     def test_mismatched_lon_lat_returns_empty(self):
         texts = {
@@ -1507,6 +1532,112 @@ class TestExtractGpsTrackFromQuicktime:
             (0.0, 37.2, 28.2),
             (1.0, 37.3, 28.3),
             (2.0, 37.4, 28.4),
+        ]
+
+    @staticmethod
+    def _records_xml(records: list[tuple[str, float]], copies: int = 1) -> str:
+        body = "".join(
+            f" <QuickTime:GPSDateTime>{time}</QuickTime:GPSDateTime>\n"
+            f" <QuickTime:GPSLatitude>{lat}</QuickTime:GPSLatitude>\n"
+            " <QuickTime:GPSLongitude>28.2</QuickTime:GPSLongitude>\n"
+            for time, lat in records
+        )
+        return f"""\
+<?xml version='1.0' encoding='UTF-8'?>
+<rdf:RDF xmlns:rdf='http://www.w3.org/1999/02/22-rdf-syntax-ns#'>
+<rdf:Description rdf:about='/tmp/test.mp4'
+ xmlns:QuickTime='http://ns.exiftool.org/QuickTime/QuickTime/1.0/'>
+{body * copies}</rdf:Description>
+</rdf:RDF>
+"""
+
+    def test_a_stale_first_timestamp_is_left_out(self):
+        """
+        The first GPS timestamp, 22.1 hours older than the others, no longer
+        puts every other point 22.1 hours into the video
+        """
+        xml = self._records_xml(
+            [
+                ("2019:09:01 12:14:30.00Z", 37.1),
+                ("2019:09:02 10:23:29.00Z", 37.2),
+                ("2019:09:02 10:23:30.00Z", 37.3),
+            ]
+        )
+        reader = ExifToolReadVideo(_etree_from_xml(xml))
+        track = reader.extract_gps_track()
+        assert [(p.time, p.lat) for p in track] == [(0.0, 37.2), (1.0, 37.3)]
+        assert [p.lat for p in reader.far_gps_points] == [37.1]
+
+    def test_a_stale_timestamp_in_one_copy_of_a_doubled_log(self):
+        """
+        A BlackVue lists its GPS log twice; the copy of the stale point keeps
+        its right timestamp, and the other points are not doubled
+        """
+        records = [
+            ("2019:09:02 10:23:28.00Z", 37.1),
+            ("2019:09:02 10:23:29.00Z", 37.2),
+            ("2019:09:02 10:23:30.00Z", 37.3),
+        ]
+        xml = self._records_xml(records, copies=2).replace(
+            "2019:09:02 10:23:28.00Z", "2019:09:01 12:14:30.00Z", 1
+        )
+        reader = ExifToolReadVideo(_etree_from_xml(xml))
+        track = reader.extract_gps_track()
+        assert [(p.time, p.lat) for p in track] == [
+            (0.0, 37.1),
+            (1.0, 37.2),
+            (2.0, 37.3),
+        ]
+        assert len(reader.far_gps_points) == 1
+
+    def test_a_real_gap_keeps_the_larger_segment(self):
+        xml = self._records_xml(
+            [
+                ("2019:09:02 10:00:00.00Z", 37.1),
+                ("2019:09:02 10:00:01.00Z", 37.2),
+                ("2019:09:02 11:30:00.00Z", 37.3),
+            ]
+        )
+        reader = ExifToolReadVideo(_etree_from_xml(xml))
+        track = reader.extract_gps_track()
+        assert [(p.time, p.lat) for p in track] == [(0.0, 37.1), (1.0, 37.2)]
+        assert [p.lat for p in reader.far_gps_points] == [37.3]
+
+    def test_a_gap_of_the_limit_is_kept(self, monkeypatch):
+        records = [
+            ("2019:09:02 10:00:00.00Z", 37.1),
+            ("2019:09:02 11:00:00.00Z", 37.2),
+            ("2019:09:02 11:00:01.00Z", 37.3),
+        ]
+        reader = ExifToolReadVideo(_etree_from_xml(self._records_xml(records)))
+        assert [p.time for p in reader.extract_gps_track()] == [0.0, 3600.0, 3601.0]
+        assert reader.far_gps_points == []
+
+        # The limit is MAPILLARY_TOOLS_MAX_GPX_GAP_SECONDS
+        monkeypatch.setattr(constants, "MAX_GPX_GAP_SECONDS", 60)
+        assert [p.time for p in reader.extract_gps_track()] == [0.0, 1.0]
+        assert [p.lat for p in reader.far_gps_points] == [37.1]
+
+    def test_the_extractor_warns_once_of_the_points_left_out(
+        self, tmp_path: Path, caplog
+    ):
+        video_path = tmp_path / "video.mp4"
+        video_path.write_bytes(b"")
+        xml = self._records_xml(
+            [
+                ("2019:09:01 12:14:30.00Z", 37.1),
+                ("2019:09:02 10:23:29.00Z", 37.2),
+                ("2019:09:02 10:23:30.00Z", 37.3),
+            ]
+        )
+        element = _etree_from_xml(xml).getroot()
+        assert element is not None
+        with caplog.at_level(logging.WARNING):
+            metadata = VideoExifToolExtractor(video_path, element).extract()
+        assert [p.time for p in metadata.points] == [0.0, 1.0]
+        assert [m for m in caplog.messages if "left out" in m] == [
+            "1 GPS point of video.mp4 was left out: its GPS timestamp is more "
+            "than 3600 s from those of the other 2 points"
         ]
 
     def test_records_without_sample_times(self):

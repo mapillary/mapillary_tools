@@ -16,7 +16,7 @@ if sys.version_info >= (3, 12):
 else:
     from typing_extensions import override
 
-from ... import exceptions, exiftool_read_video, geo, telemetry, types, utils
+from ... import constants, exceptions, exiftool_read_video, geo, telemetry, types, utils
 from ...gpmf import gpmf_gps_filter
 from .base import BaseVideoExtractor
 from .gpx import describe_long_track
@@ -46,6 +46,9 @@ class VideoExifToolExtractor(BaseVideoExtractor):
         is_gopro = make is not None and make.upper() in ["GOPRO"]
 
         points = exif.extract_gps_track()
+
+        if exif.far_gps_points:
+            self._warn_of_far_points(len(exif.far_gps_points), len(points))
 
         # ExifTool has no idea if GPS is not found or found but empty
         if is_gopro:
@@ -88,6 +91,18 @@ class VideoExifToolExtractor(BaseVideoExtractor):
         )
 
         return video_metadata
+
+    def _warn_of_far_points(self, far_count: int, kept_count: int) -> None:
+        LOG.warning(
+            "%d GPS %s of %s %s left out: %s more than %g s from those of the other %s",
+            far_count,
+            "point" if far_count == 1 else "points",
+            self.video_path.name,
+            "was" if far_count == 1 else "were",
+            "its GPS timestamp is" if far_count == 1 else "their GPS timestamps are",
+            constants.MAX_GPX_GAP_SECONDS,
+            "point" if kept_count == 1 else f"{kept_count} points",
+        )
 
     def _warn_of_a_long_track(self, points: T.Sequence[geo.Point]) -> None:
         """
