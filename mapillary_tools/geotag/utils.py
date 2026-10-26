@@ -32,6 +32,9 @@ _PARSED_GPX: collections.OrderedDict[
 ] = collections.OrderedDict()
 _MAX_PARSED_GPX = 4
 
+# GPX files are read in chunks of this size to tell whether they changed
+_CHUNK_SIZE = 1024 * 1024
+
 # The warnings given in this process about the track files read, so that each
 # is given once however many times a file is read
 _WARNED: set[tuple[T.Hashable, ...]] = set()
@@ -58,18 +61,23 @@ def read_gpx_tracks(gpx_file: Path) -> list[Track]:
     as a file that geotags several videos is read before the pool (see
     GeotagVideosFromGPX), and would free them only when it exits.
     """
-    data = gpx_file.read_bytes()
-    key = (str(gpx_file.resolve()), hashlib.sha256(data).hexdigest())
+    path = str(gpx_file.resolve())
+    with gpx_file.open("rb") as f:
+        key = (path, _digest(f))
     parsed = _PARSED_GPX.get(key)
     if parsed is None:
-        try:
-            # Decoded as a file opened in text mode would be, and parsed
-            # without the bytes, as a file is
-            text = io.TextIOWrapper(io.BytesIO(data)).read()
-            del data
-            parsed = _parse_gpx_text(text)
-        except (gpxpy.gpx.GPXException, UnicodeError) as ex:
-            parsed = ex
+        with gpx_file.open("rb") as f:
+            reader = _DigestingReader(f)
+            try:
+                # Parsed from the file opened in text mode, which gpxpy reads
+                # whole itself, so that no other copy of its content is kept
+                # while it parses
+                parsed = _parse_gpx_file(io.TextIOWrapper(io.BufferedReader(reader)))
+            except (gpxpy.gpx.GPXException, UnicodeError) as ex:
+                parsed = ex
+            # By the content parsed, which a file changed since it was looked
+            # up by does not have
+            key = (path, reader.hexdigest())
         if multiprocessing.parent_process() is None:
             _PARSED_GPX[key] = parsed
             while _MAX_PARSED_GPX < len(_PARSED_GPX):
@@ -110,8 +118,55 @@ def warn_once(
     LOG.warning(message, *args)
 
 
-def _parse_gpx_text(text: str) -> list[Track]:
-    gpx = gpxpy.parse(text)
+def _digest(f: T.BinaryIO) -> str:
+    """The SHA-256 digest of the rest of the binary file **f**, read in chunks"""
+    digest = hashlib.sha256()
+    for chunk in iter(lambda: f.read(_CHUNK_SIZE), b""):
+        digest.update(chunk)
+    return digest.hexdigest()
+
+
+class _DigestingReader(io.RawIOBase):
+    """
+    A binary file that computes the SHA-256 digest of the bytes read from it
+
+    >>> reader = _DigestingReader(io.BytesIO(b"abc"))
+    >>> io.BufferedReader(reader).read()
+    b'abc'
+    >>> reader.hexdigest() == hashlib.sha256(b"abc").hexdigest()
+    True
+    """
+
+    def __init__(self, raw: T.BinaryIO) -> None:
+        super().__init__()
+        self._raw = raw
+        self._digest = hashlib.sha256()
+
+    def readable(self) -> bool:
+        return True
+
+    def readinto(self, buffer: T.Any) -> int:
+        data = self._raw.read(len(buffer))
+        buffer[: len(data)] = data
+        self._digest.update(data)
+        return len(data)
+
+    def readall(self) -> bytes:
+        # At once, as a file opened in binary mode reads it, rather than in
+        # chunks joined into a second copy
+        data = self._raw.read()
+        self._digest.update(data)
+        return data
+
+    def hexdigest(self) -> str:
+        """The digest of the whole file: of the bytes read, and of the rest"""
+        for chunk in iter(lambda: self._raw.read(_CHUNK_SIZE), b""):
+            self._digest.update(chunk)
+        return self._digest.hexdigest()
+
+
+def _parse_gpx_file(f: T.TextIO) -> list[Track]:
+    gpx = gpxpy.parse(f)
 
     tracks: list[Track] = []
 

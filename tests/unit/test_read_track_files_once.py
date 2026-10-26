@@ -94,6 +94,88 @@ def test_a_changed_gpx_file_is_parsed_again(tmp_path: Path, parses: list[int]):
     assert len(parses) == 2
 
 
+def test_gpxpy_reads_the_file_itself(tmp_path: Path, parses: list[int], monkeypatch):
+    """
+    gpxpy reads the whole file into a string itself: a string of its content
+    passed to it stayed alive beside that while it parsed
+    """
+    arguments = []
+    parse = gpxpy.parse
+
+    def recording_parse(xml_or_file, *args, **kwargs):
+        arguments.append(xml_or_file)
+        return parse(xml_or_file, *args, **kwargs)
+
+    monkeypatch.setattr(gpxpy, "parse", recording_parse)
+    gpx = tmp_path / "track.gpx"
+    gpx.write_bytes(ONE_TRACK)
+
+    assert len(utils.parse_gpx(gpx)) == 1
+    assert [hasattr(argument, "read") for argument in arguments] == [True]
+
+
+def test_a_gpx_file_larger_than_a_chunk_changed_is_parsed_again(
+    tmp_path: Path, parses: list[int], monkeypatch
+):
+    """The content is read in chunks to tell whether it changed"""
+    monkeypatch.setattr(utils, "_CHUNK_SIZE", 16)
+    gpx = tmp_path / "track.gpx"
+    gpx.write_bytes(TWO_TRACKS)
+    assert len(utils.parse_gpx(gpx)) == 2
+
+    # Of the same size, changed past the first chunk
+    changed = TWO_TRACKS.replace(b'lat="52.3"', b'lat="52.4"')
+    assert len(changed) == len(TWO_TRACKS)
+    gpx.write_bytes(changed)
+    assert utils.parse_gpx(gpx)[1][1].lat == 52.4
+    assert utils.parse_gpx(gpx)[1][1].lat == 52.4
+    assert len(parses) == 2
+
+
+def test_a_gpx_file_is_kept_by_the_content_parsed(
+    tmp_path: Path, parses: list[int], monkeypatch
+):
+    """A file changed between looking it up and parsing it is kept as parsed"""
+    gpx = tmp_path / "track.gpx"
+    gpx.write_bytes(ONE_TRACK)
+    parse = gpxpy.parse
+
+    def changing_parse(xml_or_file, *args, **kwargs):
+        # Changed after it was looked up, before it is read
+        gpx.write_bytes(TWO_TRACKS)
+        return parse(xml_or_file, *args, **kwargs)
+
+    monkeypatch.setattr(gpxpy, "parse", changing_parse)
+    assert len(utils.read_gpx_tracks(gpx)) == 2
+
+    # Changed back: what was parsed is not served for it
+    monkeypatch.setattr(gpxpy, "parse", parse)
+    gpx.write_bytes(ONE_TRACK)
+    assert len(utils.read_gpx_tracks(gpx)) == 1
+
+
+def test_a_gpx_file_is_decoded_as_a_file_opened_in_text_mode(
+    tmp_path: Path, parses: list[int]
+):
+    """
+    As gpxpy parsed a file opened in text mode before, with the encoding of
+    the platform: a byte order mark and names that are not ASCII
+    """
+    gpx = tmp_path / "track.gpx"
+    name = "<name>Stra\u00dfe \u00e9t\u00e9</name>".encode("utf-8")
+    gpx.write_bytes(b"\xef\xbb\xbf" + ONE_TRACK.replace(b"<trk>", b"<trk>" + name))
+
+    def outcome(read):
+        try:
+            return [[(p.time, p.lat) for p in track] for track in read()]
+        except Exception as ex:
+            return type(ex)
+
+    with gpx.open("r") as f:
+        expected = outcome(lambda: utils._parse_gpx_file(f))
+    assert outcome(lambda: utils.parse_gpx(gpx)) == expected
+
+
 def test_only_the_last_gpx_files_are_kept(tmp_path: Path, parses: list[int]):
     paths = []
     for idx in range(utils._MAX_PARSED_GPX + 1):
