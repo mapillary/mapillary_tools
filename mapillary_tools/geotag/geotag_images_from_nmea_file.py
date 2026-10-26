@@ -40,9 +40,16 @@ _NOT_TEXT = "\ufffd"
 # The byte order mark, which some editors write at the start of a UTF-8 file
 _BOM = "\ufeff"
 
-# How much of a file tells whether it is text at all, before it is read whole:
-# a video given as an NMEA file is gigabytes
+# How much of a file tells whether it is an NMEA log at all, before it is read
+# whole: a video given as an NMEA file is gigabytes
 _SNIFF_BYTES = 64 * 1024
+
+# An RMC or a GGA sentence, as in _SENTENCE_RE, in the bytes of a file
+_SENTENCE_BYTES_RE = re.compile(rb"\$[A-Z]{2}(RMC|GGA),")
+
+# A NUL byte, which a logger leaves in a log after a power cut, such as on an
+# SD card: it ends a line, as no sentence holds one
+_NUL = "\x00"
 
 # The checksum that ends a sentence: *HH. It is optional
 _CHECKSUM_RE = re.compile(r"\*[0-9A-Fa-f]{2}\s*$")
@@ -157,15 +164,16 @@ def get_lat_lon_time_from_nmea(nmea_file: Path) -> list[geo.Point]:
     own fields show it. A file of which no fix can be read raises ValueError,
     which says why, if it has malformed sentences or bytes that are not text.
 
-    A file that is not text at all, which its first bytes show, raises
-    ValueError without being read further.
+    A file that is no NMEA log at all, such as a video, which its first bytes
+    show (see _looks_binary()), raises ValueError without being read further.
+    NUL bytes, which a logger leaves in a log after a power cut, end a line.
 
     A file is read once in a process, however many times it is asked for.
     """
     with nmea_file.open("rb") as f:
         head = f.read(_SNIFF_BYTES)
-        if not _looks_like_text(head):
-            raise ValueError("it is not text")
+        if _looks_binary(head):
+            raise ValueError(_describe_binary(head))
         data = head + f.read()
     key = (str(nmea_file.resolve()), hashlib.sha256(data).hexdigest())
     read = _READ.get(key)
@@ -182,25 +190,49 @@ def get_lat_lon_time_from_nmea(nmea_file: Path) -> list[geo.Point]:
     return [dataclasses.replace(p) for p in read]
 
 
-def _looks_like_text(head: bytes) -> bool:
+def _looks_binary(head: bytes) -> bool:
     r"""
-    Whether the first bytes **head** of a file can be those of a text file:
-    without NUL bytes, and mostly bytes that decode as UTF-8, where a log may
-    have a few bytes damaged
+    Whether the first bytes **head** of a file show it to be no NMEA log at
+    all, such as a video: they hold no RMC or GGA sentence, and NUL bytes or
+    mostly bytes that do not decode as UTF-8. A log padded with NUL bytes, as a
+    logger leaves it after a power cut, holds sentences, and so does one with
+    a few bytes damaged
 
-    >>> _looks_like_text(b"$GPRMC,024636.00,A,3735.30670,N\r\n")
-    True
-    >>> _looks_like_text(b"$GPRMC,024636.00,\xe9,3735.30670,N\r\n")
-    True
-    >>> _looks_like_text(b"\x00\x00\x00\x18ftypmp42")
+    >>> _looks_binary(b"$GPRMC,024636.00,A,3735.30670,N\r\n" + b"\x00" * 100)
     False
-    >>> _looks_like_text(b"\xca\xfe\xba\xbe" * 100)
+    >>> _looks_binary(b"\x00" * 100 + b"$GPGGA,024636.00,3735.30670,N\r\n")
     False
+    >>> _looks_binary(b"$GPRMC,024636.00,\xe9,3735.30670,N\r\n")
+    False
+    >>> _looks_binary(b"$GPGSV,3,1,11,03,03,111,00\r\n")
+    False
+    >>> _looks_binary(b"\x00\x00\x00\x18ftypmp42")
+    True
+    >>> _looks_binary(b"\xca\xfe\xba\xbe" * 100)
+    True
     """
-    if b"\x00" in head:
+    if _SENTENCE_BYTES_RE.search(head):
         return False
+    if b"\x00" in head:
+        return True
     text = head.decode("utf-8", errors="replace")
-    return text.count(_NOT_TEXT) * 2 <= len(text)
+    return len(text) < text.count(_NOT_TEXT) * 2
+
+
+def _describe_binary(head: bytes) -> str:
+    r"""
+    Why a file whose first bytes **head** show it to be no NMEA log is not
+    read: it is UTF-16 text, which some Windows tools write, or no text at all
+
+    >>> _describe_binary("$GPRMC,024636.00,A".encode("utf-16"))
+    'it is UTF-16 text, which is not read: save it as UTF-8 or ASCII'
+    >>> _describe_binary(b"\x00\x00\x00\x18ftypmp42")
+    'it is not text'
+    """
+    for encoding in ("utf-16", "utf-16-le", "utf-16-be"):
+        if _SENTENCE_RE.search(head.decode(encoding, errors="ignore")):
+            return "it is UTF-16 text, which is not read: save it as UTF-8 or ASCII"
+    return "it is not text"
 
 
 def _read_nmea_data(nmea_file: Path, data: bytes) -> list[geo.Point]:
@@ -217,14 +249,15 @@ def _read_nmea_data(nmea_file: Path, data: bytes) -> list[geo.Point]:
         io.BytesIO(data), encoding="utf-8-sig", errors="replace"
     ) as f:
         lines = f.readlines()
-        lines = [line.rstrip("\n\r").lstrip(_BOM) for line in lines]
     not_text = any(_NOT_TEXT in line for line in lines)
 
-    # (line number, line) of each RMC and GGA sentence
+    # (line number, line) of each RMC and GGA sentence, of the lines that NUL
+    # bytes end too (see _NUL)
     sentences = [
-        (number, line)
+        (number, piece.lstrip(_BOM))
         for number, line in enumerate(lines, start=1)
-        if _SENTENCE_RE.search(line)
+        for piece in line.rstrip("\n\r").split(_NUL)
+        if _SENTENCE_RE.search(piece)
     ]
 
     messages = []
