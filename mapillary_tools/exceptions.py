@@ -154,6 +154,13 @@ class MapillaryNullIslandError(MapillaryDescriptionError):
     pass
 
 
+class MapillaryGPSPointsTooFarApartError(MapillaryDescriptionError):
+    """
+    Two consecutive points of a video are too far apart in time to be stored
+    in the uploaded video
+    """
+
+
 class MapillaryZigZagError(MapillaryDescriptionError):
     pass
 

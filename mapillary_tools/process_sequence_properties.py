@@ -11,10 +11,14 @@ import logging
 import math
 import os
 import typing as T
+from pathlib import Path
 
+import construct as C
 import humanize
 
 from . import constants, exceptions, geo, types, utils
+from .camm import camm_builder
+from .mp4 import construct_mp4_parser as cparser, simple_mp4_parser as sparser
 from .serializer.description import DescriptionJSONSerializer
 
 LOG = logging.getLogger(__name__)
@@ -316,6 +320,20 @@ def _check_video_limits(
                 raise exceptions.MapillaryCaptureSpeedTooFastError(
                     f"Capture speed {avg_speed_kmh:.3f} km/h exceeds max allowed {max_capture_speed_kmh:.3f} km/h",
                 )
+
+            # Fail here, where the process summary shows it, a video that
+            # the upload would fail
+            if len(video_metadata.points) >= 2:
+                movie_timescale = _movie_timescale(video_metadata.filename)
+                if movie_timescale is not None:
+                    try:
+                        camm_builder.check_point_times(
+                            (p.time for p in video_metadata.points), movie_timescale
+                        )
+                    except camm_builder.SampleDurationOverflowError as ex:
+                        raise exceptions.MapillaryGPSPointsTooFarApartError(
+                            str(ex)
+                        ) from ex
         except exceptions.MapillaryDescriptionError as ex:
             LOG.error(f"{_video_name(video_metadata)}: {ex}")
             error_metadatas.append(
@@ -329,6 +347,21 @@ def _check_video_limits(
             output_video_metadatas.append(video_metadata)
 
     return output_video_metadatas, error_metadatas
+
+
+def _movie_timescale(video_path: Path) -> int | None:
+    """
+    The timescale in the mvhd box of the video, or None if it cannot be read
+    """
+    try:
+        with video_path.open("rb") as fp:
+            data = sparser.parse_mp4_data_first(fp, [b"moov", b"mvhd"])
+        if data is None:
+            return None
+        return cparser.MovieHeaderBox.parse(data).timescale
+    except (OSError, sparser.ParsingError, C.ConstructError) as ex:
+        LOG.debug("Failed to read the timescale of %s: %s", video_path, ex)
+        return None
 
 
 def _video_name(video_metadata: types.VideoMetadata) -> str:
