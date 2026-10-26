@@ -215,3 +215,41 @@ def test_process_skips_named_sidecars_of_a_camera_folder(tmpdir: py.path.local):
         (desc["filename"], desc["error"]["type"])
         for desc in json.loads(desc_path.read_text(encoding="utf-8"))
     ] == [(str(original.resolve()), "MapillaryUnsupportedFileError")]
+
+
+def test_process_skips_named_companion_files_of_other_cameras_and_systems(
+    tmpdir: py.path.local,
+):
+    """
+    Named along with the images, DJI proxies, Apple photo edits, GPS tracks,
+    XMP metadata and the files that Windows writes into folders failed the run
+    """
+    root = Path(str(tmpdir))
+    folder = root / "DCIM"
+    folder.mkdir()
+    companions = [
+        folder / "DJI_0001.LRF",
+        folder / "IMG_0001.AAE",
+        folder / "IMG_0001.XMP",
+        folder / "track.kml",
+        folder / "track.KMZ",
+        folder / "ride.fit",
+        folder / "Thumbs.db",
+        folder / "desktop.ini",
+    ]
+    for companion in companions:
+        companion.write_bytes(b"not an image")
+
+    descs, report = _run_process_with_report(companions, root)
+    assert descs == []
+    assert report["processed_file_count"] == 0
+    assert sorted(skipped["filename"] for skipped in report["skipped_files"]) == sorted(
+        str(companion.resolve()) for companion in companions
+    )
+
+    desc_path = root / "description.json"
+    run_command(
+        ["--desc_path", str(desc_path), *(str(companion) for companion in companions)],
+        command="process",
+    )
+    assert json.loads(desc_path.read_text(encoding="utf-8")) == []

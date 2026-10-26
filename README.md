@@ -241,13 +241,14 @@ Unsupported entries include their filename, category, stable reason code, and
 normalized extension. Hidden/system files and common GPS or metadata sidecars
 are ignored during directory discovery, but an explicitly supplied unsupported
 file is always reported. Such a file also fails processing, with a
-`MapillaryUnsupportedFileError` entry in the image description file, whether
-or not the report is requested, unless it is a known sidecar or companion file
-(`.thm`, `.lrv`, `.gpx`, `.nmea`, `.xml`, `.json`, `.srt`, `.txt`, `.csv`,
-`.log`, `.md5`, macOS `._*` files and `.DS_Store`): those are skipped with a
-warning, so that all the files of a camera folder can be named. The report is
-written only to the requested local path and contains absolute source
-filenames, so treat it as local capture metadata.
+`MapillaryUnsupportedFileError` entry in the image description file, whether or
+not the report is requested, unless it is a known sidecar or companion file
+(`.thm`, `.lrv`, `.lrf`, `.aae`, `.gpx`, `.nmea`, `.kml`, `.kmz`, `.fit`,
+`.xml`, `.json`, `.xmp`, `.srt`, `.txt`, `.csv`, `.log`, `.md5`, macOS `._*`
+files and `.DS_Store`, and Windows `Thumbs.db` and `desktop.ini`): those are
+skipped with a warning, so that all the files of a camera folder can be named.
+The report is written only to the requested local path and contains absolute
+source filenames, so treat it as local capture metadata.
 
 ## Upload
 

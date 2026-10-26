@@ -29,17 +29,25 @@ DEFAULT_GEOTAG_SOURCE_OPTIONS = [
 ]
 
 # Files that cameras and other tools write beside images and videos: GoPro
-# thumbnails (.THM) and low-resolution proxies (.LRV), GPS logs, metadata,
-# subtitles (.SRT), notes and checksums. Selecting all the files of a camera
-# folder names them along with its images and videos
+# thumbnails (.THM) and low-resolution proxies (.LRV), DJI low-resolution
+# proxies (.LRF), Apple photo edits (.AAE), GPS logs and tracks (.gpx, .nmea,
+# .kml, .kmz, .fit), metadata (.xml, .json, .xmp), subtitles (.SRT), notes and
+# checksums. Selecting all the files of a camera folder names them along with
+# its images and videos
 _SIDECAR_EXTENSIONS = frozenset(
     {
         ".thm",
         ".lrv",
+        ".lrf",
+        ".aae",
         ".gpx",
         ".nmea",
+        ".kml",
+        ".kmz",
+        ".fit",
         ".xml",
         ".json",
+        ".xmp",
         ".srt",
         ".txt",
         ".csv",
@@ -47,6 +55,11 @@ _SIDECAR_EXTENSIONS = frozenset(
         ".md5",
     }
 )
+
+# Files that operating systems write into folders of images and videos: the
+# Finder settings of macOS, and the thumbnail cache and folder settings of
+# Windows. Compared case-insensitively
+_SIDECAR_FILENAMES = frozenset({".ds_store", "thumbs.db", "desktop.ini"})
 
 
 def _normalize_import_paths(import_path: Path | T.Sequence[Path]) -> T.Sequence[Path]:
@@ -155,21 +168,23 @@ def process_geotag_properties(
 def _is_sidecar_file(path: Path) -> bool:
     """
     Whether a file is one that accompanies images and videos (see
-    _SIDECAR_EXTENSIONS), or one that macOS writes beside them: .DS_Store, and
-    the AppleDouble file ._NAME of each file it copies to a drive that cannot
-    hold its metadata, which has the extension of that file but is no image or
-    video
+    _SIDECAR_EXTENSIONS), one that an operating system writes beside them (see
+    _SIDECAR_FILENAMES), or the AppleDouble file ._NAME that macOS writes for
+    each file it copies to a drive that cannot hold its metadata, which has the
+    extension of that file but is no image or video
 
     >>> [_is_sidecar_file(Path(name)) for name in ["GH010001.THM", "GL010001.LRV", "track.GPX"]]
     [True, True, True]
-    >>> [_is_sidecar_file(Path(name)) for name in ["._GOPR0001.JPG", ".DS_Store"]]
-    [True, True]
+    >>> [_is_sidecar_file(Path(name)) for name in ["DJI_0001.LRF", "IMG_0001.AAE", "photo.XMP"]]
+    [True, True, True]
+    >>> [_is_sidecar_file(Path(name)) for name in ["._GOPR0001.JPG", ".DS_Store", "Thumbs.db", "Desktop.ini"]]
+    [True, True, True, True]
     >>> [_is_sidecar_file(Path(name)) for name in ["GOPR0001.JPG", "VID_00_001.insv", "photo.png"]]
     [False, False, False]
     """
     return (
         path.name.startswith("._")
-        or path.name.casefold() == ".ds_store"
+        or path.name.casefold() in _SIDECAR_FILENAMES
         or path.suffix.lower() in _SIDECAR_EXTENSIONS
     )
 
