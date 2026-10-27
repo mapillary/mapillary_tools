@@ -289,7 +289,8 @@ def process(
     rejected_gps_paths: set[Path] = set()
 
     # Paths whose GPX track missed them, with the source that rejected them, to
-    # warn about if a later source geotags them instead
+    # warn about if a later source geotags them instead, and to report if none
+    # does
     gpx_rejections: dict[Path, tuple[SourceOption, types.ErrorMetadata]] = {}
 
     # Videos let through to sources that cannot geotag videos (e.g. exif), with
@@ -398,6 +399,14 @@ def process(
         # Quit if no more paths to process
         if not reprocessable_paths:
             break
+
+    # Of a file that a GPX track missed, and that no later source geotagged,
+    # report the miss: why the track given for it was not used says more than
+    # the later sources failing too, such as "GPS is too noisy" for a video
+    # whose GPS the track was given to replace
+    for path, (_, gpx_miss) in gpx_rejections.items():
+        if path in pending_errors:
+            pending_errors[path] = gpx_miss
 
     final_metadatas.extend(pending_errors.values())
 

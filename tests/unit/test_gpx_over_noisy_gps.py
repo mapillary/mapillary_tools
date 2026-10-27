@@ -374,6 +374,13 @@ NOT_FOUND = exceptions.MapillaryVideoGPSNotFoundError("No GPS data found")
 GPX_NOT_FOUND = exceptions.MapillaryVideoGPSNotFoundError(
     "GPX file not found for video"
 )
+GPX_MISS = exceptions.MapillaryOutsideGPXTrackError(
+    "The GPX track misses the video by 105.1 days",
+    image_time="2026_09_11_15_39_41_000",
+    gpx_start_time="2026_05_29_12_47_06_000",
+    gpx_end_time="2026_05_29_12_53_00_000",
+)
+XML_NOT_FOUND = exceptions.MapillaryExifToolXMLNotFoundError("No XML file found")
 
 DEFAULT_CHAIN = [SourceType(source) for source in DEFAULT_GEOTAG_SOURCE_OPTIONS]
 
@@ -504,6 +511,60 @@ class TestChainedSources:
         result = _only_result(results)
         assert isinstance(result, types.ErrorMetadata)
         assert result.error is mismatch
+
+    def test_gpx_that_misses_is_reported_over_rejected_gps(self, monkeypatch):
+        """
+        The chain of the Desktop Uploader, with a GPX that misses a video whose
+        GPS is too noisy: the miss says why the GPX was not used, while "GPS
+        is too noisy" is what the GPX was given to work around.
+        """
+        results, called = _run_chain(
+            monkeypatch,
+            [
+                SourceType.GPX,
+                SourceType.EXIFTOOL_XML,
+                SourceType.NATIVE,
+                SourceType.EXIFTOOL_RUNTIME,
+            ],
+            {
+                SourceType.GPX: GPX_MISS,
+                SourceType.EXIFTOOL_XML: XML_NOT_FOUND,
+                SourceType.NATIVE: NOISE,
+                SourceType.EXIFTOOL_RUNTIME: None,
+            },
+        )
+        result = _only_result(results)
+        assert isinstance(result, types.ErrorMetadata)
+        assert result.error is GPX_MISS
+        assert called == [SourceType.GPX, SourceType.EXIFTOOL_XML, SourceType.NATIVE]
+
+    @pytest.mark.parametrize(
+        "later_error",
+        [NOISE, EMPTY, NOT_FOUND, exceptions.MapillaryExiftoolNotFoundError("no")],
+    )
+    def test_gpx_that_misses_is_reported_over_later_failures(
+        self, monkeypatch, later_error
+    ):
+        results, _ = _run_chain(
+            monkeypatch,
+            [SourceType.GPX, SourceType.NATIVE],
+            {SourceType.GPX: GPX_MISS, SourceType.NATIVE: later_error},
+        )
+        result = _only_result(results)
+        assert isinstance(result, types.ErrorMetadata)
+        assert result.error is GPX_MISS
+
+    def test_gpx_that_misses_does_not_hide_a_final_error(self, monkeypatch):
+        """An error that ends the chain says something about the file itself"""
+        stationary = exceptions.MapillaryStationaryVideoError("Stationary")
+        results, _ = _run_chain(
+            monkeypatch,
+            [SourceType.GPX, SourceType.NATIVE],
+            {SourceType.GPX: GPX_MISS, SourceType.NATIVE: stationary},
+        )
+        result = _only_result(results)
+        assert isinstance(result, types.ErrorMetadata)
+        assert result.error is stationary
 
     def test_not_found_still_falls_through_to_exiftool(self, monkeypatch):
         """Finding nothing is a verdict on the reader, so retrying is fair."""
