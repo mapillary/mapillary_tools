@@ -32,6 +32,8 @@ mapillary_tools process_and_upload MY_CAPTURE_DIR
 mapillary_tools --help
 ```
 
+See the [command reference](docs/command_reference.md) for what each command does, its options, and common pitfalls.
+
 <!--ts-->
 
 - [Supported File Formats](#supported-file-formats)
@@ -45,6 +47,7 @@ mapillary_tools --help
   - [Process and Upload](#process-and-upload)
   - [Process](#process)
   - [Upload](#upload)
+  - [Check Upload History](#check-upload-history)
 - [Advanced Usage](#advanced-usage)
   - [Local Video Processing](#local-video-processing)
     - [Install FFmpeg](#install-ffmpeg)
@@ -78,7 +81,7 @@ mapillary_tools can upload both images and videos.
 
 ## Image Formats
 
-mapillary_tools supports JPG/JEPG images (.jpg, .jpeg), with the following EXIF tags minimally required:
+mapillary_tools supports JPG/JPEG images (.jpg, .jpeg), with the following EXIF tags minimally required:
 
 - GPS Longitude
 - GPS Latitude
@@ -100,6 +103,10 @@ mapillary_tools supports videos (.mp4, .360) that contain any of the following t
 - [BlackVue](https://blackvue.com/) videos
   - [DR900S-1CH](https://shop.blackvue.com/product/dr900x-1ch-plus/)
   - [DR900X Plus](https://shop.blackvue.com/product/dr900x-2ch-plus/)
+- Novatek-based dashcams, such as Viofo, Vantrue and Anker Roav dashcams
+
+Other videos can be geotagged from the GPS that [ExifTool](https://exiftool.org/) reads, if it is installed,
+or from a GPX or NMEA track recorded along with them (see [Geotagging with GPX](#geotagging-with-gpx)).
 
 # Installation
 
@@ -209,7 +216,7 @@ mapillary_tools process MY_CAPTURE_DIR MY_VIDEO_DIR/*.mp4
 Duplicate check with custom distance and angle:
 
 ```sh
-# Mark images that are 3 meters closer to its previous one as duplicates.
+# Mark images within 3 meters of the previous one as duplicates.
 # Duplicates won't be uploaded
 mapillary_tools process MY_CAPTURE_DIR \
     --duplicate_distance 3 \
@@ -223,35 +230,21 @@ Split sequences with the custom cutoff distance or custom capture time gap:
 # OR their capture times are 120 seconds apart,
 # then split the sequence from there
 mapillary_tools process MY_CAPTURE_DIR \
-    --offset_angle 90 \
     --cutoff_distance 100 \
-    --cutoff_time 120 \
+    --cutoff_time 120
 ```
 
-To receive a machine-readable inventory of recognized inputs and unsupported
-files without changing the image description format, specify an optional
-process report:
+In a directory, files that are not supported images or videos are left out. A file named on the command line that
+is not one fails, with a `MapillaryUnsupportedFileError` entry in the image description file, unless it is a
+sidecar or companion file such as `.gpx`, `.xml` or `.thm`: those are skipped with a warning.
+
+To write a JSON report of the files found and the unsupported files skipped, specify `--process_report_path`
+(see the [command reference](docs/command_reference.md#process) for its format):
 
 ```sh
 mapillary_tools process MY_CAPTURE_DIR \
     --process_report_path /tmp/mapillary_process_report.json
 ```
-
-The version 1 report contains `discovered_file_count`, `processed_file_count`,
-`skipped_file_count`, and `skipped_files`. Recognized files that produce a
-description-level processing error are included in `processed_file_count`.
-Unsupported entries include their filename, category, stable reason code, and
-normalized extension. Hidden/system files and common GPS or metadata sidecars
-are ignored during directory discovery, but an explicitly supplied unsupported
-file is always reported. Such a file also fails processing, with a
-`MapillaryUnsupportedFileError` entry in the image description file, whether or
-not the report is requested, unless it is a known sidecar or companion file
-(`.thm`, `.lrv`, `.lrf`, `.aae`, `.gpx`, `.nmea`, `.kml`, `.kmz`, `.fit`,
-`.xml`, `.json`, `.xmp`, `.srt`, `.txt`, `.csv`, `.log`, `.md5`, macOS `._*`
-files and `.DS_Store`, and Windows `Thumbs.db` and `desktop.ini`): those are
-skipped with a warning, so that all the files of a camera folder can be named.
-The report is written only to the requested local path and contains absolute
-source filenames, so treat it as local capture metadata.
 
 ## Upload
 
@@ -288,6 +281,8 @@ A name is 2 to 32 letters, numbers, hyphens and underscores, starting with a let
 Saving a name that is already saved with another ID replaces the ID.
 To list or delete saved names, see [Authenticate](#authenticate).
 
+Files that were uploaded from this computer before are skipped. To upload them again, specify `--reupload`.
+
 ## Check Upload History
 
 To check whether processed image sequences or videos were previously uploaded
@@ -299,15 +294,9 @@ mapillary_tools check_upload_history MY_CAPTURE_DIR \
     --desc_path /tmp/mapillary_image_description.json
 ```
 
-The command prints a JSON array with one entry per upload candidate. Each entry
-contains the file type, sequence UUID when applicable, sequence checksum,
-member filenames, the subset found in history as
-`already_uploaded_filenames`, and an `already_uploaded` boolean.
-`already_uploaded` is true only when every member filename is represented in
-local history. For images, this includes files that were members of a larger
-previously uploaded sequence. It reads only the local upload history: it does
-not require authentication, make network requests, upload data, or modify
-history.
+It prints a JSON array with one entry per image sequence or video, which tells whether it was already uploaded
+(see the [command reference](docs/command_reference.md#check_upload_history)). It reads only the local upload
+history: it needs no login, makes no network requests, and changes nothing.
 
 # Advanced Usage
 
@@ -364,6 +353,9 @@ It is used to locate the images along the GPS tracks. Images captured before the
 gap of more than an hour between two of its points (such as between two trips in one GPX file) fall outside the track,
 and are not geotagged from it. The same applies to videos. To allow longer gaps, set the environment variable
 `MAPILLARY_TOOLS_MAX_GPX_GAP_SECONDS` (3600 by default).
+
+Only the track points (`<trkpt>`) of a GPX file that have a time are read, not its routes or waypoints. A GPX file
+in which no track point has a time that can be read fails with an error that says why.
 
 ```sh
 mapillary_tools process MY_IMAGE_DIR --geotag_source "gpx" --geotag_source_path MY_EXTERNAL_GPS.gpx
@@ -464,10 +456,10 @@ PATTERN specifies how the data source file is named, starting from the video fil
 Supported sources and their default pattern are:
 
 * `native`, or `video`: parse the video looking for geolocation in any format that mapillary_tools reads: GoPro, CAMM,
-BlackVue and others. Pattern: `%f`
-* `camm`: parse the video looking for a CAMM track. Pattern: `%f`
-* `gopro`: parse the video looking for geolocation in GoPro format. Pattern: `%f`
-* `blackvue`: parse the video looking for geolocation in BlackVue format. Pattern: `%f`
+BlackVue and others. No pattern: it reads the video itself
+* `camm`: parse the video looking for a CAMM track. No pattern
+* `gopro`: parse the video looking for geolocation in GoPro format. No pattern
+* `blackvue`: parse the video looking for geolocation in BlackVue format. No pattern
 * `gpx`: external GPX file. Pattern: `%g.gpx`
 * `nmea`: external NMEA file. Pattern: `%g.nmea`
 * `exiftool_xml`: external XML file generated by exiftool. Pattern: `%g.xml`
@@ -477,11 +469,12 @@ Notes:
 * `exiftool_runtime` only works if exiftool is installed on the system. You can find it at https://exiftool.org/ or through
 your software manager. If exiftool is installed, but is not in the default execution path, it is
 possible to specify its location by setting the environment variable `MAPILLARY_TOOLS_EXIFTOOL_PATH`.
-* Pattern are case-sensitive or not depending on the filesystem - in Windows, `%g.gpx` will match both `basename.gpx`
-and `basename.GPX`, in MacOs, Linux or other Unix systems no.
-* If both `--video_geotag_source` and `--geotag_source` are specified, `--video_geotag_source` will apply to video files
-and `--geotag_source` to image files. If only `--video_geotag_source` is specified, image files (including the frames
-that `video_process` samples) are geotagged by the default sources.
+* Patterns are case-sensitive or not depending on the file system: `%g.gpx` matches both `basename.gpx` and
+`basename.GPX` on Windows and, by default, on macOS, but not on Linux.
+* If both `--video_geotag_source` and `--geotag_source` are specified, the `--video_geotag_source` sources are tried
+first, on videos only, and the `--geotag_source` sources then geotag the images and the videos left. If only
+`--video_geotag_source` is specified, image files (including the frames that `video_process` samples) are geotagged
+by the default sources.
 
 ### Examples
 
@@ -571,14 +564,14 @@ Here is a minimal example:
     "MAPLatitude": 58.5927694,
     "MAPLongitude": 16.1840944,
     "MAPCaptureTime": "2021_02_13_13_24_41_140",
-    "filename": "/MY_IMAGE_DIR/IMG_0291.jpg"
+    "filename": "/MY_IMAGE_DIR/IMG_0001.jpg"
   },
   {
     "error": {
       "type": "MapillaryGeoTaggingError",
       "message": "Unable to extract GPS Longitude or GPS Latitude from the image"
     },
-    "filename": "/MY_IMAGE_DIR/IMG_0292.jpg"
+    "filename": "/MY_IMAGE_DIR/IMG_0002.jpg"
   }
 ]
 ```
@@ -602,18 +595,15 @@ mapillary_tools upload  MY_IMAGE_DIR --desc_path /tmp/mapillary_image_descriptio
 
 ## Zip Images
 
-When [uploading](#upload) an image directory, internally the `upload` command will zip sequences in the temporary
-directory (`TMPDIR`) and then upload these zip files.
-
-mapillary_tools provides `zip` command that allows users to specify where to store the zip files, usually somewhere with
-faster IO or more free space.
+The `zip` command writes each processed image sequence into a zip file, with the metadata in the images.
+The `upload` command uploads zip files as they are, so they can be uploaded later.
 
 ```sh
 # Zip processed images in MY_IMAGE_DIR and write zip files in MY_ZIPFILES
 mapillary_tools zip MY_IMAGE_DIR MY_ZIPFILES
 
-# Upload all the zip files (*.zip) in MY_ZIPFILES:
-mapillary_tools upload --file_types zip MY_ZIPFILES
+# Upload all the zip files (*.zip) in MY_ZIPFILES
+mapillary_tools upload MY_ZIPFILES --desc_path MY_IMAGE_DIR/mapillary_image_description.json
 ```
 
 # Development
