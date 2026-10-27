@@ -283,6 +283,10 @@ def _check_video_limits(
 
     for video_metadata in video_metadatas:
         try:
+            # Not stationary: no position of it is known
+            if not video_metadata.points:
+                raise exceptions.MapillaryVideoGPSNotFoundError("No GPS points found")
+
             is_stationary = _is_video_stationary(
                 video_metadata.points,
                 max_radius_in_meters=max_radius_for_stationary_check,

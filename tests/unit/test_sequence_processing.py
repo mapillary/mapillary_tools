@@ -714,6 +714,26 @@ def test_video_error(tmpdir: py.path.local):
     )
 
 
+def test_video_without_points_is_not_stationary(tmpdir: py.path.local):
+    """No position of it is known, as when a GPX gave it none"""
+    [metadata] = psp.process_sequence_properties(
+        [
+            types.VideoMetadata(
+                Path(tmpdir) / "no_points.mp4",
+                types.FileType.VIDEO,
+                points=[],
+                make="hello",
+                model="world",
+                filesize=123,
+            )
+        ]
+    )
+
+    assert isinstance(metadata, types.ErrorMetadata)
+    assert isinstance(metadata.error, exceptions.MapillaryVideoGPSNotFoundError)
+    assert str(metadata.error) == "No GPS points found"
+
+
 def _write_empty_mp4(path: Path, timescale: int) -> None:
     mvhd: cparser.BoxDict = {
         "type": b"mvhd",
