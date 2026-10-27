@@ -68,7 +68,9 @@ class TestGPXFile:
         gpx.write_text(GPX.format('<trkpt lat="37.0" lon="-122.0"></trkpt>'))
 
         _assert_fails_every_image(
-            GeotagImagesFromGPXFile(gpx), "No timestamped points found"
+            GeotagImagesFromGPXFile(gpx),
+            "track.gpx has no track point with a time that can be read: "
+            "its track points have no <time>",
         )
 
     def test_a_valid_file_is_read(self, tmp_path):

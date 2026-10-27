@@ -556,6 +556,45 @@ def test_video_process_by_distance_with_a_gpx_that_misses_the_video(
     assert "misses the video" in ex.value.stderr
 
 
+def test_video_process_from_a_gpx_whose_times_cannot_be_read(
+    setup_data: py.path.local,
+):
+    """It said that no GPS points were found"""
+    pytest_skip_if_not_ffmpeg_installed()
+
+    video_path = setup_data.join("videos").join("sample-5s.mp4")
+    gpx_file = setup_data.join("gpx").join("unreadable_times.gpx")
+    # Each time with two fractions, as 2025-03-14T07:00:02.495.000Z
+    gpx_file.write(
+        re.sub(
+            r"(\.\d+)Z</time>",
+            r"\1.000Z</time>",
+            setup_data.join("gpx").join("sf_30km_h.gpx").read(),
+        )
+    )
+
+    with tempfile.TemporaryDirectory() as dir:
+        with pytest.raises(subprocess.CalledProcessError) as ex:
+            run_video_process(
+                [
+                    "--video_sample_distance=3",
+                    "--geotag_source=gpx",
+                    *["--geotag_source_path", str(gpx_file)],
+                    str(video_path),
+                    str(Path(dir, "samples")),
+                ],
+                capture_output=True,
+                text=True,
+            )
+
+    assert 7 == ex.value.returncode, ex.value.stderr
+    assert "1 MapillaryInvalidGPXError" in ex.value.stderr
+    assert (
+        "unreadable_times.gpx has no track point with a time that can be read: "
+        "'2025-03-14T07:00:00.000.000Z' is not a GPX time"
+    ) in ex.value.stderr
+
+
 def test_video_process_by_distance_applies_the_interpolation_offset(
     setup_data: py.path.local,
 ):

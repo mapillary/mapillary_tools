@@ -44,10 +44,10 @@ class GeotagImagesFromGPXFile(GeotagImagesFromGPX):
 def _read_gpx_points(source_path: Path) -> list[geo.Point]:
     """
     Read the points of a GPX file, merged into one track. Raise
-    MapillaryInvalidGPXError if the file cannot be parsed, as for a video
-    geotagged from it, and if it is missing or has no timestamped point: the
-    file was given to geotag the images from, so it fails them rather than
-    leaving them to the next geotag source.
+    MapillaryInvalidGPXError if the file cannot be parsed or has no track
+    point with a time, as for a video geotagged from it, and if it is
+    missing: the file was given to geotag the images from, so it fails them
+    rather than leaving them to the next geotag source.
 
     The file is parsed once in a process (see utils.read_gpx_tracks()), and
     its points are shared with its other readers, which must not change them.
@@ -71,11 +71,4 @@ def _read_gpx_points(source_path: Path) -> list[geo.Point]:
             len(tracks),
             source_path,
         )
-    points: list[geo.Point] = [point for track in tracks for point in track]
-
-    if not points:
-        raise exceptions.MapillaryInvalidGPXError(
-            f"No timestamped points found in the GPX file {source_path}"
-        )
-
-    return points
+    return [point for track in tracks for point in track]
