@@ -377,8 +377,7 @@ class GPXVideoExtractor(BaseVideoExtractor):
             return geotag_utils.read_gpx_tracks(self.gpx_path)
         except (OSError, UnicodeError, gpxpy.gpx.GPXException) as ex:
             raise exceptions.MapillaryInvalidGPXError(
-                f"{self.gpx_path.name} is not a valid GPX file. "
-                "Replace it with a valid GPX file."
+                geotag_utils.describe_invalid_gpx(self.gpx_path, ex)
             ) from ex
 
     def _clip_to_video(

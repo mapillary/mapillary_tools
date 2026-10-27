@@ -53,10 +53,13 @@ class TestGPXFile:
         gpx = tmp_path / "track.gpx"
         gpx.write_text(content)
 
-        _assert_fails_every_image(
-            GeotagImagesFromGPXFile(gpx),
-            "track.gpx is not a valid GPX file. Replace it with a valid GPX file.",
-        )
+        for error in _errors(GeotagImagesFromGPXFile(gpx)):
+            assert isinstance(error, exceptions.MapillaryInvalidGPXError)
+            # With the reason that gpxpy gives
+            assert str(error).startswith(
+                "track.gpx is not a valid GPX file: Error parsing XML: "
+            )
+            assert str(error).endswith(". Replace it with a valid GPX file.")
 
     def test_a_missing_file_fails_every_image(self, tmp_path):
         _assert_fails_every_image(

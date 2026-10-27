@@ -59,8 +59,7 @@ def _read_gpx_points(source_path: Path) -> list[geo.Point]:
         tracks = utils.read_gpx_tracks(source_path)
     except (OSError, UnicodeError, gpxpy.gpx.GPXException) as ex:
         raise exceptions.MapillaryInvalidGPXError(
-            f"{source_path.name} is not a valid GPX file. "
-            "Replace it with a valid GPX file."
+            utils.describe_invalid_gpx(source_path, ex)
         ) from ex
 
     if 1 < len(tracks):

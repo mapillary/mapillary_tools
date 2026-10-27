@@ -118,6 +118,33 @@ def read_gpx_tracks(gpx_file: Path) -> list[Track]:
     return parsed
 
 
+def describe_invalid_gpx(gpx_file: Path, ex: Exception) -> str:
+    """
+    The message of the error for the GPX file **gpx_file** that reading it
+    failed with **ex**, which says why
+
+    >>> describe_invalid_gpx(
+    ...     Path("a/track.gpx"),
+    ...     gpxpy.gpx.GPXXMLSyntaxException(
+    ...         "Error parsing XML: not well-formed (invalid token): line 2, column 0",
+    ...         None,
+    ...     ),
+    ... )
+    'track.gpx is not a valid GPX file: Error parsing XML: not well-formed (invalid token): line 2, column 0. Replace it with a valid GPX file.'
+    >>> describe_invalid_gpx(Path("track.gpx"), PermissionError(13, "Permission denied"))
+    'track.gpx is not a valid GPX file: Permission denied. Replace it with a valid GPX file.'
+    """
+    if isinstance(ex, OSError):
+        reason = ex.strerror or str(ex)
+    else:
+        reason = str(ex)
+    because = f": {reason.rstrip('.')}" if reason else ""
+    return (
+        f"{gpx_file.name} is not a valid GPX file{because}. "
+        "Replace it with a valid GPX file."
+    )
+
+
 def was_gpx_read(gpx_file: Path) -> bool:
     """
     Whether the tracks of a GPX file were parsed in this process and are kept

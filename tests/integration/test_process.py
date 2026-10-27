@@ -454,10 +454,12 @@ def test_geotagging_images_from_malformed_gpx(setup_data: py.path.local):
         "V0370574.JPG",
     ]
     for desc in descs:
-        assert desc["error"] == {
-            "type": "MapillaryInvalidGPXError",
-            "message": "test.gpx is not a valid GPX file. Replace it with a valid GPX file.",
-        }
+        assert desc["error"]["type"] == "MapillaryInvalidGPXError"
+        # With the reason that gpxpy gives
+        assert desc["error"]["message"].startswith(
+            "test.gpx is not a valid GPX file: Error parsing XML: "
+        )
+        assert desc["error"]["message"].endswith(". Replace it with a valid GPX file.")
 
 
 def test_geotagging_images_from_gpx_whose_times_cannot_be_read(
@@ -1186,12 +1188,14 @@ def test_process_geotag_with_malformed_gpx_pattern(setup_data: py.path.local):
     )
 
     video_desc = next(desc for desc in descs if desc["filename"] == str(video_path))
-    assert video_desc["error"] == {
-        "type": "MapillaryInvalidGPXError",
-        "message": (
-            "max-360mode.gpx is not a valid GPX file. Replace it with a valid GPX file."
-        ),
-    }
+    assert video_desc["error"]["type"] == "MapillaryInvalidGPXError"
+    # With the reason that gpxpy gives
+    assert video_desc["error"]["message"].startswith(
+        "max-360mode.gpx is not a valid GPX file: Error parsing XML: "
+    )
+    assert video_desc["error"]["message"].endswith(
+        ". Replace it with a valid GPX file."
+    )
 
 
 def test_process_video_from_a_gpx_whose_times_cannot_be_read(
