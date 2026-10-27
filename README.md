@@ -32,7 +32,7 @@ mapillary_tools process_and_upload MY_CAPTURE_DIR
 mapillary_tools --help
 ```
 
-See the [command reference](docs/command_reference.md) for what each command does, its options, and common pitfalls.
+See the [command reference](https://github.com/mapillary/mapillary_tools/blob/main/docs/command_reference.md) for what each command does, its options, and common pitfalls.
 
 <!--ts-->
 
@@ -239,7 +239,7 @@ is not one fails, with a `MapillaryUnsupportedFileError` entry in the image desc
 sidecar or companion file such as `.gpx`, `.xml` or `.thm`: those are skipped with a warning.
 
 To write a JSON report of the files found and the unsupported files skipped, specify `--process_report_path`
-(see the [command reference](docs/command_reference.md#process) for its format):
+(see the [command reference](https://github.com/mapillary/mapillary_tools/blob/main/docs/command_reference.md#process) for its format):
 
 ```sh
 mapillary_tools process MY_CAPTURE_DIR \
@@ -281,11 +281,13 @@ A name is 2 to 32 letters, numbers, hyphens and underscores, starting with a let
 Saving a name that is already saved with another ID replaces the ID.
 To list or delete saved names, see [Authenticate](#authenticate).
 
-Files that were uploaded from this computer before are skipped. To upload them again, specify `--reupload`.
+Image sequences, videos and zip files that were uploaded from this computer before are skipped. Each is compared as a
+whole: a sequence with one image added or removed is uploaded again. To upload them again anyway, specify
+`--reupload`.
 
 ## Check Upload History
 
-To check whether processed image sequences or videos were previously uploaded
+To check whether processed image sequences, videos or zip files were previously uploaded
 from this device, use the same import paths and description file that would be
 passed to `upload`:
 
@@ -294,9 +296,10 @@ mapillary_tools check_upload_history MY_CAPTURE_DIR \
     --desc_path /tmp/mapillary_image_description.json
 ```
 
-It prints a JSON array with one entry per image sequence or video, which tells whether it was already uploaded
-(see the [command reference](docs/command_reference.md#check_upload_history)). It reads only the local upload
-history: it needs no login, makes no network requests, and changes nothing.
+It prints a JSON array with one entry per image sequence, video or zip file, which tells whether it was already
+uploaded (see the
+[command reference](https://github.com/mapillary/mapillary_tools/blob/main/docs/command_reference.md#check_upload_history)).
+It reads only the local upload history: it needs no login, makes no network requests, and changes nothing.
 
 # Advanced Usage
 
@@ -510,7 +513,9 @@ VIDEO_DIR/
 ### Limitations of `--video_geotag_source`
 
 **A GPX track is synced by the GPS clock of the video, if the video has GPS of its own, and otherwise aligned with
-the start of the video.** In `process`, a timelapse video is supported for a GPX only if it has GPS of its own.
+the start of the video.** In `process`, a video without GPS of its own is assumed to start with the track, and a track
+that lasts more than twice as long as the video gets a warning: unless the video is a timelapse of the whole track, trim
+the GPX to the video, or sample the video with `video_process` and `--video_start_time`.
 
 As with images, `--interpolation_offset_time N` adds N seconds to the time of the video to find its positions along
 the GPX track, and `--interpolation_use_gpx_start_time` aligns the start of the video with the start of the track, even
