@@ -4,8 +4,10 @@
 # LICENSE file in the root directory of this source tree.
 
 import datetime
+import itertools
 import json
 import os
+import re
 import subprocess
 from pathlib import Path
 
@@ -452,9 +454,41 @@ def test_geotagging_images_from_malformed_gpx(setup_data: py.path.local):
         "V0370574.JPG",
     ]
     for desc in descs:
+        assert desc["error"]["type"] == "MapillaryInvalidGPXError"
+        # With the reason that gpxpy gives
+        assert desc["error"]["message"].startswith(
+            "test.gpx is not a valid GPX file: Error parsing XML: "
+        )
+        assert desc["error"]["message"].endswith(". Replace it with a valid GPX file.")
+
+
+def test_geotagging_images_from_gpx_whose_times_cannot_be_read(
+    setup_data: py.path.local,
+):
+    """It said only that no timestamped points were found"""
+    gpx_file = setup_data.join("test.gpx")
+    gpx_file.write(_with_unreadable_times(GPX_CONTENT))
+    images = setup_data.join("images")
+
+    descs = run_process_for_descs(
+        [
+            "--file_types=image",
+            "--geotag_source=gpx",
+            "--geotag_source_path",
+            str(gpx_file),
+            str(images),
+        ]
+    )
+
+    assert len(descs) == 3
+    for desc in descs:
         assert desc["error"] == {
             "type": "MapillaryInvalidGPXError",
-            "message": "test.gpx is not a valid GPX file. Replace it with a valid GPX file.",
+            "message": (
+                "test.gpx has no track point with a time that can be read: "
+                "'2018-06-08T20:23:34.000.000Z' is not a GPX time, "
+                "which looks like 2026-08-12T06:32:05.000Z"
+            ),
         }
 
 
@@ -807,6 +841,23 @@ def _copy_gpx_shifted_to(
     dst.write(gpx.to_xml())
 
 
+def _with_unreadable_times(gpx: str, every: int = 1) -> str:
+    """
+    The GPX with every **every**th time written with two fractions, as
+    2018-06-08T20:23:34.000.000Z, which gpxpy cannot read
+    """
+    count = itertools.count()
+    return re.sub(
+        r"<time>([^<.Z]+)(?:\.\d+)?Z</time>",
+        lambda m: (
+            f"<time>{m.group(1)}.000.000Z</time>"
+            if next(count) % every == 0
+            else m.group(0)
+        ),
+        gpx,
+    )
+
+
 def test_process_video_geotag_source_with_gopro_gpx_specified(
     setup_data: py.path.local,
 ):
@@ -1137,12 +1188,80 @@ def test_process_geotag_with_malformed_gpx_pattern(setup_data: py.path.local):
     )
 
     video_desc = next(desc for desc in descs if desc["filename"] == str(video_path))
-    assert video_desc["error"] == {
+    assert video_desc["error"]["type"] == "MapillaryInvalidGPXError"
+    # With the reason that gpxpy gives
+    assert video_desc["error"]["message"].startswith(
+        "max-360mode.gpx is not a valid GPX file: Error parsing XML: "
+    )
+    assert video_desc["error"]["message"].endswith(
+        ". Replace it with a valid GPX file."
+    )
+
+
+def test_process_video_from_a_gpx_whose_times_cannot_be_read(
+    setup_data: py.path.local,
+):
+    """
+    It failed as a stationary video: gpxpy reads no time for such a point,
+    and says nothing of it
+    """
+    video_path = setup_data.join("gopro_data").join("max-360mode.mp4")
+    gpx_file = setup_data.join("gpx").join("max-360mode.gpx")
+    _copy_gpx_shifted_to(
+        setup_data.join("gpx").join("sf_30km_h.gpx"), gpx_file, _GOPRO_MAX_GPS_START
+    )
+    gpx_file.write(_with_unreadable_times(gpx_file.read()))
+
+    [desc] = run_process_for_descs(
+        [
+            *["--video_geotag_source", "gpx"],
+            *["--geotag_source_path", str(gpx_file)],
+            str(video_path),
+        ]
+    )
+
+    assert desc["error"] == {
         "type": "MapillaryInvalidGPXError",
         "message": (
-            "max-360mode.gpx is not a valid GPX file. Replace it with a valid GPX file."
+            "max-360mode.gpx has no track point with a time that can be read: "
+            "'2019-11-18T23:44:40.000.000Z' is not a GPX time, "
+            "which looks like 2026-08-12T06:32:05.000Z"
         ),
     }
+
+
+def test_process_video_from_a_gpx_with_some_times_that_cannot_be_read(
+    setup_data: py.path.local,
+):
+    """The points with a time geotag the video, and the others are warned of"""
+    video_path = setup_data.join("gopro_data").join("max-360mode.mp4")
+    gpx_file = setup_data.join("gpx").join("max-360mode.gpx")
+    _copy_gpx_shifted_to(
+        setup_data.join("gpx").join("sf_30km_h.gpx"), gpx_file, _GOPRO_MAX_GPS_START
+    )
+    gpx_file.write(_with_unreadable_times(gpx_file.read(), every=2))
+
+    result = run_command(
+        [
+            *["--video_geotag_source", "gpx"],
+            *["--geotag_source_path", str(gpx_file)],
+            *["--desc_path", "-"],
+            str(video_path),
+        ],
+        command="process",
+        capture_output=True,
+        text=True,
+    )
+
+    # Once, as the path of the file may be written otherwise on Windows
+    assert result.stderr.count("Ignoring 25 of the 49 points in the GPX file") == 1
+    assert (
+        "whose times cannot be read (e.g. '2019-11-18T23:44:40.000.000Z')"
+        in result.stderr
+    )
+    [desc] = json.loads(result.stdout)
+    assert "error" not in desc, desc
+    assert len(desc["MAPGPSTrack"]) > 0
 
 
 def test_process_video_geotag_source_with_exiftool_runtime(setup_data: py.path.local):

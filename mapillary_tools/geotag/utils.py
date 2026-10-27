@@ -17,8 +17,9 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 
 import gpxpy
+import gpxpy.gpxfield
 
-from .. import exiftool_read, geo, telemetry, utils
+from .. import exceptions, exiftool_read, geo, telemetry, utils
 
 Track = T.List[geo.Point]
 LOG = logging.getLogger(__name__)
@@ -28,7 +29,11 @@ LOG = logging.getLogger(__name__)
 # videos, or the samples of a video and then their images, is parsed once.
 # Only a few are kept, so that one GPX file per video does not pile up
 _PARSED_GPX: collections.OrderedDict[
-    tuple[str, str], list[Track] | gpxpy.gpx.GPXException | UnicodeError
+    tuple[str, str],
+    list[Track]
+    | gpxpy.gpx.GPXException
+    | UnicodeError
+    | exceptions.MapillaryInvalidGPXError,
 ] = collections.OrderedDict()
 _MAX_PARSED_GPX = 4
 
@@ -38,6 +43,9 @@ _CHUNK_SIZE = 1024 * 1024
 # The warnings given in this process about the track files read, so that each
 # is given once however many times a file is read
 _WARNED: set[tuple[T.Hashable, ...]] = set()
+
+# What a time in a GPX file looks like, for the error of one that cannot be read
+_GPX_TIME_EXAMPLE = "2026-08-12T06:32:05.000Z"
 
 
 def parse_gpx(gpx_file: Path) -> list[Track]:
@@ -57,6 +65,10 @@ def read_gpx_tracks(gpx_file: Path) -> list[Track]:
     process for as long as the file does not change. They are shared with
     every other reader of the file, and must not be changed.
 
+    Only track points with a time that gpxpy can read are kept. A file
+    without any raises MapillaryInvalidGPXError, which says why; one with
+    only some is warned of, once (see _check_track_points()).
+
     A worker of a pool keeps none: it parses the GPX file of one video only,
     as a file that geotags several videos is read before the pool (see
     GeotagVideosFromGPX), and would free them only when it exits.
@@ -75,12 +87,21 @@ def read_gpx_tracks(gpx_file: Path) -> list[Track]:
                 # are, on every platform rather than in the encoding of the
                 # locale: a byte that is not UTF-8 only turns a letter of a
                 # name into U+FFFD, as for NMEA
-                parsed = _parse_gpx_file(
-                    io.TextIOWrapper(
-                        io.BufferedReader(reader), encoding="utf-8", errors="replace"
-                    )
+                parsed = _check_track_points(
+                    gpx_file,
+                    _parse_gpx_file(
+                        io.TextIOWrapper(
+                            io.BufferedReader(reader),
+                            encoding="utf-8",
+                            errors="replace",
+                        )
+                    ),
                 )
-            except (gpxpy.gpx.GPXException, UnicodeError) as ex:
+            except (
+                gpxpy.gpx.GPXException,
+                UnicodeError,
+                exceptions.MapillaryInvalidGPXError,
+            ) as ex:
                 parsed = ex
             # By the content parsed, which a file changed since it was looked
             # up by does not have
@@ -95,6 +116,33 @@ def read_gpx_tracks(gpx_file: Path) -> list[Track]:
     if isinstance(parsed, Exception):
         raise parsed.with_traceback(None)
     return parsed
+
+
+def describe_invalid_gpx(gpx_file: Path, ex: Exception) -> str:
+    """
+    The message of the error for the GPX file **gpx_file** that reading it
+    failed with **ex**, which says why
+
+    >>> describe_invalid_gpx(
+    ...     Path("a/track.gpx"),
+    ...     gpxpy.gpx.GPXXMLSyntaxException(
+    ...         "Error parsing XML: not well-formed (invalid token): line 2, column 0",
+    ...         None,
+    ...     ),
+    ... )
+    'track.gpx is not a valid GPX file: Error parsing XML: not well-formed (invalid token): line 2, column 0. Replace it with a valid GPX file.'
+    >>> describe_invalid_gpx(Path("track.gpx"), PermissionError(13, "Permission denied"))
+    'track.gpx is not a valid GPX file: Permission denied. Replace it with a valid GPX file.'
+    """
+    if isinstance(ex, OSError):
+        reason = ex.strerror or str(ex)
+    else:
+        reason = str(ex)
+    because = f": {reason.rstrip('.')}" if reason else ""
+    return (
+        f"{gpx_file.name} is not a valid GPX file{because}. "
+        "Replace it with a valid GPX file."
+    )
 
 
 def was_gpx_read(gpx_file: Path) -> bool:
@@ -172,15 +220,28 @@ class _DigestingReader(io.RawIOBase):
         return self._digest.hexdigest()
 
 
-def _parse_gpx_file(f: T.TextIO) -> list[Track]:
+@dataclasses.dataclass
+class _ParsedGPX:
+    # A track for each track segment, of its points with a time
+    tracks: list[Track]
+    # The track points, with a time or without
+    num_points: int
+    # Whether the file has routes or waypoints, which are not read
+    has_routes_or_waypoints: bool
+
+
+def _parse_gpx_file(f: T.TextIO) -> _ParsedGPX:
     gpx = gpxpy.parse(f)
 
     tracks: list[Track] = []
+    num_points = 0
 
     for track in gpx.tracks:
         for segment in track.segments:
             tracks.append([])
             for point in segment.points:
+                num_points += 1
+                # None too if gpxpy cannot read the time, which it says nothing of
                 if point.time is not None:
                     tracks[-1].append(
                         track_point(
@@ -191,7 +252,150 @@ def _parse_gpx_file(f: T.TextIO) -> list[Track]:
                         )
                     )
 
-    return tracks
+    return _ParsedGPX(
+        tracks=tracks,
+        num_points=num_points,
+        has_routes_or_waypoints=bool(gpx.routes or gpx.waypoints),
+    )
+
+
+def _check_track_points(gpx_file: Path, parsed: _ParsedGPX) -> list[Track]:
+    """
+    The tracks of the parsed GPX file **gpx_file**, of its track points with
+    a time: one without cannot be placed on a video, or matched with an
+    image. Raise MapillaryInvalidGPXError, which says why, if it has none,
+    and warn once of the points left out whose time cannot be read.
+
+    A point without a <time>, which GPX allows, is left out without a word:
+    ExifTool writes one only on the points of a GoPro video that have a GPS
+    time. A point whose time gpxpy cannot read is left out as gpxpy leaves
+    it, without a time: no time is guessed from the text, as of
+    06:32:05.123.456Z, whose second fraction could mean anything.
+    """
+    if not parsed.num_points:
+        not_read = (
+            "; routes and waypoints are not read"
+            if parsed.has_routes_or_waypoints
+            else ""
+        )
+        raise exceptions.MapillaryInvalidGPXError(
+            f"{gpx_file.name} has no track points{not_read}"
+        )
+
+    num_timeless = parsed.num_points - sum(len(track) for track in parsed.tracks)
+    if not num_timeless:
+        return parsed.tracks
+
+    unreadable: _UnreadableTimes | None
+    try:
+        unreadable = _read_unreadable_times(gpx_file)
+    except Exception:
+        # Why is not known, which must not fail the file otherwise
+        unreadable = None
+
+    if num_timeless == parsed.num_points:
+        if unreadable is None:
+            why = ""
+        elif unreadable.first is None:
+            why = ": its track points have no <time>"
+        else:
+            why = f": {unreadable.first!r} is not a GPX time, which looks like {_GPX_TIME_EXAMPLE}"
+        raise exceptions.MapillaryInvalidGPXError(
+            f"{gpx_file.name} has no track point with a time that can be read{why}"
+        )
+
+    if unreadable is None:
+        warn_once(
+            gpx_file,
+            ("unreadable times", num_timeless, parsed.num_points),
+            "Ignoring %d of the %d points in the GPX file %s, whose times cannot be read",
+            num_timeless,
+            parsed.num_points,
+            gpx_file,
+        )
+    elif unreadable.first is not None:
+        warn_once(
+            gpx_file,
+            ("unreadable times", unreadable.count, parsed.num_points),
+            "Ignoring %d of the %d points in the GPX file %s, whose times cannot be read (e.g. %r)",
+            unreadable.count,
+            parsed.num_points,
+            gpx_file,
+            unreadable.first,
+        )
+    return parsed.tracks
+
+
+@dataclasses.dataclass
+class _UnreadableTimes:
+    # The text of the first, or None if there are none
+    first: str | None
+    count: int
+
+
+def _read_unreadable_times(gpx_file: Path) -> _UnreadableTimes:
+    """
+    The <time> of the track points in the GPX file **gpx_file** that gpxpy
+    cannot read. gpxpy reads no time for such a point, as for a point without
+    a <time>, and keeps no trace of the text, so the file is read again, as
+    XML decoded as gpxpy reads it (see read_gpx_tracks()). That raises if the
+    file changed since, or if gpxpy read it with another XML parser (lxml).
+
+    >>> import tempfile
+    >>> with tempfile.TemporaryDirectory() as tmp:
+    ...     gpx = Path(tmp) / "track.gpx"
+    ...     _ = gpx.write_text(
+    ...         '<gpx xmlns="http://www.topografix.com/GPX/1/1">'
+    ...         "<metadata><time>bad</time></metadata><trk><trkseg>"
+    ...         '<trkpt lat="1" lon="2"><time>2026-08-12T06:32:05Z</time></trkpt>'
+    ...         '<trkpt lat="1" lon="2"></trkpt>'
+    ...         '<trkpt lat="1" lon="2"><time> 2026-08-12T06:32:06Z</time></trkpt>'
+    ...         '<trkpt lat="1" lon="2"><time>2026-08-12</time></trkpt>'
+    ...         "</trkseg></trk></gpx>"
+    ...     )
+    ...     _read_unreadable_times(gpx)
+    _UnreadableTimes(first=' 2026-08-12T06:32:06Z', count=2)
+    """
+    unreadable = _UnreadableTimes(first=None, count=0)
+    # The local names of the elements that the element read is in
+    parents: list[str] = []
+    with gpx_file.open("r", encoding="utf-8", errors="replace") as f:
+        # Fed text, as gpxpy is, the parser ignores the encoding the file
+        # declares
+        for event, element in ET.iterparse(f, events=("start", "end")):
+            name = element.tag.rpartition("}")[2]
+            if event == "start":
+                parents.append(name)
+                continue
+            parents.pop()
+            if name == "time" and parents[-1:] == ["trkpt"]:
+                text = element.text or ""
+                if not _is_gpx_time(text):
+                    unreadable.count += 1
+                    if unreadable.first is None:
+                        unreadable.first = text
+            elif name == "trkpt":
+                # Read, so that a long track is not kept whole
+                element.clear()
+    return unreadable
+
+
+def _is_gpx_time(text: str) -> bool:
+    """
+    Whether gpxpy can read the time **text** of a GPX file
+
+    >>> _is_gpx_time("2026-08-12T06:32:05.000Z")
+    True
+    >>> _is_gpx_time("2026-08-12T06:32:05.000.000Z")
+    False
+    >>> _is_gpx_time("")
+    False
+    """
+    try:
+        return gpxpy.gpxfield.parse_time(text) is not None
+    # gpxpy reads a time that raises anything as none
+    except Exception:
+        return False
 
 
 def track_point(
