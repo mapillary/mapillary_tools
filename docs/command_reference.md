@@ -328,7 +328,7 @@ Uploads the images (as sequences), videos and zip files under the import paths, 
 | `--organization_key ID`      |               | Upload to the organization with this ID.                                                          |
 | `--organization_name NAME`   |               | Upload to the organization saved under NAME in the profile. With `--organization_key ID`, save the ID under NAME. |
 | `--num_upload_workers N`     | 4             | Concurrent image uploads.                                                                         |
-| `--reupload`                 |               | Upload files that were uploaded before.                                                           |
+| `--reupload`                 |               | Upload again what was uploaded before.                                                            |
 | `--dry_run`                  |               | Write the uploads to a local folder instead of Mapillary (for testing).                           |
 | `--noresume`                 |               | Start interrupted uploads from the beginning.                                                     |
 | `--nofinish`                 |               | Upload without finishing: nothing appears on Mapillary (for testing).                             |
@@ -346,8 +346,10 @@ Gotchas:
 
 - With no profile yet, it asks you to log in. With several profiles, it asks which one, unless you give
   `--user_name`. When it cannot prompt (no terminal, or `MAPILLARY_TOOLS_PROMPT_DISABLED=YES`), it fails instead.
-- Files already uploaded from this computer are skipped. The upload history is kept on this computer only.
-  `--dry_run` neither reads nor writes it.
+- Image sequences, videos and zip files already uploaded from this computer are skipped. Each is compared as a
+  whole, by a checksum: a sequence with one image added or removed counts as new and is uploaded again, and a
+  video is recognized by its file alone, even if its track changed. The upload history is kept on this computer
+  only. `--dry_run` neither reads nor writes it.
 - An interrupted upload resumes where it stopped the next time you upload the same files.
 - `--organization_key` takes a numeric ID. Organization names are 2 to 32 letters, digits, `-` and `_`, starting
   with a letter, and are case-sensitive. Saving a name again with another ID replaces it.
@@ -471,10 +473,11 @@ Gotchas:
 mapillary_tools check_upload_history IMPORT_PATH [IMPORT_PATH ...] [--desc_path PATH]
 ```
 
-Tells whether the processed image sequences and videos were uploaded from this computer before. Takes the same
-import paths and description file as `upload`, and prints a JSON array with one entry per sequence or video:
-its file type, sequence UUID, checksum, file names, `already_uploaded_filenames`, and `already_uploaded`, which
-is true only when all its files are in the history.
+Tells whether the processed image sequences, videos and zip files were uploaded from this computer before. Takes
+the same import paths and description file as `upload`, and prints a JSON array with one entry per sequence,
+video or zip file: its file type, sequence UUID, checksum, file names, `already_uploaded_filenames`, and
+`already_uploaded`, which is true only when all its files are in the history. Images are looked up one by one,
+also in sequences uploaded before, so it can report as uploaded a sequence that `upload` would upload again.
 
 It reads only the local upload history: it needs no login, makes no network requests, and changes nothing.
 Uploads from another computer, or with `--dry_run`, are not in it.
