@@ -63,7 +63,8 @@ The commands take one or more files or directories.
   Sidecar and companion files (`.gpx`, `.nmea`, `.xml`, `.json`, `.thm`, `.lrv`, `.srt`, `.txt`, `.DS_Store` and
   the like) are skipped with a warning instead, so that `process DCIM/100GOPRO/*` works. Zip files are
   uploaded as they are.
-- Images are JPEG files with a capture time and a GPS position (or a GPS track to place them on). Videos need GPS
+- Images are JPEG files (`.jpg`, `.jpeg`, `.jpe`; `.tif`, `.tiff`, `.pgm`, `.pnm` and `.36p` are processed as
+  images too) with a capture time and a GPS position (or a GPS track to place them on). Videos need GPS
   of their own, or a GPX or NMEA track, or GPS that ExifTool can read. See [Geotag sources](#geotag-sources).
 
 ### The description file
@@ -79,7 +80,9 @@ The commands take one or more files or directories.
 - File names in it are absolute. `upload` uploads the entries without an error whose files are under the import
   paths it is given, so do not move the files between `process` and `upload`.
 - `process` writes it before it fails, so a later `upload` uploads the files that did not fail.
-- `upload` checks every entry against the schema, and stops at one that does not match (exit code 15).
+- `upload` checks every entry without an `error` against the schema, and stops at one that does not match (exit
+  code 15). Entries with an `error` are not checked and not uploaded, but keep their `filetype`: `upload`
+  crashes on an error entry without one.
 
 ### Sequences and checks
 
@@ -171,8 +174,9 @@ mapillary_tools process MY_IMAGE_DIR \
 mapillary_tools process MY_CAPTURE_DIR --process_report_path report.json
 ```
 
-The process report (version 1) has `discovered_file_count`, `processed_file_count` (which counts the files that
-failed to process too), `skipped_file_count`, and `skipped_files` with the name, category, reason code and
+The process report (version 1) has `discovered_file_count`, `processed_file_count` (the files with a supported
+extension, counted before processing: including those that fail, and those that `--filetypes` leaves out),
+`skipped_file_count`, and `skipped_files` with the name, category, reason code and
 extension of each unsupported file. An unsupported file named on the command line is always reported. The report
 holds absolute file names, so treat it as private.
 
@@ -189,14 +193,17 @@ Gotchas:
   change the capture time that is uploaded: to fix a camera clock against a GPX, use
   `--interpolation_offset_time` alone.
 - The `--overwrite_*` options modify your original images.
-- Images whose only date is a placeholder, or before 1970, fail. So do EXIF GPS minutes or seconds above 60.
+- Images whose only date is a placeholder, or before 1970, fail. `native` also rejects EXIF GPS minutes or
+  seconds above 60, but with ExifTool installed, the default `exiftool_runtime` fallback then geotags such an
+  image at a wrong position, without a warning. Check images that `native` rejects.
 
 ## Geotag sources
 
 ### --geotag_source
 
-Sources are tried in order. A file that a source finds no GPS for, or places outside its track, goes to the
-next source, and if none geotags it, it gets the error of the last one that tried. Other errors end the search:
+Sources are tried in order. A file that a source finds no GPS for, places outside its track, or cannot read
+because ExifTool or an XML file is missing, goes to the next source. If none geotags it, it gets the error of the
+last one that tried, except that the rejection of a video's own GPS is kept over a later "GPX file not found". Other errors end the search:
 a track file that is not valid, or has no time that can be read, fails the files it was to geotag, even if a
 later source could have. A video whose own GPS is rejected as empty or noisy goes on only to `gpx` and `nmea` sources.
 Repeat the option or separate sources with commas. The default is `native`, then `exiftool_runtime`.
@@ -228,7 +235,7 @@ Gotchas:
 - A file that no source is given for fails. For example, `--geotag_source exif` on a folder with videos fails the
   videos, and a source limited with `"filetypes": ["image"]` leaves the videos without one.
 - `gpx` and `nmea` for images need a single track file, given with `--geotag_source_path`. Without it, the
-  command stops (exit code 2) if it finds any image.
+  command stops (exit code 2) when an image reaches the source.
 
 ### --video_geotag_source
 
@@ -295,8 +302,10 @@ How a track is lined up with a video:
   or sample the video with `video_process` and `--video_start_time`.
 - In `video_process`, give the start time of a video without GPS with `--video_start_time`, in UTC. Without it,
   distance sampling assumes that the track starts with the video, and refuses a track more than twice as long
-  as the video (the error prints the start of the track, to pass as `--video_start_time`). Interval sampling
-  reads the start time from the creation time of the video instead.
+  as the video (for a track shorter than a day, the error prints its start, to pass as `--video_start_time` if
+  the logger was started with the video). Interval sampling does the same with `--video_geotag_source gpx`,
+  where its frames then fail without saying why; with `--geotag_source gpx`, it reads the start time from the
+  creation time of the video instead.
 - In `video_process`, give a timelapse without GPS of its own `--video_duration_ratio`: the seconds of capture
   per second of video, such as 60 for one frame every 2 seconds played at 30 frames per second.
 
@@ -329,7 +338,7 @@ Uploads the images (as sequences), videos and zip files under the import paths, 
 | `--organization_name NAME`   |               | Upload to the organization saved under NAME in the profile. With `--organization_key ID`, save the ID under NAME. |
 | `--num_upload_workers N`     | 4             | Concurrent image uploads.                                                                         |
 | `--reupload`                 |               | Upload again what was uploaded before.                                                            |
-| `--dry_run`                  |               | Write the uploads to a local folder instead of Mapillary (for testing).                           |
+| `--dry_run`                  |               | Write the uploads to a local folder instead of Mapillary (for testing). Also `--dryrun`.          |
 | `--noresume`                 |               | Start interrupted uploads from the beginning.                                                     |
 | `--nofinish`                 |               | Upload without finishing: nothing appears on Mapillary (for testing).                             |
 
@@ -353,9 +362,9 @@ Gotchas:
 - An interrupted upload resumes where it stopped the next time you upload the same files.
 - `--organization_key` takes a numeric ID. Organization names are 2 to 32 letters, digits, `-` and `_`, starting
   with a letter, and are case-sensitive. Saving a name again with another ID replaces it.
-- A file that fails to upload does not stop the others, and the command still exits with code 0: check the
-  upload summary. Connection errors, time-outs, authorization errors and other HTTP errors stop the command
-  (exit codes 12, 13, 14 and 16).
+- An image that fails to upload fails its whole sequence. The other sequences, videos and zip files carry on, and
+  the command still exits with code 0: check the upload summary. Connection errors, time-outs, authorization
+  errors, other HTTP errors and unexpected API responses stop the command (exit codes 12, 13, 14, 16 and 17).
 - Uploading a folder of zip files also needs a description file: pass the one of the zipped images with
   `--desc_path`.
 
@@ -375,7 +384,7 @@ By default it takes one frame every 3 m along the GPS track of the video (distan
 | ----------------------------------- | ------- | ------------------------------------------------------------------------------------------------- |
 | `--video_sample_distance METERS`    | 3       | Distance between frames. `-1` turns distance sampling off.                                        |
 | `--video_sample_interval SECONDS`   |         | Time between frames, with `--video_sample_distance -1`.                                           |
-| `--video_start_time TIME`           |         | Start time of the videos, in UTC, as `YYYY_MM_DD_HH_MM_SS_sss`. Places a video without GPS on a GPX track. |
+| `--video_start_time TIME`           |         | Start time of the videos, in UTC, as `YYYY_MM_DD_HH_MM_SS_sss`, for videos without a GPS clock. Sets the capture times of the frames; in `video_process`, also places the video on a GPX track. |
 | `--video_duration_ratio RATIO`      | 1       | Seconds of capture per second of video, for a timelapse without a GPS clock.                      |
 | `--skip_subfolders`                 |         | Read only the top level of `VIDEO_IMPORT_PATH`.                                                   |
 | `--rerun`                           |         | Delete the frames of earlier runs and sample again.                                               |
@@ -443,7 +452,7 @@ mapillary_tools authenticate [--user_name PROFILE] [OPTIONS]
 ```
 
 Logs in to Mapillary and saves the credentials as a profile in the config file
-(`~/.config/mapillary/configs/`, or `MAPILLARY_CONFIG_PATH`). It lists the existing profiles first, with the
+(a file in `~/.config/mapillary/configs/`, or the file that `MAPILLARY_CONFIG_PATH` names). It lists the existing profiles first, with the
 organization names saved in each.
 
 | Option                       | Description                                                                         |
@@ -522,7 +531,7 @@ mapillary_tools upload MY_ZIPS --desc_path MY_IMAGE_DIR/mapillary_image_descript
 
 | Variable                                   | Default                       | Description                                                  |
 | ------------------------------------------ | ----------------------------- | ------------------------------------------------------------ |
-| `MAPILLARY_CONFIG_PATH`                    | `~/.config/mapillary/configs/…` | The config file with the profiles.                         |
+| `MAPILLARY_CONFIG_PATH`                    | a file in `~/.config/mapillary/configs/` | The config file with the profiles: a file path, not a folder. |
 | `MAPILLARY_TOOLS_PROMPT_DISABLED`          | `NO`                          | `YES` to never prompt, and fail instead.                     |
 | `MAPILLARY_TOOLS_EXIFTOOL_PATH`            | `exiftool`                    | The ExifTool executable.                                     |
 | `MAPILLARY_TOOLS_FFMPEG_PATH`, `MAPILLARY_TOOLS_FFPROBE_PATH` | `ffmpeg`, `ffprobe` | The FFmpeg executables.                                  |
