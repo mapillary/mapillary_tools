@@ -10,14 +10,15 @@ their images, is parsed once in a run, and warned about once
 
 from __future__ import annotations
 
+import io
 import logging
 import multiprocessing
+import types
 from pathlib import Path
 
 import gpxpy
 import pytest
-
-from mapillary_tools import sample_video
+from mapillary_tools import exceptions, sample_video
 from mapillary_tools.geotag import (
     geotag_images_from_gpx_file,
     geotag_videos_from_gpx,
@@ -154,26 +155,67 @@ def test_a_gpx_file_is_kept_by_the_content_parsed(
     assert len(utils.read_gpx_tracks(gpx)) == 1
 
 
-def test_a_gpx_file_is_decoded_as_a_file_opened_in_text_mode(
-    tmp_path: Path, parses: list[int]
+def _points(tracks: list[utils.Track]) -> list[list[tuple[float, float]]]:
+    return [[(p.time, p.lat) for p in track] for track in tracks]
+
+
+@pytest.fixture
+def cp1252_locale(monkeypatch):
+    """
+    Open files in text mode with cp1252 when no encoding is given, as on
+    Western Windows
+    """
+    text_io_wrapper = io.TextIOWrapper
+
+    def wrapper(buffer, encoding=None, *args, **kwargs):
+        return text_io_wrapper(buffer, encoding or "cp1252", *args, **kwargs)
+
+    monkeypatch.setattr(
+        utils,
+        "io",
+        types.SimpleNamespace(TextIOWrapper=wrapper, BufferedReader=io.BufferedReader),
+    )
+
+
+@pytest.mark.parametrize("bom", [b"", b"\xef\xbb\xbf"])
+def test_a_gpx_file_is_decoded_as_utf8_whatever_the_locale(
+    tmp_path: Path, parses: list[int], cp1252_locale, bom: bytes
 ):
     """
-    As gpxpy parsed a file opened in text mode before, with the encoding of
-    the platform: a byte order mark and names that are not ASCII
+    Names that cp1252 cannot decode failed the whole file on Western
+    Windows, with or without a byte order mark
     """
+    plain = tmp_path / "plain.gpx"
+    plain.write_bytes(ONE_TRACK)
     gpx = tmp_path / "track.gpx"
-    name = "<name>Stra\u00dfe \u00e9t\u00e9</name>".encode("utf-8")
-    gpx.write_bytes(b"\xef\xbb\xbf" + ONE_TRACK.replace(b"<trk>", b"<trk>" + name))
+    name = "<name>\u00c1rbol \u5317\u4eac</name>".encode("utf-8")
+    gpx.write_bytes(bom + ONE_TRACK.replace(b"<trk>", b"<trk>" + name))
 
-    def outcome(read):
-        try:
-            return [[(p.time, p.lat) for p in track] for track in read()]
-        except Exception as ex:
-            return type(ex)
+    assert _points(utils.parse_gpx(gpx)) == _points(utils.parse_gpx(plain))
 
-    with gpx.open("r") as f:
-        expected = outcome(lambda: utils._parse_gpx_file(f))
-    assert outcome(lambda: utils.parse_gpx(gpx)) == expected
+
+def test_a_byte_that_is_not_utf8_only_spoils_a_name(tmp_path: Path, parses: list[int]):
+    """An ISO-8859-1 GPX reads with the points of its UTF-8 copy"""
+    plain = tmp_path / "plain.gpx"
+    plain.write_bytes(ONE_TRACK)
+    gpx = tmp_path / "track.gpx"
+    gpx.write_bytes(
+        ONE_TRACK.replace(
+            b'<?xml version="1.0"?>', b'<?xml version="1.0" encoding="ISO-8859-1"?>'
+        ).replace(b"<trk>", "<trk><name>Caf\u00e9</name>".encode("latin-1"))
+    )
+
+    assert _points(utils.parse_gpx(gpx)) == _points(utils.parse_gpx(plain))
+
+
+def test_a_utf16_gpx_file_is_still_invalid(tmp_path: Path, parses: list[int]):
+    gpx = tmp_path / "track.gpx"
+    gpx.write_bytes(ONE_TRACK.decode("utf-8").encode("utf-16"))
+
+    with pytest.raises(exceptions.MapillaryInvalidGPXError):
+        geotag_images_from_gpx_file._read_gpx_points(gpx)
+    with pytest.raises(exceptions.MapillaryInvalidGPXError):
+        GPXVideoExtractor(tmp_path / "video.mp4", gpx)._read_tracks()
 
 
 def test_only_the_last_gpx_files_are_kept(tmp_path: Path, parses: list[int]):

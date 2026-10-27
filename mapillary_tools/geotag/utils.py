@@ -71,8 +71,15 @@ def read_gpx_tracks(gpx_file: Path) -> list[Track]:
             try:
                 # Parsed from the file opened in text mode, which gpxpy reads
                 # whole itself, so that no other copy of its content is kept
-                # while it parses
-                parsed = _parse_gpx_file(io.TextIOWrapper(io.BufferedReader(reader)))
+                # while it parses. As UTF-8, which GPX files almost always
+                # are, on every platform rather than in the encoding of the
+                # locale: a byte that is not UTF-8 only turns a letter of a
+                # name into U+FFFD, as for NMEA
+                parsed = _parse_gpx_file(
+                    io.TextIOWrapper(
+                        io.BufferedReader(reader), encoding="utf-8", errors="replace"
+                    )
+                )
             except (gpxpy.gpx.GPXException, UnicodeError) as ex:
                 parsed = ex
             # By the content parsed, which a file changed since it was looked
