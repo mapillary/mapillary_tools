@@ -868,6 +868,37 @@ def test_video_process_processes_the_videos_that_sampled(setup_data: py.path.loc
         assert Path(desc["filename"]).parent.name == "max-360mode.mp4"
 
 
+def test_video_process_samples_a_symlinked_video(setup_data: py.path.local):
+    """
+    A link in the folder to a video outside it crashed with "is not in the
+    subpath of". Its samples are in a folder named after the link, as they are
+    named, and are geotagged
+    """
+    pytest_skip_if_not_ffmpeg_installed()
+
+    video_dir = Path(setup_data, "linked_videos")
+    video_dir.mkdir()
+    try:
+        os.symlink(
+            Path(setup_data, "gopro_data", "max-360mode.mp4"), video_dir / "link.mp4"
+        )
+    except (OSError, NotImplementedError) as ex:
+        pytest.skip(f"Cannot create symbolic links here: {ex}")
+
+    descs = run_video_process_for_descs(
+        [
+            "--video_sample_distance=6",
+            str(video_dir),
+            str(Path(setup_data, "my_samples")),
+        ]
+    )
+    assert descs
+    for desc in descs:
+        assert "error" not in desc, desc
+        assert Path(desc["filename"]).parent.name == "link.mp4"
+        assert Path(desc["filename"]).name.startswith("link_")
+
+
 def test_video_process_skips_the_only_video(setup_data: py.path.local):
     """
     Skipping every video leaves nothing to process, which is not an error:

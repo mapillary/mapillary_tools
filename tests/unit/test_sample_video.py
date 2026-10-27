@@ -3243,3 +3243,35 @@ class TestSampleSourcesPath:
         assert gpx.source_path.source_path == Path("/data/track.gpx")
         assert nmea.source_path is not None
         assert nmea.source_path.source_path == Path("/data/other.gpx")
+
+
+def _symlink(link: Path, target: Path) -> None:
+    try:
+        os.symlink(target, link)
+    except (OSError, NotImplementedError) as ex:
+        pytest.skip(f"Cannot create symbolic links here: {ex}")
+
+
+def test_a_symlinked_video_is_sampled_into_a_folder_named_after_the_link(
+    tmp_path: Path,
+):
+    """
+    A link in the folder to a video outside it crashed with "is not in the
+    subpath of", and a link given itself was sampled into a folder named after
+    the video it links to, while its samples were named after the link
+    """
+    target = tmp_path / "elsewhere" / "video.mp4"
+    target.parent.mkdir()
+    target.write_bytes(b"")
+    videos = tmp_path / "videos"
+    videos.mkdir()
+    _symlink(videos / "link.mp4", target)
+    out = tmp_path / "out"
+
+    assert sample_video.find_sample_dirs(videos, out) == [out / "link.mp4"]
+    assert sample_video.find_sample_dirs(videos / "link.mp4", out) == [out / "link.mp4"]
+
+    # Two links to one video are still sampled once, by either link
+    _symlink(videos / "link2.mp4", target)
+    [sample_dir] = sample_video.find_sample_dirs(videos, out)
+    assert sample_dir in [out / "link.mp4", out / "link2.mp4"]
