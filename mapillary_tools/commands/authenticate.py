@@ -34,10 +34,16 @@ class Command:
         )
         parser.add_argument(
             "--delete",
-            help="Delete the specified user profile",
+            help="Delete the specified user profile, or with --organization_name, only that saved organization name",
             default=False,
             required=False,
             action="store_true",
+        )
+        parser.add_argument(
+            "--organization_name",
+            help="The saved organization name to delete from the user profile, with --delete",
+            default=None,
+            required=False,
         )
 
     def run(self, vars_args: dict):
