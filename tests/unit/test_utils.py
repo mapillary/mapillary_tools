@@ -86,6 +86,27 @@ def test_find_image_samples_where_resolve_leaves_paths_relative(monkeypatch):
     assert {} == ambiguous
 
 
+def test_find_image_samples_of_a_symlinked_video(tmp_path: Path):
+    """
+    sample_video() names the folder of a symlinked video after the link, which
+    a video path resolved to the file it links to did not match
+    """
+    target = tmp_path / "elsewhere" / "video.mp4"
+    target.parent.mkdir()
+    target.write_bytes(b"")
+    link = tmp_path / "videos" / "link.mp4"
+    link.parent.mkdir()
+    try:
+        os.symlink(target, link)
+    except (OSError, NotImplementedError) as ex:
+        pytest.skip(f"Cannot create symbolic links here: {ex}")
+    sample = tmp_path / "out" / "link.mp4" / "link_0_000001.jpg"
+
+    samples, ambiguous = utils.find_image_samples([sample], [link])
+    assert {link: [sample]} == samples
+    assert {} == ambiguous
+
+
 def test_find_image_samples_of_videos_on_different_drives(monkeypatch):
     """Videos of the same name that no path tells apart could be any of them"""
 

@@ -151,11 +151,13 @@ def find_image_samples(
     {'OUT/clip.mp4/clip_0_000001.jpg': ['VIDEOS/x/clip.mp4', 'VIDEOS/y/clip.mp4']}
     """
     videos = list(deduplicate_paths(video_paths))
-    resolved_videos = [_absolute(video) for video in videos]
+    # Absolute with their symbolic links kept, as sample_video() names the
+    # folders of the videos after the paths it was given
+    absolute_videos = [Path(os.path.abspath(video)) for video in videos]
     try:
         root: Path | None = (
-            Path(os.path.commonpath([video.parent for video in resolved_videos]))
-            if resolved_videos
+            Path(os.path.commonpath([video.parent for video in absolute_videos]))
+            if absolute_videos
             else None
         )
     except ValueError:
@@ -164,21 +166,21 @@ def find_image_samples(
 
     # The videos of each name, with their paths relative to the root
     videos_by_name: dict[str, list[tuple[Path, tuple[str, ...]]]] = {}
-    for video, resolved_video in zip(videos, resolved_videos):
+    for video, absolute_video in zip(videos, absolute_videos):
         if root is None:
-            relative_parts: tuple[str, ...] = (resolved_video.name,)
+            relative_parts: tuple[str, ...] = (absolute_video.name,)
         else:
-            relative_parts = resolved_video.relative_to(root).parts
-        videos_by_name.setdefault(resolved_video.name, []).append(
+            relative_parts = absolute_video.relative_to(root).parts
+        videos_by_name.setdefault(absolute_video.name, []).append(
             (video, relative_parts)
         )
 
     samples_by_video: dict[Path, list[Path]] = {}
     ambiguous: dict[Path, list[Path]] = {}
     for image_path in image_paths:
-        # Resolved first, to walk the path upwards: the folder of a sample is
-        # named after its video
-        sample_dir = _absolute(image_path).parent
+        # Made absolute first, to walk the path upwards: the folder of a
+        # sample is named after its video
+        sample_dir = Path(os.path.abspath(image_path)).parent
         candidates = videos_by_name.get(sample_dir.name, [])
         stem, _ = os.path.splitext(sample_dir.name)
         if not candidates or not image_path.name.startswith(stem + "_"):
@@ -205,15 +207,6 @@ def find_image_samples(
         samples_by_video.setdefault(video, []).append(image_path)
 
     return samples_by_video, ambiguous
-
-
-def _absolute(path: Path) -> Path:
-    """
-    The absolute path of **path**, with its symbolic links resolved where it
-    exists. Path.resolve() alone leaves a path that does not exist relative on
-    Windows with Python 3.9 and 3.10
-    """
-    return Path(os.path.abspath(path.resolve()))
 
 
 def deduplicate_paths(paths: T.Iterable[Path]) -> T.Generator[Path, None, None]:

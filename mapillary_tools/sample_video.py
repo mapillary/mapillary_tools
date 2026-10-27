@@ -61,11 +61,13 @@ def _normalize_path(
         video_list = sorted(
             utils.find_videos([video_import_path], skip_subfolders=skip_subfolders)
         )
-        video_dir = video_import_path.resolve()
+        # Absolute with its symbolic links kept, as the paths of the videos
+        # in it are made (see _sample_dir)
+        video_dir = Path(os.path.abspath(video_import_path))
         LOG.debug("Found %d videos in %s", len(video_list), video_dir)
     elif video_import_path.is_file():
         video_list = [video_import_path]
-        video_dir = video_import_path.resolve().parent
+        video_dir = Path(os.path.abspath(video_import_path)).parent
     else:
         raise exceptions.MapillaryFileNotFoundError(
             f"Video file or directory not found: {video_import_path}"
@@ -89,8 +91,12 @@ def find_sample_dirs(
 
 
 def _sample_dir(import_path: Path, video_dir: Path, video_path: Path) -> Path:
-    # need to resolve video_path because video_dir might be absolute
-    return Path(import_path).joinpath(video_path.resolve().relative_to(video_dir))
+    # Absolute, as video_dir is, with its symbolic links kept: a link to a
+    # video outside video_dir is sampled into a folder named after the link,
+    # as its samples are
+    return Path(import_path).joinpath(
+        Path(os.path.abspath(video_path)).relative_to(video_dir)
+    )
 
 
 def xor(a: bool, b: bool):
