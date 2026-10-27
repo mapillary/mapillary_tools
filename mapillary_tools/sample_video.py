@@ -11,7 +11,6 @@ import logging
 import os
 import re
 import shutil
-import statistics
 import time
 import typing as T
 from contextlib import contextmanager
@@ -457,21 +456,6 @@ def wip_sample_dir(sample_dir: Path) -> Path:
     )
 
 
-# GPS clocks that report a time before this have never been set: GoPro writes
-# 2000-01-01 until it gets its first fix, for example
-_MIN_PLAUSIBLE_START_TIME = datetime.datetime(
-    2010, 1, 1, tzinfo=datetime.timezone.utc
-).timestamp()
-
-# Leave room for the clock of the machine running this to be behind
-_MAX_FUTURE_START_TIME_SECONDS = 24 * 3600
-
-# How many GPS timestamps to take the median of, so that a single bad one cannot
-# shift the start time: the Labpano PanoX V2 can record a stale first fix,
-# seconds older than the rest. Only the first few are used because in timelapses
-# the video clock runs slower than the GPS clock, so the two drift apart
-_GPS_CLOCK_SAMPLES = 5
-
 # Cameras known to stamp the creation time at the end of the recording, as
 # lowercase (make, model) from the container tags. BlackVue is not listed
 # because it does not write those tags: blackvue_parser.is_blackvue detects it
@@ -499,32 +483,17 @@ def _gps_clock_start_time(
     points: T.Sequence[geo.Point],
 ) -> datetime.datetime | None:
     """
-    Map the absolute GPS timestamps at the start of a track back to the video's time 0.
-
-    Point times are relative to the start of the video, so subtracting one from
-    its own absolute timestamp gives the wall clock at which the video started.
-    Timestamps outside the plausible range are skipped.
+    The wall clock time at which the video started, by its GPS clock, or None
+    if it has none: by the timestamps that GPX sync reads the clock from (see
+    GPXVideoExtractor._read_timestamps), at the clock's pace, which a timelapse
+    packs several GPS seconds into each second of video at
     """
-    max_start_time = time.time() + _MAX_FUTURE_START_TIME_SECONDS
-
-    start_times: list[float] = []
-    for point in points:
-        unix_time = point.get_unix_time()
-        if unix_time is None:
-            continue
-        start_time = unix_time - point.time
-        # Written as a negated range check so that NaN is skipped too
-        if not (_MIN_PLAUSIBLE_START_TIME <= start_time <= max_start_time):
-            continue
-        start_times.append(start_time)
-        if len(start_times) >= _GPS_CLOCK_SAMPLES:
-            break
-
-    if not start_times:
+    clock = GPXVideoExtractor._read_video_clock(points)
+    if clock is None:
         return None
 
     return datetime.datetime.fromtimestamp(
-        statistics.median(start_times), tz=datetime.timezone.utc
+        clock.to_unix_time(0.0), tz=datetime.timezone.utc
     )
 
 
@@ -787,7 +756,7 @@ def _gpx_sync_clock(
         if not noisy:
             return None
         video_clock = extractor._read_video_clock(native_video_metadata.points)
-        return extractor._sync_clock(video_clock, gpx_points, noisy)
+        return extractor._sync_clock(video_clock, gpx_points)
 
     return None
 

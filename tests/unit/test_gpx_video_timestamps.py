@@ -118,6 +118,37 @@ class TestReadTimestamps:
 
         assert _read(pairs) == [(2, 2), (3, 3)]
 
+    def test_without_timestamps_before_a_leap_of_minutes(self):
+        """
+        A clock that leaps 2 hours ahead of the video has just got the GPS
+        time, such as from a camera clock in local time
+        """
+        pairs = [(0, -7200), (1, -7199), (2, -7198), (3, 3), (4, 4), (5, 5)]
+
+        assert _read(pairs) == [(3, 3), (4, 4), (5, 5)]
+
+    def test_with_a_step_of_less_than_a_minute(self):
+        """Further on, a step of seconds is the clock's, not a leap to the time"""
+        pairs = [(0, 0), (1, 1), (2, 32), (3, 33), (4, 34)]
+
+        assert _read(pairs) == pairs
+
+    def test_without_timestamps_before_2016(self):
+        """A placeholder date that the GPS never got past"""
+        before = datetime.datetime(2015, 10, 22, tzinfo=datetime.timezone.utc)
+        offset = before.timestamp() - START.timestamp()
+
+        assert _read([(v, offset + v) for v in range(5)]) == []
+
+    def test_without_timestamps_in_the_future(self):
+        future = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(
+            days=2
+        )
+        offset = future.timestamp() - START.timestamp()
+        pairs = [(0, 0), (1, 1), (2, 2), (3, offset + 3), (4, offset + 4)]
+
+        assert _read(pairs) == [(0, 0), (1, 1), (2, 2)]
+
     def test_none_without_timestamps(self):
         points = _points([(0, 0)])
         points[0] = geo.Point(time=0, lat=37, lon=-122, alt=None, angle=None)

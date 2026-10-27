@@ -188,12 +188,18 @@ class TestGPXOverridesNoisyGPS:
 
         assert [p.time for p in metadata.points] == pytest.approx([2.0, 4.0])
 
-    def test_noisy_clock_days_away_is_ignored(self, monkeypatch, video_path, gpx_path):
+    @pytest.mark.parametrize("creation_time", [None, A_UNIX_TIME])
+    def test_placeholder_clock_is_ignored(
+        self, monkeypatch, video_path, gpx_path, creation_time
+    ):
         """
-        Until it acquires GPS time, a GoPro stamps a placeholder date, which a
-        GPS rejected as noise may never have got past. Syncing by it would put
-        the GPX years away from the video.
+        Until it acquires the GPS time, a GoPro stamps a placeholder date, which
+        a GPS rejected as noise may never have got past. Such a clock says
+        nothing of when the video was recorded, so the GPX is synced from the
+        start of the video, whatever the creation time of the video says.
         """
+        if creation_time is not None:
+            _write_mvhd(video_path, creation_time=creation_time)
         points = [
             _point(time=i * 0.1, epoch_time=PLACEHOLDER_UNIX_TIME + i * 0.1)
             for i in range(32)
@@ -205,31 +211,47 @@ class TestGPXOverridesNoisyGPS:
         assert [p.time for p in metadata.points] == [0.0, 2.0]
         assert (metadata.make, metadata.model) == ("GoPro", "MAX2")
 
-    def test_noisy_clock_far_from_creation_time_is_ignored(
+    def test_noisy_clock_after_its_placeholder_date_places_the_gpx(
         self, monkeypatch, video_path, gpx_path
     ):
-        """A noisy clock days away from the creation time is ignored too."""
-        _write_mvhd(video_path, creation_time=A_UNIX_TIME)
+        """Once the GPS acquires the time, its timestamps are the GPS time"""
         points = [
             _point(time=i * 0.1, epoch_time=PLACEHOLDER_UNIX_TIME + i * 0.1)
-            for i in range(32)
+            for i in range(10)
+        ]
+        points += [
+            _point(time=i * 0.1, epoch_time=A_UNIX_TIME + i * 0.1)
+            for i in range(10, 32)
         ]
         _stub_gopro(monkeypatch, points)
 
         metadata = GPXVideoExtractor(video_path, gpx_path).extract()
 
-        assert [p.time for p in metadata.points] == [0.0, 2.0]
+        assert [p.time for p in metadata.points] == pytest.approx([2.0, 4.0])
 
     @pytest.mark.parametrize("video_sync", [None, VideoSyncOption()])
-    def test_noisy_clock_at_creation_time_rejects_a_gpx_days_away(
-        self, video_path, tmp_path, noisy_gopro, video_sync
+    @pytest.mark.parametrize(
+        "creation_time",
+        [
+            # In local time, 8 hours behind UTC, as GoPro writes it
+            A_UNIX_TIME - 8 * 3600,
+            # A creation time that means nothing: 2016-01-01T01:44:00Z, as a
+            # GoPro HERO10 recorded in 2022 reports
+            1451612640,
+            # None
+            None,
+        ],
+    )
+    def test_noisy_clock_rejects_a_gpx_days_away(
+        self, video_path, tmp_path, noisy_gopro, video_sync, creation_time
     ):
         """
-        A noisy clock that agrees with the creation time of the video is real,
-        so a GPX days away from it misses the video, as for good GPS.
+        The timestamps of GPS rejected as noise are the GPS time all the same,
+        so a GPX days away from them misses the video, as for good GPS. The
+        creation time of the video, from the camera's own clock, is not asked.
         """
-        # In local time, 8 hours behind UTC, as GoPro writes it
-        _write_mvhd(video_path, creation_time=A_UNIX_TIME - 8 * 3600)
+        if creation_time is not None:
+            _write_mvhd(video_path, creation_time=creation_time)
         gpx_path = tmp_path / "another_day.gpx"
         gpx_path.write_text(_gpx_xml("2026-09-09T15:39:43Z", "2026-09-09T15:39:45Z"))
 
@@ -242,8 +264,7 @@ class TestGPXOverridesNoisyGPS:
     ):
         """
         A GoPro HERO10 recorded in 2022 reports 2016-01-01 as its creation
-        time, so a noisy clock that disagrees with it but agrees with the GPX is
-        still real.
+        time, which does not keep its GPS clock from placing the GPX.
         """
         # 2016-01-01T01:44:00Z
         _write_mvhd(video_path, creation_time=1451612640)
@@ -255,10 +276,7 @@ class TestGPXOverridesNoisyGPS:
     def test_good_clock_days_away_rejects_the_gpx(
         self, monkeypatch, video_path, gpx_path
     ):
-        """
-        Only a clock rejected with its noisy track is second-guessed. A good
-        clock days away from the GPX says the GPX misses the video.
-        """
+        """A good clock days away from the GPX says the GPX misses the video"""
         day = 24 * 3600.0
         points = [
             _point(
