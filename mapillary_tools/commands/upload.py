@@ -24,7 +24,13 @@ class Command:
         )
         group.add_argument(
             "--organization_key",
-            help="The Mapillary organization ID to upload to.",
+            help="The Mapillary organization ID to upload to. Add --organization_name NAME to save the ID under NAME in the user profile.",
+            default=None,
+            required=False,
+        )
+        group.add_argument(
+            "--organization_name",
+            help="Upload to the organization saved under this name in the user profile. To save a name, give it with the organization ID: --organization_key ID --organization_name NAME. Names are 2 to 32 letters, numbers, hyphens and underscores, starting with a letter.",
             default=None,
             required=False,
         )

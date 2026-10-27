@@ -180,6 +180,9 @@ mapillary_tools process_and_upload MY_CAPTURE_DIR MY_VIDEO_DIR/*.mp4 \
     --organization_key "my_organization_id"
 ```
 
+To upload to an organization by a name you saved for it, use `--organization_name` instead of `--organization_key`
+(see [Upload](#upload)).
+
 The `process_and_upload` command will run the [`process`](#process) and the [`upload`](#upload) commands consecutively with combined required and optional arguments.
 The command above is equivalent to:
 
@@ -261,6 +264,29 @@ mapillary_tools upload  MY_CAPTURE_DIR \
     --user_name "my_username" \
     --organization_key "my_organization_id"
 ```
+
+To upload to an organization by a name instead of its ID, save a name for it once, with its ID.
+The name is saved in the user profile in the config file:
+
+```sh
+# Upload to the organization, and save its ID under the name "work" in the profile "my_username"
+mapillary_tools upload MY_CAPTURE_DIR \
+    --desc_path /tmp/mapillary_image_description.json \
+    --user_name "my_username" \
+    --organization_key "my_organization_id" \
+    --organization_name "work"
+
+# From then on, upload to the organization by its name
+mapillary_tools upload MY_CAPTURE_DIR \
+    --desc_path /tmp/mapillary_image_description.json \
+    --user_name "my_username" \
+    --organization_name "work"
+```
+
+`--organization_name` works with `upload`, `process_and_upload` and `video_process_and_upload`.
+A name is 2 to 32 letters, numbers, hyphens and underscores, starting with a letter, and it is case-sensitive.
+Saving a name that is already saved with another ID replaces the ID.
+To list or delete saved names, see [Authenticate](#authenticate).
 
 ## Check Upload History
 
@@ -522,6 +548,15 @@ Authenticate for user `my_username`. If the user is already authenticated, it wi
 
 ```sh
 mapillary_tools authenticate --user_name "my_username"
+```
+
+The command lists the existing profiles first, with the organization names saved in each of them
+(see [Upload](#upload) to save one). Updating the credentials keeps the saved names.
+
+Delete the organization name `work` saved in the profile `my_username`. The profile and its other saved names are kept:
+
+```sh
+mapillary_tools authenticate --user_name "my_username" --organization_name "work" --delete
 ```
 
 ## Image Description
