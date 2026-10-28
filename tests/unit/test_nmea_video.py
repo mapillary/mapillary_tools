@@ -180,15 +180,15 @@ class TestPlacedAsAGPX:
         for nmea_point, gpx_point in zip(from_nmea, from_gpx):
             assert nmea_point == pytest.approx(gpx_point, abs=1e-6)
 
-    def test_messages_name_the_nmea_file(self, tmp_path):
+    def test_messages_name_the_nmea_file(self, tmp_path, caplog):
         nmea = _write_nmea(tmp_path / "track.nmea", seconds=60)
 
-        with pytest.raises(exceptions.MapillaryGPXVideoStartUnknownError) as excinfo:
+        with caplog.at_level(logging.WARNING):
             NMEAVideoExtractor(
                 NO_GPS_VIDEO, nmea, video_sync=VideoSyncOption()
             ).extract()
 
-        assert str(excinfo.value).startswith(f"The NMEA track in {nmea} lasts")
+        assert f"The NMEA track in {nmea} lasts" in caplog.text
 
 
 class TestInvalidNMEAFile:
