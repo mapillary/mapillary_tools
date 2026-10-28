@@ -77,6 +77,8 @@ def upload(
 
     emitter = uploader.EventEmitter()
 
+    checksum_cache: history.PersistentCache | None = None
+
     # Check duplications first
     if not _is_history_disabled(dry_run):
         upload_run_params: JSONDict = {
@@ -89,6 +91,11 @@ def upload(
         }
         _setup_history(
             emitter, upload_run_params, metadatas, reupload=reupload, nofinish=nofinish
+        )
+        # Cache the checksums that the history is looked up by, so that files
+        # already uploaded are not read again to be skipped
+        checksum_cache = uploader.create_checksum_cache(
+            Path(constants.MAPILLARY_UPLOAD_HISTORY_PATH).joinpath("checksum_cache")
         )
 
     # Set up tdqm
@@ -114,7 +121,7 @@ def upload(
     mly_uploader = uploader.Uploader(upload_options, emitter=emitter)
 
     results = _gen_upload_everything(
-        mly_uploader, metadatas, import_paths, skip_subfolders
+        mly_uploader, metadatas, import_paths, skip_subfolders, checksum_cache
     )
 
     upload_successes = 0
@@ -727,6 +734,7 @@ def _gen_upload_everything(
     metadatas: T.Sequence[types.Metadata],
     import_paths: T.Sequence[Path],
     skip_subfolders: bool,
+    checksum_cache: history.PersistentCache | None = None,
 ):
     candidates = _find_upload_candidates(
         metadatas, import_paths, skip_subfolders=skip_subfolders
@@ -734,13 +742,15 @@ def _gen_upload_everything(
 
     # Upload images
     image_uploader = uploader.ImageSequenceUploader(
-        mly_uploader.upload_options, emitter=mly_uploader.emitter
+        mly_uploader.upload_options,
+        emitter=mly_uploader.emitter,
+        checksum_cache=checksum_cache,
     )
     yield from image_uploader.upload_images(candidates.image_metadatas)
 
     # Upload videos
     yield from uploader.VideoUploader.upload_videos(
-        mly_uploader, candidates.video_metadatas
+        mly_uploader, candidates.video_metadatas, checksum_cache=checksum_cache
     )
 
     # Upload zip files

@@ -135,6 +135,14 @@ class KeyValueStore(MutableMapping):
             self._cx.executemany(DELETE_KEY, ((key,) for key in keys))
         return keys
 
+    def set_many(self, items: T.Iterable[tuple[T.Any, T.Any]]) -> None:
+        """
+        Set the items (key-value pairs) in one transaction, so the database is
+        synced to disk once, not once per item.
+        """
+        with self._transaction():
+            self._cx.executemany(STORE_KV, items)
+
     @contextmanager
     def _transaction(self):
         # Take the write lock up front, so other connections can not change

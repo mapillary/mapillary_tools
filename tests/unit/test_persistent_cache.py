@@ -187,6 +187,25 @@ def test_clear_expired_empty(tmpdir):
     assert len(expired_keys) == 0
 
 
+def test_get_many_set_many(tmpdir):
+    """Test getting and setting many entries at once."""
+    cache_file = os.path.join(tmpdir, "cache_many")
+    cache = PersistentCache(cache_file)
+
+    assert cache.get_many(["key1"]) == {}
+
+    cache.set_many({"key1": "value1", "key2": "value2"}, expires_in=10)
+    cache.set("expired", "value3", expires_in=1)
+    time.sleep(1.1)
+
+    # Missing and expired keys are left out
+    assert cache.get_many(["key1", "key2", "expired", "missing"]) == {
+        "key1": "value1",
+        "key2": "value2",
+    }
+    assert cache.get("key1") == "value1"
+
+
 def test_corrupted_data(tmpdir):
     """Test handling of corrupted data through public interface."""
     cache_file = os.path.join(tmpdir, f"cache_corrupted")
