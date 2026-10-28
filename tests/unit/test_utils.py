@@ -3,6 +3,8 @@
 # This source code is licensed under the BSD license found in the
 # LICENSE file in the root directory of this source tree.
 
+import hashlib
+import io
 import logging
 import multiprocessing
 import os
@@ -344,3 +346,13 @@ class TestSanitizeSerial:
     def test_preserves_case(self):
         """Test that case is preserved"""
         assert utils.sanitize_serial("AbC123xYz") == "AbC123xYz"
+
+
+def test_md5sum_fp_progress():
+    data = b"x" * 1000
+    progress: list[int] = []
+
+    md5 = utils.md5sum_fp(io.BytesIO(data), progress=progress.append)
+
+    assert md5.hexdigest() == hashlib.md5(data).hexdigest()
+    assert sum(progress) == len(data)

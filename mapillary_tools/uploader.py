@@ -32,6 +32,7 @@ else:
     from typing_extensions import Required
 
 import requests
+from tqdm import tqdm
 
 from . import (
     api_v4,
@@ -248,7 +249,10 @@ class VideoUploader:
         for idx, video_metadata in enumerate(sorted_video_metadatas):
             LOG.debug(f"Checksum for video {video_metadata.filename}...")
             try:
-                video_metadata.update_md5sum()
+                _update_md5sums(
+                    [video_metadata],
+                    desc=f"Checksumming {video_metadata.filetype.value.upper()} {video_metadata.filename.name} ({idx + 1}/{len(sorted_video_metadatas)})",
+                )
             except Exception as ex:
                 yield video_metadata, UploadResult(error=ex)
                 continue
@@ -603,6 +607,10 @@ class ImageSequenceUploader:
 
         for sequence_idx, (sequence_uuid, sequence) in enumerate(sequences.items()):
             LOG.debug(f"Checksum for image sequence {sequence_uuid}...")
+            _update_md5sums(
+                sequence,
+                desc=f"Checksumming IMAGE ({sequence_idx + 1}/{len(sequences)})",
+            )
             sequence_md5sum = types.update_sequence_md5sum(sequence)
 
             sequence_progress: SequenceProgress = {
@@ -1115,6 +1123,32 @@ class Uploader:
             session_key = _suffix_session_key(session_key, types.FileType(filetype))
 
         return session_key
+
+
+def _update_md5sums(
+    metadatas: T.Sequence[types.ImageMetadata] | T.Sequence[types.VideoMetadata],
+    desc: str,
+) -> None:
+    """
+    Compute the checksums that the metadatas miss, showing the progress, as
+    reading the files takes long for large sequences or slow drives, before
+    the upload history is checked.
+    """
+    missing = [metadata for metadata in metadatas if metadata.md5sum is None]
+    if not missing:
+        return
+
+    with tqdm(
+        total=sum(utils.get_file_size(metadata.filename) for metadata in missing),
+        desc=desc,
+        unit="B",
+        unit_scale=True,
+        unit_divisor=1024,
+        disable=LOG.isEnabledFor(logging.DEBUG),
+    ) as pbar:
+        for metadata in missing:
+            with metadata.filename.open("rb") as fp:
+                metadata.md5sum = utils.md5sum_fp(fp, progress=pbar.update).hexdigest()
 
 
 def _validate_metadatas(metadatas: T.Sequence[types.ImageMetadata]):

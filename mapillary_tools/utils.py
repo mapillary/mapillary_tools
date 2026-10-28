@@ -15,7 +15,15 @@ from pathlib import Path
 
 # Use "hashlib._Hash" instead of hashlib._Hash because:
 # AttributeError: module 'hashlib' has no attribute '_Hash'
-def md5sum_fp(fp: T.IO[bytes], md5: "hashlib._Hash | None" = None) -> "hashlib._Hash":
+def md5sum_fp(
+    fp: T.IO[bytes],
+    md5: "hashlib._Hash | None" = None,
+    progress: T.Callable[[int], T.Any] | None = None,
+) -> "hashlib._Hash":
+    """
+    Update the hash with the content of the file, calling progress with the
+    number of bytes read after each chunk.
+    """
     if md5 is None:
         md5 = hashlib.md5()
     while True:
@@ -23,6 +31,8 @@ def md5sum_fp(fp: T.IO[bytes], md5: "hashlib._Hash | None" = None) -> "hashlib._
         if not buf:
             break
         md5.update(buf)
+        if progress is not None:
+            progress(len(buf))
     return md5
 
 
