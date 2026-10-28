@@ -15,8 +15,9 @@ Source: https://github.com/python/cpython/blob/3.13/Lib/dbm/sqlite3.py
 import os
 import sqlite3
 import sys
+import typing as T
 from collections.abc import MutableMapping
-from contextlib import closing, suppress
+from contextlib import closing, contextmanager, suppress
 from pathlib import Path
 
 BUILD_TABLE = """
@@ -30,6 +31,7 @@ LOOKUP_KEY = "SELECT value FROM Dict WHERE key = CAST(? AS BLOB)"
 STORE_KV = "REPLACE INTO Dict (key, value) VALUES (CAST(? AS BLOB), CAST(? AS BLOB))"
 DELETE_KEY = "DELETE FROM Dict WHERE key = CAST(? AS BLOB)"
 ITER_KEYS = "SELECT key FROM Dict"
+ITER_ITEMS = "SELECT key, value FROM Dict"
 
 
 def _normalize_uri(path):
@@ -119,6 +121,32 @@ class KeyValueStore(MutableMapping):
         with self._execute(ITER_KEYS) as cu:
             for row in cu:
                 yield row[0]
+
+    def delete_matching(self, predicate: T.Callable[[bytes], bool]) -> list[bytes]:
+        """
+        Delete the items whose value matches the predicate and return their keys.
+
+        It is done in one transaction, so the database is synced to disk once,
+        not once per deleted item.
+        """
+        with self._transaction():
+            with closing(self._cx.execute(ITER_ITEMS)) as cu:
+                keys = [key for key, value in cu if predicate(value)]
+            self._cx.executemany(DELETE_KEY, ((key,) for key in keys))
+        return keys
+
+    @contextmanager
+    def _transaction(self):
+        # Take the write lock up front, so other connections can not change
+        # the items between reading and writing them
+        self._cx.execute("BEGIN IMMEDIATE")
+        try:
+            yield
+        except BaseException:
+            if self._cx.in_transaction:
+                self._cx.execute("ROLLBACK")
+            raise
+        self._cx.execute("COMMIT")
 
     def close(self):
         self._cx.close()

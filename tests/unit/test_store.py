@@ -40,6 +40,45 @@ def test_basic_dict_operations(tmpdir):
         assert "key2" in store
 
 
+def test_delete_matching(tmpdir):
+    """Test that delete_matching deletes the matching items in one transaction."""
+    db_path = tmpdir.join("test.db")
+
+    with KeyValueStore(str(db_path), flag="c") as store:
+        for idx in range(5):
+            store[f"key{idx}"] = "old" if idx < 3 else "new"
+
+        statements: list[str] = []
+        store._cx.set_trace_callback(statements.append)
+        deleted = store.delete_matching(lambda value: value == b"old")
+        store._cx.set_trace_callback(None)
+
+        assert sorted(deleted) == [b"key0", b"key1", b"key2"]
+        assert sorted(store.keys()) == [b"key3", b"key4"]
+
+    assert statements[0] == "BEGIN IMMEDIATE"
+    assert statements[-1] == "COMMIT"
+    assert sum(statement.startswith("DELETE") for statement in statements) == 3
+
+
+def test_delete_matching_error(tmpdir):
+    """Test that delete_matching deletes nothing if the predicate fails."""
+    db_path = tmpdir.join("test.db")
+
+    def predicate(value: bytes) -> bool:
+        raise ValueError(value)
+
+    with KeyValueStore(str(db_path), flag="c") as store:
+        store["key1"] = "value1"
+
+        with pytest.raises(ValueError):
+            store.delete_matching(predicate)
+
+        # The store is usable after the failed transaction
+        store["key2"] = "value2"
+        assert sorted(store.keys()) == [b"key1", b"key2"]
+
+
 def test_keyerror_on_missing_key(tmpdir):
     """Test that KeyError is raised for missing keys."""
     db_path = tmpdir.join("test.db")
