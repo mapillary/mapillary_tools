@@ -99,30 +99,37 @@ class TestVideoWithoutGPS:
             video_start.timestamp()
         )
 
-    def test_a_track_far_longer_than_the_video_is_refused(self, tmp_path):
-        """The video could start anywhere along a track a minute long."""
-        gpx = _write_gpx(tmp_path / "track.gpx", seconds=60)
+    def test_a_track_more_than_a_minute_longer_starts_with_the_video_and_warns(
+        self, tmp_path, caplog
+    ):
+        """The track is taken to be right, and assumed to start with the video."""
+        gpx = _write_gpx(tmp_path / "track.gpx", seconds=120)
 
-        with pytest.raises(exceptions.MapillaryGPXVideoStartUnknownError) as excinfo:
-            _extract(NO_GPS_VIDEO, gpx, VideoSyncOption())
+        with caplog.at_level(logging.WARNING):
+            metadata = _extract(NO_GPS_VIDEO, gpx, VideoSyncOption())
 
-        message = str(excinfo.value)
-        assert "--video_duration_ratio" in message
-        # For a logger left running, ready to paste: the track starts at GPX_START
-        assert (
-            "started with the video and left running, specify --video_start_time "
-            "2025_03_14_07_00_00_000, when the track starts"
-        ) in message
-        assert "covers more than this video, specify the time the video started" in (
-            message
-        )
-        # Which starts the track with the video too, and refuses it alike
+        assert metadata.points[0].time == 0
+        message = caplog.text
+        assert "Please align the video start time with the GPX track" in message
+        assert "specify the time the video started as --video_start_time" in message
+        assert "If the video is a timelapse, specify --video_duration_ratio" in message
         assert "--interpolation_use_gpx_start_time" not in message
 
-    def test_a_log_of_days_offers_no_start_time(self, tmp_path):
+    def test_a_track_up_to_a_minute_longer_starts_with_the_video_silently(
+        self, tmp_path, caplog
+    ):
+        gpx = _write_gpx(tmp_path / "track.gpx", seconds=60)
+
+        with caplog.at_level(logging.WARNING):
+            metadata = _extract(NO_GPS_VIDEO, gpx, VideoSyncOption())
+
+        assert metadata.points[0].time == 0
+        assert not caplog.text
+
+    def test_a_log_of_days_starts_with_the_video_and_warns(self, tmp_path, caplog):
         """
-        A track of several days is a log of several trips, and its start that
-        of the first: placed there, the video would land on the wrong trip.
+        Nothing but the start of a log of several trips places the video along
+        it, which the warning asks to align
         """
         gpx = _write_gpx_tracks(
             tmp_path / "track.gpx",
@@ -132,13 +139,14 @@ class TestVideoWithoutGPS:
             ],
         )
 
-        with pytest.raises(exceptions.MapillaryGPXVideoStartUnknownError) as excinfo:
-            _extract(NO_GPS_VIDEO, gpx, VideoSyncOption())
+        with caplog.at_level(logging.WARNING):
+            metadata = _extract(NO_GPS_VIDEO, gpx, VideoSyncOption())
 
-        message = str(excinfo.value)
-        assert "specify the time the video started as --video_start_time" in message
-        assert "2025_03_14" not in message
-        assert "--interpolation_use_gpx_start_time" not in message
+        assert metadata.points[0].time == 0
+        assert "lasts 2.0 days" in caplog.text
+        assert "specify the time the video started as --video_start_time" in (
+            caplog.text
+        )
 
     def test_gpx_start_time_on_a_track_far_longer_than_the_video_is_refused(
         self, tmp_path
@@ -248,24 +256,23 @@ class TestVideoWithoutGPS:
         assert metadata.points[-1].time == pytest.approx(start + 5.7)
         assert not caplog.text
 
-    def test_a_track_too_long_even_at_the_duration_ratio_is_refused(self, tmp_path):
+    def test_a_track_too_long_even_at_the_duration_ratio_warns(self, tmp_path, caplog):
         gpx = _write_gpx(tmp_path / "track.gpx", seconds=600)
 
-        with pytest.raises(exceptions.MapillaryGPXVideoStartUnknownError) as excinfo:
-            _extract(NO_GPS_VIDEO, gpx, VideoSyncOption(duration_ratio=10))
+        with caplog.at_level(logging.WARNING):
+            metadata = _extract(NO_GPS_VIDEO, gpx, VideoSyncOption(duration_ratio=10))
 
-        assert "which at --video_duration_ratio 10 span 57.6 seconds" in str(
-            excinfo.value
-        )
+        assert metadata.points[0].time == 0
+        assert "which at --video_duration_ratio 10 span 57.6 seconds" in caplog.text
 
-    def test_a_track_a_little_longer_than_the_video_warns(self, tmp_path, caplog):
+    def test_a_track_a_little_longer_than_the_video_is_silent(self, tmp_path, caplog):
         gpx = _write_gpx(tmp_path / "track.gpx", seconds=9)
 
         with caplog.at_level(logging.WARNING):
             metadata = _extract(NO_GPS_VIDEO, gpx, VideoSyncOption())
 
         assert metadata.points[0].time == 0
-        assert "--video_start_time" in caplog.text
+        assert not caplog.text
 
     def test_a_track_as_long_as_the_video_starts_with_it_silently(
         self, tmp_path, caplog
@@ -291,12 +298,9 @@ class TestVideoWithoutGPS:
         assert metadata.points[0].time == 0
         assert "--video_duration_ratio" not in caplog.text
 
-    def test_the_refusal_is_not_handed_on_to_the_next_source(self, tmp_path):
-        """
-        The video has no GPS, so a native source after the GPX can only fail,
-        and its error would hide why the GPX was refused.
-        """
-        gpx = _write_gpx(tmp_path / "track.gpx", seconds=60)
+    def test_a_long_track_geotags_the_video_before_the_next_source(self, tmp_path):
+        """No longer refused, the GPX geotags the video, with a warning."""
+        gpx = _write_gpx(tmp_path / "track.gpx", seconds=120)
         video_sync = VideoSyncOption()
 
         [metadata] = factory.process(
@@ -311,8 +315,8 @@ class TestVideoWithoutGPS:
             ],
         )
 
-        assert isinstance(metadata, types.ErrorMetadata)
-        assert isinstance(metadata.error, exceptions.MapillaryGPXVideoStartUnknownError)
+        assert isinstance(metadata, types.VideoMetadata)
+        assert metadata.points[0].time == 0
 
 
 class TestVideoWithGPS:

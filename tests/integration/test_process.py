@@ -1690,7 +1690,8 @@ def test_process_video_with_a_gpx_far_longer_than_it_warns(
 ):
     """
     Without a GPS clock or a start time, the video is assumed to start with
-    the track, which runs on for long after it: process warns, and goes on.
+    the track, which runs on for long after it: process warns to align the
+    two, and goes on.
     """
     video_path = setup_data.join("videos").join("sample-5s.mp4")
     # 93 seconds of track for 5.76 seconds of video
@@ -1708,7 +1709,8 @@ def test_process_video_with_a_gpx_far_longer_than_it_warns(
         text=True,
     )
 
-    assert "could start anywhere along the track" in result.stderr
+    assert "Please align the video start time with the GPX track" in result.stderr
+    assert "If the video is a timelapse" in result.stderr
     [desc] = json.loads(result.stdout)
     assert desc["MAPGPSTrack"][0][0] == 0
 

@@ -655,8 +655,10 @@ def _extract_video_start_time(
     A video's own telemetry is the better clock: it is absolute UTC, so it is
     immune both to cameras that stamp the container's creation time at the end
     of the recording and to cameras that stamp it in local time (GoPro). Fall
-    back to the creation time when there is no telemetry to sync against, which
-    is the case for the plain MP4s that get geotagged from a GPX.
+    back to the creation time when there is no telemetry to sync against. It
+    then only labels the samples: their positions come from the video's own
+    GPS, and a GPX or NMEA track that geotags them places them by its own start
+    instead (see _track_file_start_time).
     """
     start_time = _gps_clock_start_time(telemetry_points)
     if start_time is not None:
@@ -704,6 +706,59 @@ def _check_gpx_start_by_interval(
         gpx_points = extractor._read_gpx_points()
         if gpx_points:
             extractor._check_given_start(gpx_points, video_sync.duration_ratio)
+
+
+def _track_file_start_time(
+    video_path: Path,
+    geotag_options: T.Sequence[SourceOption],
+    video_sync: VideoSyncOption | None,
+) -> datetime.datetime | None:
+    """
+    The start time of a video without a GPS clock, by the GPX (or NMEA) track
+    of the first source that geotags images, which the geotagging stage places
+    the interval samples along by their capture times: the start of the track,
+    which is assumed to start with the video, as GPX sync places a track on
+    such a video (see GPXVideoExtractor._place_without_video_gps), with a
+    warning when their lengths differ. None without such a track, or when
+    --interpolation_use_gpx_start_time starts the track with the video, which
+    the geotagging stage does.
+    """
+    for option in geotag_options:
+        extractor_class = _TRACK_FILE_EXTRACTORS.get(option.source)
+        if extractor_class is None or option.source_path is None:
+            continue
+        if (
+            option.filetypes is not None
+            and types.FileType.IMAGE not in option.filetypes
+        ):
+            continue
+        if option.interpolation is not None and option.interpolation.use_gpx_start_time:
+            return None
+        gpx_path = option.source_path.resolve(video_path)
+        if not gpx_path.is_file():
+            continue
+        extractor = extractor_class(
+            video_path,
+            gpx_path,
+            video_sync=video_sync,
+            interpolation=option.interpolation,
+        )
+        try:
+            gpx_points = extractor._read_gpx_points()
+        except Exception as ex:
+            # The geotagging stage reports what keeps it from reading the GPX
+            LOG.debug("No start time from %s for %s: %s", gpx_path, video_path.name, ex)
+            return None
+        if not gpx_points:
+            return None
+        extractor._check_length(
+            gpx_points, 1.0 if video_sync is None else video_sync.duration_ratio
+        )
+        return datetime.datetime.fromtimestamp(
+            min(p.time for p in gpx_points), tz=datetime.timezone.utc
+        )
+
+    return None
 
 
 def _gpx_sync_reads_a_clock(extractor: GPXVideoExtractor) -> bool:
@@ -850,7 +905,9 @@ def _sample_single_video_by_interval(
                 clock.to_unix_time(0.0), tz=datetime.timezone.utc
             )
         else:
-            start_time = _extract_video_start_time(video_path, probe, telemetry_points)
+            start_time = _track_file_start_time(
+                video_path, geotag_options, video_sync
+            ) or _extract_video_start_time(video_path, probe, telemetry_points)
         if start_time is None:
             raise exceptions.MapillaryVideoError(
                 f"Unable to extract video start time from {video_path}"
