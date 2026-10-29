@@ -49,7 +49,8 @@ class Command:
             "--process_report_path",
             help=(
                 "Optional path to write a versioned JSON report describing "
-                "recognized process inputs and unsupported files."
+                "recognized process inputs, unsupported files, and warnings about "
+                "the files processed."
             ),
             type=Path,
             default=None,
@@ -227,7 +228,8 @@ class Command:
         )
 
     def run(self, vars_args: dict):
-        process_report_path = vars_args.get("process_report_path")
+        process_report_path: Path | None = vars_args.get("process_report_path")
+        report: process_report.ProcessReport | None = None
         if process_report_path is not None:
             report = process_report.build_process_report(
                 import_path=vars_args["import_path"],
@@ -244,6 +246,11 @@ class Command:
                 }
             ),
         )
+
+        if process_report_path is not None and report is not None:
+            # Written again with what geotagging warned of, now that it has run
+            report["warnings"] = process_report.build_process_warnings(metadatas)
+            process_report.write_process_report(process_report_path, report)
 
         metadatas = process_sequence_properties(
             metadatas=metadatas,

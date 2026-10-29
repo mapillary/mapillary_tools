@@ -10,14 +10,15 @@ from pathlib import Path
 import py.path
 import pytest
 
-from .fixtures import run_command
+from .fixtures import run_command, setup_data
 
 
-def _run_process_with_report(import_paths: list[Path], output_dir: Path):
+def _run_process_with_report(import_paths: list[Path], output_dir: Path, *args: str):
     desc_path = output_dir / "description.json"
     report_path = output_dir / "process-report.json"
     run_command(
         [
+            *args,
             "--skip_process_errors",
             "--desc_path",
             str(desc_path),
@@ -67,6 +68,7 @@ def test_process_report_counts_recognized_errors_and_explicit_unsupported(
                 "details": {"extension": ".webp"},
             }
         ],
+        "warnings": [],
     }
 
 
@@ -253,3 +255,50 @@ def test_process_skips_named_companion_files_of_other_cameras_and_systems(
         command="process",
     )
     assert json.loads(desc_path.read_text(encoding="utf-8")) == []
+
+
+def test_process_report_warns_to_align_a_gpx_with_the_video(
+    setup_data: py.path.local,
+):
+    """
+    A video without a GPS clock is assumed to start with its GPX track, which
+    lasts far longer: the report names the video with what to align
+    """
+    video_path = Path(str(setup_data.join("videos", "sample-5s.mp4")))
+    # 93.6 seconds of track for 5.76 seconds of video
+    gpx_path = setup_data.join("gpx", "sf_30km_h.gpx")
+    output_dir = Path(str(setup_data.join("..")))
+
+    descs, report = _run_process_with_report(
+        [video_path],
+        output_dir,
+        *["--geotag_source", "gpx", "--geotag_source_path", str(gpx_path)],
+    )
+
+    [desc] = descs
+    assert "error" not in desc
+    [warning] = report["warnings"]
+    assert warning["filename"] == str(video_path.resolve())
+    assert warning["type"] == "MapillaryGPXAlignmentWarning"
+    assert (
+        "Please align the video start time with the GPX track" in (warning["message"])
+    )
+    assert "If the video is a timelapse" in warning["message"]
+    assert warning["vars"] == {
+        "video_duration": pytest.approx(5.76, abs=0.01),
+        "gpx_duration": pytest.approx(93.624),
+        "gpx_start_time": "2025_03_14_07_00_00_000",
+        "gpx_end_time": "2025_03_14_07_01_33_624",
+        "gpx_longer": True,
+    }
+
+
+def test_process_report_has_no_warnings_for_a_video_without_any(
+    setup_data: py.path.local,
+):
+    video_path = Path(str(setup_data.join("videos", "sample-5s.mp4")))
+    output_dir = Path(str(setup_data.join("..")))
+
+    _, report = _run_process_with_report([video_path], output_dir)
+
+    assert report["warnings"] == []
