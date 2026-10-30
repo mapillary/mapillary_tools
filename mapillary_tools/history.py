@@ -243,17 +243,16 @@ class PersistentCache:
 
     @_retry_on_database_lock_error
     def clear_expired(self) -> list[str]:
-        expired_keys: list[str] = []
-
         s = time.perf_counter()
 
         with self._lock:
             with store.KeyValueStore(self._file, flag="c") as db:
-                for key, raw_payload in db.items():
-                    data = self._decode(raw_payload)
-                    if self._is_expired(data):
-                        del db[key]
-                        expired_keys.append(T.cast(str, key))
+                expired_keys = T.cast(
+                    list[str],
+                    db.delete_matching(
+                        lambda raw_payload: self._is_expired(self._decode(raw_payload))
+                    ),
+                )
 
         LOG.debug(
             f"Cleared {len(expired_keys)} expired entries from the cache ({(time.perf_counter() - s) * 1000:.0f} ms)"

@@ -590,8 +590,6 @@ class ImageSequenceUploader:
         self.emitter = emitter
         # Create a single shared SingleImageUploader instance that will be used across all uploads
         cache = _maybe_create_persistent_cache_instance(self.upload_options)
-        if cache:
-            cache.clear_expired()
         self.cached_image_uploader = CachedImageUploader(
             self.upload_options, cache=cache
         )
