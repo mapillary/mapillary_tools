@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import datetime
+import re
 import subprocess
 from pathlib import Path
 
@@ -130,6 +131,54 @@ def test_ffmpeg_extract_specified_frames_empty_ok(setup_data: py.path.local):
 
     results = list(ff.sort_selected_samples(sample_dir, video_path))
     assert len(results) == 0
+
+
+_EQ = re.compile(r"eq\(n\\,(\d+)\)")
+_IF_LT = re.compile(r"if\(lt\(n\\,(\d+)\)\\,")
+
+
+def _selects(expression: str, n: int) -> bool:
+    """
+    Evaluate an expression of generate_binary_search for frame number n, as
+    the select filter does: true when it is nonzero
+    """
+
+    def parse(pos: int) -> tuple[bool, int]:
+        if expression.startswith("0", pos):
+            return False, pos + 1
+        eq = _EQ.match(expression, pos)
+        if eq is not None:
+            return n == int(eq.group(1)), eq.end()
+        if_lt = _IF_LT.match(expression, pos)
+        assert if_lt is not None, f"Unexpected expression at {pos}: {expression}"
+        then_value, pos = parse(if_lt.end())
+        assert expression.startswith("\\,", pos)
+        else_value, pos = parse(pos + 2)
+        assert expression.startswith(")", pos)
+        return (then_value if n < int(if_lt.group(1)) else else_value), pos + 1
+
+    value, end = parse(0)
+    assert end == len(expression), f"Trailing characters in {expression}"
+    return value
+
+
+@pytest.mark.parametrize(
+    "frame_indices, expected",
+    [
+        ([3, 1], [1, 3]),
+        ([10, 2, 7], [2, 7, 10]),
+        ([5, 5, 5, 9], [5, 9]),
+        ([144, 0, 89, 2, 89, 0], [0, 2, 89, 144]),
+        (range(9, 0, -3), [3, 6, 9]),
+        ([*range(150, 0, -7), *range(3, 150, 7)], list(range(3, 151, 7))),
+    ],
+)
+def test_generate_binary_search_takes_frames_in_any_order_and_repeated(
+    frame_indices, expected: list[int]
+):
+    expression = ffmpeg.FFMPEG.generate_binary_search(frame_indices)
+    assert [n for n in range(200) if _selects(expression, n)] == expected
+    assert expression == ffmpeg.FFMPEG.generate_binary_search(expected)
 
 
 def test_probe_format_and_streams_ok(setup_data: py.path.local):
