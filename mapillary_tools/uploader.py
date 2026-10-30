@@ -15,6 +15,7 @@ import json
 import logging
 import os
 import queue
+import sqlite3
 import struct
 import sys
 import tempfile
@@ -58,6 +59,10 @@ from .serializer.description import (
 
 
 LOG = logging.getLogger(__name__)
+
+# Only bounds the size of the checksum cache: a checksum stays valid while its
+# file is unchanged
+CHECKSUM_CACHE_EXPIRES_IN = 3600 * 24 * 30
 
 
 @dataclasses.dataclass(frozen=True)
@@ -240,7 +245,10 @@ class UploadResult:
 class VideoUploader:
     @classmethod
     def upload_videos(
-        cls, mly_uploader: Uploader, video_metadatas: T.Sequence[types.VideoMetadata]
+        cls,
+        mly_uploader: Uploader,
+        video_metadatas: T.Sequence[types.VideoMetadata],
+        checksum_cache: history.PersistentCache | None = None,
     ) -> T.Generator[tuple[types.VideoMetadata, UploadResult], None, None]:
         # If upload in a random order, then interrupted uploads has a higher chance to expire.
         # Therefore sort videos to make sure interrupted uploads are resumed as early as possible
@@ -252,6 +260,7 @@ class VideoUploader:
                 _update_md5sums(
                     [video_metadata],
                     desc=f"Checksumming {video_metadata.filetype.value.upper()} {video_metadata.filename.name} ({idx + 1}/{len(sorted_video_metadatas)})",
+                    checksum_cache=checksum_cache,
                 )
             except Exception as ex:
                 yield video_metadata, UploadResult(error=ex)
@@ -589,9 +598,15 @@ class ZipUploader:
 
 
 class ImageSequenceUploader:
-    def __init__(self, upload_options: UploadOptions, emitter: EventEmitter):
+    def __init__(
+        self,
+        upload_options: UploadOptions,
+        emitter: EventEmitter,
+        checksum_cache: history.PersistentCache | None = None,
+    ):
         self.upload_options = upload_options
         self.emitter = emitter
+        self.checksum_cache = checksum_cache
         # Create a single shared SingleImageUploader instance that will be used across all uploads
         cache = _maybe_create_persistent_cache_instance(self.upload_options)
         self.cached_image_uploader = CachedImageUploader(
@@ -608,6 +623,7 @@ class ImageSequenceUploader:
             _update_md5sums(
                 sequence,
                 desc=f"Checksumming IMAGE ({sequence_idx + 1}/{len(sequences)})",
+                checksum_cache=self.checksum_cache,
             )
             sequence_md5sum = types.update_sequence_md5sum(sequence)
 
@@ -1123,18 +1139,58 @@ class Uploader:
         return session_key
 
 
+def create_checksum_cache(path: Path) -> history.PersistentCache | None:
+    """
+    Open the cache of file checksums at the path and clear its expired
+    entries, or return None if it can not be used.
+    """
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        cache = history.PersistentCache(str(path.resolve()))
+        cache.clear_expired()
+    except (OSError, sqlite3.Error) as ex:
+        LOG.warning("Not caching checksums in %s: %s", path, ex)
+        return None
+    return cache
+
+
+def _checksum_cache_key(path: Path) -> str:
+    # A file whose path, size and modification time are unchanged is taken
+    # as unchanged, as rsync does by default
+    stat = path.stat()
+    return json.dumps([os.path.abspath(path), stat.st_size, stat.st_mtime_ns])
+
+
 def _update_md5sums(
     metadatas: T.Sequence[types.ImageMetadata] | T.Sequence[types.VideoMetadata],
     desc: str,
+    checksum_cache: history.PersistentCache | None = None,
 ) -> None:
     """
     Compute the checksums that the metadatas miss, showing the progress, as
     reading the files takes long for large sequences or slow drives, before
     the upload history is checked.
+
+    With a checksum cache, take the checksums of the files from it, and cache
+    the checksums computed, so that uploading the files again, as when they
+    were already uploaded, does not read them again.
     """
     missing = [metadata for metadata in metadatas if metadata.md5sum is None]
     if not missing:
         return
+
+    cache_keys: dict[Path, str] = {}
+    if checksum_cache is not None:
+        cache_keys = {
+            metadata.filename: _checksum_cache_key(metadata.filename)
+            for metadata in missing
+        }
+        cached = checksum_cache.get_many(cache_keys.values())
+        for metadata in missing:
+            metadata.md5sum = cached.get(cache_keys[metadata.filename])
+        missing = [metadata for metadata in missing if metadata.md5sum is None]
+        if not missing:
+            return
 
     with tqdm(
         total=sum(utils.get_file_size(metadata.filename) for metadata in missing),
@@ -1147,6 +1203,18 @@ def _update_md5sums(
         for metadata in missing:
             with metadata.filename.open("rb") as fp:
                 metadata.md5sum = utils.md5sum_fp(fp, progress=pbar.update).hexdigest()
+
+    if checksum_cache is not None:
+        try:
+            checksum_cache.set_many(
+                {
+                    cache_keys[metadata.filename]: T.cast(str, metadata.md5sum)
+                    for metadata in missing
+                },
+                expires_in=CHECKSUM_CACHE_EXPIRES_IN,
+            )
+        except sqlite3.Error as ex:
+            LOG.warning("Failed to cache checksums: %s", ex)
 
 
 def _validate_metadatas(metadatas: T.Sequence[types.ImageMetadata]):

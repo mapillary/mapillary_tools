@@ -241,6 +241,62 @@ class PersistentCache:
             f"Cached file handle for {key} ({(time.perf_counter() - s) * 1000:.0f} ms)"
         )
 
+    def get_many(self, keys: T.Iterable[str]) -> dict[str, str]:
+        """
+        Get the values of the keys that are cached and not expired, with one
+        database connection.
+        """
+        if not self._db_existed():
+            return {}
+
+        try:
+            db_ctx = store.KeyValueStore(self._file, flag="r")
+        except sqlite3.DatabaseError as ex:
+            LOG.warning(f"Failed to open cache database: {ex}")
+            return {}
+
+        values: dict[str, str] = {}
+
+        with db_ctx as db:
+            try:
+                for key in keys:
+                    raw_payload: bytes | None = db.get(key)
+                    if raw_payload is None:
+                        continue
+                    data = self._decode(raw_payload)
+                    value = data.get("value")
+                    if not self._is_expired(data) and isinstance(value, str):
+                        values[key] = value
+            except Exception as ex:
+                if self._table_not_found(ex):
+                    return {}
+                if isinstance(ex, sqlite3.DatabaseError):
+                    LOG.warning(f"Cache read error: {ex}")
+                    return {}
+                raise ex
+
+        return values
+
+    @_retry_on_database_lock_error
+    def set_many(self, items: T.Mapping[str, str], expires_in: int) -> None:
+        """
+        Set the values in one transaction, so the database is synced to disk
+        once, not once per value.
+        """
+        expires_at = time.time() + expires_in
+
+        payloads = [
+            (
+                key,
+                json.dumps({"expires_at": expires_at, "value": value}).encode("utf-8"),
+            )
+            for key, value in items.items()
+        ]
+
+        with self._lock:
+            with store.KeyValueStore(self._file, flag="c") as db:
+                db.set_many(payloads)
+
     @_retry_on_database_lock_error
     def clear_expired(self) -> list[str]:
         s = time.perf_counter()

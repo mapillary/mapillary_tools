@@ -79,6 +79,27 @@ def test_delete_matching_error(tmpdir):
         assert sorted(store.keys()) == [b"key1", b"key2"]
 
 
+def test_set_many(tmpdir):
+    """Test that set_many sets the items in one transaction."""
+    db_path = tmpdir.join("test.db")
+
+    with KeyValueStore(str(db_path), flag="c") as store:
+        store["key0"] = "old"
+
+        statements: list[str] = []
+        store._cx.set_trace_callback(statements.append)
+        store.set_many([("key0", "new"), ("key1", "value1"), ("key2", "value2")])
+        store._cx.set_trace_callback(None)
+
+        assert store["key0"] == b"new"
+        assert store["key1"] == b"value1"
+        assert store["key2"] == b"value2"
+
+    assert statements[0] == "BEGIN IMMEDIATE"
+    assert statements[-1] == "COMMIT"
+    assert sum(statement.startswith("REPLACE") for statement in statements) == 3
+
+
 def test_keyerror_on_missing_key(tmpdir):
     """Test that KeyError is raised for missing keys."""
     db_path = tmpdir.join("test.db")
