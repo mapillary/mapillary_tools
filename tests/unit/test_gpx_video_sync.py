@@ -99,31 +99,30 @@ class TestVideoWithoutGPS:
             video_start.timestamp()
         )
 
-    def test_a_track_far_longer_than_the_video_starts_with_it_with_a_warning(
-        self, tmp_path, caplog
-    ):
-        """
-        The video could start anywhere along a track a minute long, but the
-        track is taken to be right, so it is not refused.
-        """
+    def test_a_track_far_longer_than_the_video_is_refused(self, tmp_path):
+        """The video could start anywhere along a track a minute long."""
         gpx = _write_gpx(tmp_path / "track.gpx", seconds=60)
 
-        with caplog.at_level(logging.WARNING):
-            metadata = _extract(NO_GPS_VIDEO, gpx, VideoSyncOption())
+        with pytest.raises(exceptions.MapillaryGPXVideoStartUnknownError) as excinfo:
+            _extract(NO_GPS_VIDEO, gpx, VideoSyncOption())
 
-        assert metadata.points[0].time == 0
-        assert "is assumed to start with it" in caplog.text
-        assert "--video_duration_ratio" in caplog.text
+        message = str(excinfo.value)
+        assert "--video_duration_ratio" in message
+        # For a logger left running, ready to paste: the track starts at GPX_START
+        assert (
+            "started with the video and left running, specify --video_start_time "
+            "2025_03_14_07_00_00_000, when the track starts"
+        ) in message
         assert "covers more than this video, specify the time the video started" in (
-            caplog.text
+            message
         )
-        # Which starts the track with the video too
-        assert "--interpolation_use_gpx_start_time" not in caplog.text
+        # Which starts the track with the video too, and refuses it alike
+        assert "--interpolation_use_gpx_start_time" not in message
 
-    def test_a_log_of_days_starts_with_the_video_with_a_warning(self, tmp_path, caplog):
+    def test_a_log_of_days_offers_no_start_time(self, tmp_path):
         """
-        A track of several days is a log of several trips, which the video
-        lands on the first of: warn that it needs its start time.
+        A track of several days is a log of several trips, and its start that
+        of the first: placed there, the video would land on the wrong trip.
         """
         gpx = _write_gpx_tracks(
             tmp_path / "track.gpx",
@@ -133,15 +132,13 @@ class TestVideoWithoutGPS:
             ],
         )
 
-        with caplog.at_level(logging.WARNING):
-            metadata = _extract(NO_GPS_VIDEO, gpx, VideoSyncOption())
+        with pytest.raises(exceptions.MapillaryGPXVideoStartUnknownError) as excinfo:
+            _extract(NO_GPS_VIDEO, gpx, VideoSyncOption())
 
-        assert metadata.points[0].time == 0
-        assert "specify the time the video started as --video_start_time" in (
-            caplog.text
-        )
-        assert "--video_duration_ratio" not in caplog.text
-        assert "--interpolation_use_gpx_start_time" not in caplog.text
+        message = str(excinfo.value)
+        assert "specify the time the video started as --video_start_time" in message
+        assert "2025_03_14" not in message
+        assert "--interpolation_use_gpx_start_time" not in message
 
     def test_gpx_start_time_on_a_track_far_longer_than_the_video_is_refused(
         self, tmp_path
@@ -251,14 +248,15 @@ class TestVideoWithoutGPS:
         assert metadata.points[-1].time == pytest.approx(start + 5.7)
         assert not caplog.text
 
-    def test_a_track_too_long_even_at_the_duration_ratio_warns(self, tmp_path, caplog):
+    def test_a_track_too_long_even_at_the_duration_ratio_is_refused(self, tmp_path):
         gpx = _write_gpx(tmp_path / "track.gpx", seconds=600)
 
-        with caplog.at_level(logging.WARNING):
-            metadata = _extract(NO_GPS_VIDEO, gpx, VideoSyncOption(duration_ratio=10))
+        with pytest.raises(exceptions.MapillaryGPXVideoStartUnknownError) as excinfo:
+            _extract(NO_GPS_VIDEO, gpx, VideoSyncOption(duration_ratio=10))
 
-        assert metadata.points[0].time == 0
-        assert "which at --video_duration_ratio 10 span 57.6 seconds" in caplog.text
+        assert "which at --video_duration_ratio 10 span 57.6 seconds" in str(
+            excinfo.value
+        )
 
     def test_a_track_a_little_longer_than_the_video_warns(self, tmp_path, caplog):
         gpx = _write_gpx(tmp_path / "track.gpx", seconds=9)
@@ -293,36 +291,10 @@ class TestVideoWithoutGPS:
         assert metadata.points[0].time == 0
         assert "--video_duration_ratio" not in caplog.text
 
-    def test_a_track_far_longer_than_the_video_geotags_it_before_the_next_source(
-        self, tmp_path
-    ):
-        """
-        The video has no GPS, so a native source after the GPX can only fail:
-        the track geotags it, assumed to start with it.
-        """
-        gpx = _write_gpx(tmp_path / "track.gpx", seconds=60)
-        video_sync = VideoSyncOption()
-
-        [metadata] = factory.process(
-            [NO_GPS_VIDEO],
-            [
-                SourceOption(
-                    SourceType.GPX,
-                    source_path=SourcePathOption(source_path=gpx),
-                    video_sync=video_sync,
-                ),
-                SourceOption(SourceType.NATIVE, video_sync=video_sync),
-            ],
-        )
-
-        assert isinstance(metadata, types.VideoMetadata)
-        assert metadata.points[0].time == 0
-
     def test_the_refusal_is_not_handed_on_to_the_next_source(self, tmp_path):
         """
         The video has no GPS, so a native source after the GPX can only fail,
-        and its error would hide why --interpolation_use_gpx_start_time could
-        not start the track with the video.
+        and its error would hide why the GPX was refused.
         """
         gpx = _write_gpx(tmp_path / "track.gpx", seconds=60)
         video_sync = VideoSyncOption()
@@ -333,7 +305,6 @@ class TestVideoWithoutGPS:
                 SourceOption(
                     SourceType.GPX,
                     source_path=SourcePathOption(source_path=gpx),
-                    interpolation=InterpolationOption(use_gpx_start_time=True),
                     video_sync=video_sync,
                 ),
                 SourceOption(SourceType.NATIVE, video_sync=video_sync),

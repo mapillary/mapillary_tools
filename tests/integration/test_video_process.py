@@ -3,8 +3,6 @@
 # This source code is licensed under the BSD license found in the
 # LICENSE file in the root directory of this source tree.
 
-from __future__ import annotations
-
 import functools
 import json
 import os
@@ -492,62 +490,36 @@ def test_video_process_by_distance_places_a_gpx_by_the_video_start_time(
     assert capture_times[-1] < "2025_03_14_07_00_36_000", capture_times
 
 
-@pytest.mark.parametrize(
-    "sampling",
-    [
-        ["--video_sample_distance=3"],
-        ["--video_sample_distance=-1", "--video_sample_interval=2"],
-    ],
-)
-@pytest.mark.parametrize(
-    "creation_time, first, last",
-    [
-        # Within the GPX, which is placed by it
-        ("2025-03-14T07:00:36Z", "2025_03_14_07_00_36_000", "2025_03_14_07_00_42_000"),
-        # Hours after the GPX ends, which is taken to start with the video
-        ("2025-03-14T12:00:00Z", "2025_03_14_07_00_00_000", "2025_03_14_07_00_06_000"),
-        # None, which interval sampling failed without
-        (None, "2025_03_14_07_00_00_000", "2025_03_14_07_00_06_000"),
-    ],
-)
-def test_video_process_places_a_gpx_by_the_creation_time(
+def test_video_process_by_distance_refuses_to_guess_where_the_video_starts(
     setup_data: py.path.local,
-    sampling: list[str],
-    creation_time: str | None,
-    first: str,
-    last: str,
 ):
     """
-    Without --video_start_time, the GPX is placed along a video without GPS
-    of its own by the creation time of the video, if it covers the video
-    there, and is otherwise assumed to start with the video. Neither refuses
-    the GPX, which is taken to be right.
+    Without --video_start_time, a GPX far longer than the video could start
+    anywhere along it, so assuming that it starts with the video is a guess.
     """
     pytest_skip_if_not_ffmpeg_installed()
 
     gpx_file = setup_data.join("gpx").join("sf_30km_h.gpx")
 
     with tempfile.TemporaryDirectory() as dir:
-        video_path = str(setup_data.join("videos").join("sample-5s.mp4"))
-        if creation_time is not None:
-            video_path = str(
-                _with_creation_time(py.path.local(video_path), creation_time, dir)
-            )
-        descs = run_video_process_for_descs(
-            [
-                *sampling,
-                "--geotag_source=gpx",
-                *["--geotag_source_path", str(gpx_file)],
-                str(video_path),
-                str(Path(dir, "samples")),
-            ]
+        video_path = _with_creation_time(
+            setup_data.join("videos").join("sample-5s.mp4"), "2025-03-14T07:00:36Z", dir
         )
+        with pytest.raises(subprocess.CalledProcessError) as ex:
+            run_video_process(
+                [
+                    "--video_sample_distance=3",
+                    "--geotag_source=gpx",
+                    *["--geotag_source_path", str(gpx_file)],
+                    str(video_path),
+                    str(Path(dir, "samples")),
+                ],
+                capture_output=True,
+                text=True,
+            )
 
-    assert descs
-    assert all("error" not in desc for desc in descs), descs
-    capture_times = sorted(desc["MAPCaptureTime"] for desc in descs)
-    assert first <= capture_times[0], capture_times
-    assert capture_times[-1] < last, capture_times
+    assert 7 == ex.value.returncode, ex.value.stderr
+    assert "specify --video_start_time" in ex.value.stderr.lower(), ex.value.stderr
 
 
 def test_video_process_by_distance_with_a_gpx_that_misses_the_video(

@@ -59,9 +59,6 @@ NO_GPS_VIDEO = _DATA.joinpath("videos", "sample-5s.mp4")
 # Captured 2018-06-08T20:24:11Z at 45.5169, -122.5728
 IMAGE = _DATA.joinpath("images", "DSC00001.JPG")
 
-# A_UNIX_TIME to the second, as an mvhd creation time is written
-WHOLE_SECOND = float(int(A_UNIX_TIME))
-
 # A 10s video track starting at A_UNIX_TIME, in a 12s video
 VIDEO_DURATION = 12.0
 
@@ -391,9 +388,7 @@ class TestTimelapse:
 class TestVideoWithoutGPSClock:
     """
     Placed by --video_start_time, the track can be found to miss the video.
-    Assumed to start with the video, it can only fall short of its end. The
-    creation time of the video places the track only where the track covers
-    the video placed by it.
+    Assumed to start with the video, it can only fall short of its end.
     """
 
     def _extract(
@@ -422,9 +417,7 @@ class TestVideoWithoutGPSClock:
         "video_track", [[], UNTIMED_TRACK], ids=["no GPS", "GPS without timestamps"]
     )
     def test_assumed_start_warns_of_a_short_track(self, tmp_path, caplog, video_track):
-        video_path = _write_camm_mp4(
-            tmp_path / "video.mp4", video_track, creation_time=None
-        )
+        video_path = _write_camm_mp4(tmp_path / "video.mp4", video_track)
         with caplog.at_level(logging.WARNING):
             # Covers the first 6 of the video's 12 seconds
             self._extract(tmp_path, video_path, A_UNIX_TIME, 6)
@@ -432,148 +425,10 @@ class TestVideoWithoutGPSClock:
         assert "6 seconds of the video fall outside the track" in warning
 
     def test_assumed_start_is_silent_on_a_covering_track(self, tmp_path, caplog):
-        video_path = _write_camm_mp4(
-            tmp_path / "video.mp4", UNTIMED_TRACK, creation_time=None
-        )
+        video_path = _write_camm_mp4(tmp_path / "video.mp4", UNTIMED_TRACK)
         with caplog.at_level(logging.WARNING):
             self._extract(tmp_path, video_path, A_UNIX_TIME, VIDEO_DURATION)
         assert not _warnings(caplog)
-
-    @pytest.mark.parametrize(
-        "sync", [None, VideoSyncOption()], ids=["process", "sampling"]
-    )
-    def test_placed_by_the_creation_time_within_the_track(self, tmp_path, caplog, sync):
-        """
-        A track recorded from 6 seconds before the 12 seconds of video to 2
-        seconds after them, which the creation time (taken as the start)
-        places the video in
-        """
-        video_path = _write_camm_mp4(
-            tmp_path / "video.mp4", [], creation_time=WHOLE_SECOND
-        )
-        gpx_path = _write_gpx(tmp_path / "track.gpx", WHOLE_SECOND - 6, 20)
-        with caplog.at_level(logging.WARNING):
-            metadata = GPXVideoExtractor(
-                video_path, gpx_path, video_sync=sync
-            ).extract()
-
-        assert metadata.points[0].time == pytest.approx(-6.0)
-        placed = [w for w in _warnings(caplog) if "by the creation time" in w]
-        assert len(placed) == 1, _warnings(caplog)
-        assert "puts its start at 2026-08-12T08:26:27+00:00" in placed[0]
-        assert "comes from the camera's clock, which can be off" in placed[0]
-        assert "--video_start_time" in placed[0]
-        assert "--video_duration_ratio" not in placed[0]
-
-    def test_a_track_placed_by_the_creation_time_is_clipped_in_process(
-        self, tmp_path, caplog
-    ):
-        """
-        Uploaded with the video, a track that runs on past its end is clipped
-        to it, so that it is not stretched over the video as a timelapse's.
-        process cannot tell a timelapse, whose track that clips, and warns
-        """
-        video_path = _write_camm_mp4(
-            tmp_path / "video.mp4", [], creation_time=WHOLE_SECOND
-        )
-        # 27 minutes from the start of the video, as a logger left running
-        gpx_path = _write_gpx(tmp_path / "track.gpx", WHOLE_SECOND, 27 * 60)
-        with caplog.at_level(logging.WARNING):
-            metadata = GPXVideoExtractor(
-                video_path, gpx_path, clip_to_video=True
-            ).extract()
-
-        assert metadata.points[0].time == pytest.approx(0.0)
-        assert metadata.points[-1].time == pytest.approx(VIDEO_DURATION)
-        [placed] = [w for w in _warnings(caplog) if "by the creation time" in w]
-        assert placed.endswith(
-            "trim the GPX to the video. If the video is a timelapse, whose track is "
-            "cut to the video here, sample it with video_process and "
-            "--video_duration_ratio instead"
-        )
-
-    def test_a_short_track_placed_by_the_creation_time_says_nothing_of_a_timelapse(
-        self, tmp_path, caplog
-    ):
-        video_path = _write_camm_mp4(
-            tmp_path / "video.mp4", [], creation_time=WHOLE_SECOND
-        )
-        gpx_path = _write_gpx(tmp_path / "track.gpx", WHOLE_SECOND - 6, 20)
-        with caplog.at_level(logging.WARNING):
-            metadata = GPXVideoExtractor(
-                video_path, gpx_path, clip_to_video=True
-            ).extract()
-
-        assert metadata.points[0].time == pytest.approx(0.0)
-        assert metadata.points[-1].time == pytest.approx(VIDEO_DURATION)
-        [placed] = [w for w in _warnings(caplog) if "by the creation time" in w]
-        assert "timelapse" not in placed
-
-    def test_placed_by_the_creation_time_in_a_long_track_in_sampling(
-        self, tmp_path, caplog
-    ):
-        """
-        Where --video_duration_ratio tells a timelapse, which the warning
-        offers
-        """
-        video_path = _write_camm_mp4(
-            tmp_path / "video.mp4", [], creation_time=WHOLE_SECOND
-        )
-        gpx_path = _write_gpx(tmp_path / "track.gpx", WHOLE_SECOND - 60, 132)
-        with caplog.at_level(logging.WARNING):
-            metadata = GPXVideoExtractor(
-                video_path, gpx_path, video_sync=VideoSyncOption()
-            ).extract()
-
-        assert metadata.points[0].time == pytest.approx(-60.0)
-        [placed] = [w for w in _warnings(caplog) if "by the creation time" in w]
-        assert (
-            "specify --video_duration_ratio if the video is a timelapse, or else "
-            "the time the video started as --video_start_time"
-        ) in placed
-
-    def test_the_creation_time_as_the_end_when_the_track_says_so(
-        self, tmp_path, caplog
-    ):
-        """
-        Nothing says whether this camera stamps the creation time at the start
-        or the end of the recording: the track, which covers the video only if
-        it ended then, says the end
-        """
-        video_path = _write_camm_mp4(
-            tmp_path / "video.mp4", [], creation_time=WHOLE_SECOND + VIDEO_DURATION
-        )
-        gpx_path = _write_gpx(tmp_path / "track.gpx", WHOLE_SECOND - 60, 60 + 10)
-        with caplog.at_level(logging.WARNING):
-            metadata = GPXVideoExtractor(
-                video_path, gpx_path, video_sync=VideoSyncOption()
-            ).extract()
-
-        assert metadata.points[0].time == pytest.approx(-60.0)
-        [placed] = [w for w in _warnings(caplog) if "by the creation time" in w]
-        assert "read as the end of the recording" in placed
-
-    @pytest.mark.parametrize(
-        "sync", [None, VideoSyncOption()], ids=["process", "sampling"]
-    )
-    def test_a_creation_time_that_the_track_misses_is_not_used(
-        self, tmp_path, caplog, sync
-    ):
-        """The track is taken to be right, and to start with the video"""
-        video_path = _write_camm_mp4(
-            tmp_path / "video.mp4", [], creation_time=WHOLE_SECOND + 30 * 24 * 3600
-        )
-        gpx_path = _write_gpx(tmp_path / "track.gpx", WHOLE_SECOND, VIDEO_DURATION)
-        with caplog.at_level(logging.WARNING):
-            metadata = GPXVideoExtractor(
-                video_path, gpx_path, video_sync=sync
-            ).extract()
-
-        assert metadata.points[0].time == 0.0
-        [warning] = _warnings(caplog)
-        assert "misses the video" in warning
-        assert "placed by its creation time" in warning
-        assert "the track is assumed to start with the video" in warning
 
 
 class TestInterpolationOffset:
@@ -590,10 +445,7 @@ class TestInterpolationOffset:
         offset_time: float,
         use_gpx_start_time: bool = False,
     ) -> types.VideoMetadata:
-        # Without a creation time, which would place the track otherwise
-        video_path = _write_camm_mp4(
-            tmp_path / "video.mp4", video_track, creation_time=None
-        )
+        video_path = _write_camm_mp4(tmp_path / "video.mp4", video_track)
         gpx_path = _write_gpx(tmp_path / "track.gpx", A_UNIX_TIME, VIDEO_DURATION)
         return GPXVideoExtractor(
             video_path,
