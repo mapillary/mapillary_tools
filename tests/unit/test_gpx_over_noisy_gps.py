@@ -17,6 +17,7 @@ its points.
 
 from __future__ import annotations
 
+import logging
 import typing as T
 from pathlib import Path
 
@@ -188,18 +189,13 @@ class TestGPXOverridesNoisyGPS:
 
         assert [p.time for p in metadata.points] == pytest.approx([2.0, 4.0])
 
-    @pytest.mark.parametrize("creation_time", [None, A_UNIX_TIME])
-    def test_placeholder_clock_is_ignored(
-        self, monkeypatch, video_path, gpx_path, creation_time
-    ):
+    def test_placeholder_clock_is_ignored(self, monkeypatch, video_path, gpx_path):
         """
         Until it acquires the GPS time, a GoPro stamps a placeholder date, which
         a GPS rejected as noise may never have got past. Such a clock says
         nothing of when the video was recorded, so the GPX is synced from the
-        start of the video, whatever the creation time of the video says.
+        start of the video, which has no creation time either.
         """
-        if creation_time is not None:
-            _write_mvhd(video_path, creation_time=creation_time)
         points = [
             _point(time=i * 0.1, epoch_time=PLACEHOLDER_UNIX_TIME + i * 0.1)
             for i in range(32)
@@ -210,6 +206,24 @@ class TestGPXOverridesNoisyGPS:
 
         assert [p.time for p in metadata.points] == [0.0, 2.0]
         assert (metadata.make, metadata.model) == ("GoPro", "MAX2")
+
+    def test_placeholder_clock_leaves_the_gpx_to_the_creation_time(
+        self, monkeypatch, video_path, gpx_path, caplog
+    ):
+        """As for a video without GPS, with a warning that it can be off"""
+        _write_mvhd(video_path, creation_time=A_UNIX_TIME)
+        points = [
+            _point(time=i * 0.1, epoch_time=PLACEHOLDER_UNIX_TIME + i * 0.1)
+            for i in range(32)
+        ]
+        _stub_gopro(monkeypatch, points)
+
+        with caplog.at_level(logging.WARNING):
+            metadata = GPXVideoExtractor(video_path, gpx_path).extract()
+
+        assert [p.time for p in metadata.points] == pytest.approx([2.0, 4.0])
+        assert "by the creation time of the video" in caplog.text
+        assert "camera's clock, which can be off" in caplog.text
 
     def test_noisy_clock_after_its_placeholder_date_places_the_gpx(
         self, monkeypatch, video_path, gpx_path

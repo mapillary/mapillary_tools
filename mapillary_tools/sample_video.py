@@ -9,7 +9,6 @@ import dataclasses
 import datetime
 import logging
 import os
-import re
 import shutil
 import time
 import typing as T
@@ -18,17 +17,14 @@ from pathlib import Path
 
 import humanize
 
-from . import (
-    blackvue_parser,
-    constants,
-    exceptions,
-    ffmpeg as ffmpeglib,
-    geo,
-    types,
-    utils,
-)
+from . import constants, exceptions, ffmpeg as ffmpeglib, geo, types, utils
 from .exif_write import ExifEdit
-from .geotag import factory, geotag_images_from_gpx_file, geotag_images_from_nmea_file
+from .geotag import (
+    factory,
+    geotag_images_from_gpx_file,
+    geotag_images_from_nmea_file,
+    video_start_time,
+)
 from .geotag.geotag_images_from_gpx import check_within_track
 from .geotag.options import (
     InterpolationOption,
@@ -269,11 +265,10 @@ def sample_video(
         except ValueError as ex:
             raise exceptions.MapillaryBadParameterError(str(ex))
 
-    # Only a start time the user gave. A video needs one to place a GPX only if
-    # it has no GPS clock, and then its start time would come from its creation
-    # time, which cameras stamp at the start or at the end of the recording, some
-    # in local time. Telling which takes evidence that a video may not carry, and
-    # a GPX placed by a wrong guess is off by a whole video length or a time zone
+    # Only a start time the user gave. A video needs one to place a GPX exactly
+    # only if it has no GPS clock. Without it, GPX sync places the GPX by the
+    # creation time of the video, with a warning, as cameras stamp it at the
+    # start or at the end of the recording, some in local time
     video_sync = VideoSyncOption(
         start_time=(
             video_start_time_dt.timestamp() if video_start_time_dt is not None else None
@@ -456,29 +451,6 @@ def wip_sample_dir(sample_dir: Path) -> Path:
     )
 
 
-# Cameras known to stamp the creation time at the end of the recording, as
-# lowercase (make, model) from the container tags. BlackVue is not listed
-# because it does not write those tags: blackvue_parser.is_blackvue detects it
-_END_STAMPING_CAMERAS = {
-    ("ricoh", "ricoh theta x"),
-    ("labpano", "panox v2"),
-}
-
-# A date and time in a file name, for example 20230512_101530 (BlackVue,
-# Insta360) or 2023_0512_101530 (Viofo), in the camera's local time
-_FILENAME_TIME_RE = re.compile(
-    r"(?<!\d)(20\d\d)[-_]?(\d\d)[-_]?(\d\d)[-_T]?(\d\d)[-_]?(\d\d)[-_]?(\d\d)(?!\d)"
-)
-
-# UTC offsets range from -12 to +14 hours in multiples of 15 minutes
-_MAX_UTC_OFFSET_SECONDS = 14 * 3600
-_UTC_OFFSET_GRANULARITY_SECONDS = 15 * 60
-
-# Cameras do not name the file at exactly the moment they stamp the creation
-# time: Insta360's are about 10 seconds apart
-_FILENAME_TIME_TOLERANCE_SECONDS = 15
-
-
 def _gps_clock_start_time(
     points: T.Sequence[geo.Point],
 ) -> datetime.datetime | None:
@@ -537,111 +509,31 @@ def _telemetry_clock(
     return clock
 
 
-def _parse_filename_time(video_path: Path) -> datetime.datetime | None:
-    for match in _FILENAME_TIME_RE.finditer(video_path.stem):
-        year, month, day, hour, minute, second = (int(g) for g in match.groups())
-        try:
-            return datetime.datetime(
-                year, month, day, hour, minute, second, tzinfo=datetime.timezone.utc
-            )
-        except ValueError:
-            continue
-
-    return None
-
-
-def _as_utc(dt: datetime.datetime) -> datetime.datetime:
-    if dt.tzinfo is None:
-        return dt.replace(tzinfo=datetime.timezone.utc)
-    return dt
-
-
-def _is_same_time_in_another_time_zone(
-    a: datetime.datetime, b: datetime.datetime
-) -> bool:
-    """
-    Tell whether two times could be the same moment, one of them possibly in
-    local time labelled as UTC
-    """
-    delta = abs((_as_utc(a) - _as_utc(b)).total_seconds())
-    if _MAX_UTC_OFFSET_SECONDS + _FILENAME_TIME_TOLERANCE_SECONDS < delta:
-        return False
-    remainder = delta % _UTC_OFFSET_GRANULARITY_SECONDS
-    return (
-        min(remainder, _UTC_OFFSET_GRANULARITY_SECONDS - remainder)
-        <= _FILENAME_TIME_TOLERANCE_SECONDS
-    )
-
-
-def _is_end_stamping_camera(video_path: Path, probe: ffmpeglib.Probe) -> bool:
-    make = probe.probe_format_tag("make")
-    model = probe.probe_format_tag("model")
-    if make is not None and model is not None:
-        if (make.strip().lower(), model.strip().lower()) in _END_STAMPING_CAMERAS:
-            return True
-
-    try:
-        with video_path.open("rb") as fp:
-            return blackvue_parser.is_blackvue(fp)
-    except Exception as ex:
-        LOG.debug("Unable to tell whether %s is a BlackVue video: %s", video_path, ex)
-        return False
-
-
 def _creation_time_to_start_time(
     video_path: Path, probe: ffmpeglib.Probe
 ) -> datetime.datetime | None:
     """
     Determine the wall clock time at which a video started recording from the
-    creation time in its metadata.
-
-    Cameras disagree on what the creation time marks. Many stamp the end of the
-    recording: BlackVue, Viofo, Vantrue and most other dashcams, the Ricoh Theta
-    X and the Labpano PanoX V2. Others stamp the start: Sony, Insta360 and the
-    dashcam in the bug report that motivated reading this at all. Nothing in the
-    metadata says which, so look for evidence: a camera known to stamp the end,
-    or a time in the file name that matches only one of the two. Without any,
-    assume the start and warn about the alternative.
+    creation time in its metadata, as read by ffprobe (see
+    video_start_time.creation_time_to_start_time)
     """
     creation_time = probe.probe_video_creation_time()
     if creation_time is None:
         return None
 
-    duration = probe.probe_video_duration()
-    if duration is None:
-        LOG.warning(
-            "Unable to read the duration of %s, so assuming its creation time %s marks the start of the recording",
-            video_path.name,
-            creation_time,
-        )
-        return creation_time
-
-    start_time_if_end_stamped = creation_time - datetime.timedelta(seconds=duration)
-
-    if _is_end_stamping_camera(video_path, probe):
-        return start_time_if_end_stamped
-
-    filename_time = _parse_filename_time(video_path)
-    if filename_time is not None:
-        matches_start = _is_same_time_in_another_time_zone(filename_time, creation_time)
-        matches_end = _is_same_time_in_another_time_zone(
-            filename_time, start_time_if_end_stamped
-        )
-        if matches_end and not matches_start:
-            return start_time_if_end_stamped
-        if matches_start and not matches_end:
-            return creation_time
-
-    LOG.warning(
-        "Assuming the creation time %s of %s marks the start of the recording. "
-        "If the camera stamps the end instead, as most dashcams do, the recording started %.1f seconds earlier: "
-        "specify --video_start_time %s to use that",
+    start_time = video_start_time.creation_time_to_start_time(
+        video_path,
         creation_time,
-        video_path.name,
-        duration,
-        build_capture_time(start_time_if_end_stamped),
+        probe.probe_video_duration(),
+        make=probe.probe_format_tag("make"),
+        model=probe.probe_format_tag("model"),
     )
-    return creation_time
+    warning = video_start_time.describe_end_stamped_alternative(
+        video_path, start_time, "specify --video_start_time"
+    )
+    if warning is not None:
+        LOG.warning(warning)
+    return start_time.start_time
 
 
 def _extract_video_start_time(
@@ -704,6 +596,62 @@ def _check_gpx_start_by_interval(
         gpx_points = extractor._read_gpx_points()
         if gpx_points:
             extractor._check_given_start(gpx_points, video_sync.duration_ratio)
+
+
+def _track_file_start_time(
+    video_path: Path,
+    geotag_options: T.Sequence[SourceOption],
+    video_sync: VideoSyncOption | None,
+    make: str | None = None,
+    model: str | None = None,
+) -> datetime.datetime | None:
+    """
+    The start time of a video without a GPS clock, by the GPX (or NMEA) track
+    of the first source that geotags images, which the geotagging stage places
+    the interval samples along by their capture times: as GPX sync places a
+    track on such a video (see GPXVideoExtractor._place_without_video_gps), by
+    the creation time of the video if the track covers it, or else by the
+    start of the track. None to leave it to the creation time alone: without
+    such a track, or when --interpolation_use_gpx_start_time starts the track
+    with the video, which the geotagging stage does.
+    """
+    for option in geotag_options:
+        extractor_class = _TRACK_FILE_EXTRACTORS.get(option.source)
+        if extractor_class is None or option.source_path is None:
+            continue
+        if (
+            option.filetypes is not None
+            and types.FileType.IMAGE not in option.filetypes
+        ):
+            continue
+        if option.interpolation is not None and option.interpolation.use_gpx_start_time:
+            return None
+        gpx_path = option.source_path.resolve(video_path)
+        if not gpx_path.is_file():
+            continue
+        extractor = extractor_class(
+            video_path,
+            gpx_path,
+            video_sync=video_sync,
+            interpolation=option.interpolation,
+        )
+        try:
+            gpx_points = extractor._read_gpx_points()
+        except Exception as ex:
+            # The geotagging stage reports what keeps it from reading the GPX
+            LOG.debug("No start time from %s for %s: %s", gpx_path, video_path.name, ex)
+            return None
+        if not gpx_points:
+            return None
+        start_time = extractor._creation_time_start(gpx_points, make, model)
+        if start_time is None:
+            start_time = min(p.time for p in gpx_points)
+            extractor._check_assumed_start(
+                gpx_points, 1.0 if video_sync is None else video_sync.duration_ratio
+            )
+        return datetime.datetime.fromtimestamp(start_time, tz=datetime.timezone.utc)
+
+    return None
 
 
 def _gpx_sync_reads_a_clock(extractor: GPXVideoExtractor) -> bool:
@@ -850,7 +798,13 @@ def _sample_single_video_by_interval(
                 clock.to_unix_time(0.0), tz=datetime.timezone.utc
             )
         else:
-            start_time = _extract_video_start_time(video_path, probe, telemetry_points)
+            start_time = _track_file_start_time(
+                video_path,
+                geotag_options,
+                video_sync,
+                make=probe.probe_format_tag("make"),
+                model=probe.probe_format_tag("model"),
+            ) or _extract_video_start_time(video_path, probe, telemetry_points)
         if start_time is None:
             raise exceptions.MapillaryVideoError(
                 f"Unable to extract video start time from {video_path}"
