@@ -69,11 +69,20 @@ _MIN_TIMELAPSE_RATE = 1.5
 # 1969-12-31T15:59:59Z, on points that had no valid time
 _GPS_EPOCH = datetime.datetime(1980, 1, 6, tzinfo=datetime.timezone.utc).timestamp()
 
-# How far a GPX track may run past either end of a video, when it is assumed
-# to start with the video, or fall short of them, without a warning. A logger
-# that records once a second, started and stopped with the camera, can be a
-# second off at each end.
+# How far a GPX track placed by a clock may fall short of either end of the
+# video without a warning. A logger that records once a second, started and
+# stopped with the camera, can be a second off at each end.
 _LOGGER_TOLERANCE_SECONDS = 2.0
+
+# How much longer or shorter than a video without a GPS clock a GPX track,
+# which is then assumed to start with the video, may last without a warning
+# that the start of the video needs aligning with the track
+_GPX_LENGTH_TOLERANCE_SECONDS = 60.0
+
+# A track that lasts longer than such a video warns only if it also lasts more
+# than this many times as long. The track of a timelapse lasts longer than
+# the video by design
+_MIN_LONG_GPX_RATIO = 1.5
 
 # The first GPS timestamps of a recording can be stale: GoPro stamps its first
 # block of points up to 3 seconds before the rest place the start of the video,
@@ -212,6 +221,8 @@ class GPXVideoExtractor(BaseVideoExtractor):
         self.clip_to_video = clip_to_video
         if interpolation is not None and interpolation.use_gpx_start_time:
             self.sync_mode = SyncMode.REBASE
+        # What extract() warned of about the placement of the track
+        self.warnings: list[exceptions.MapillaryProcessWarning] = []
 
     @override
     def extract(self) -> types.VideoMetadata:
@@ -425,8 +436,11 @@ class GPXVideoExtractor(BaseVideoExtractor):
         """
         Place the GPX track on the timeline of a video that has no GPS clock to
         sync it with: by the start time of the video, when sampling was given
-        one, and otherwise by assuming that the track starts with the video. It
-        runs at --video_duration_ratio GPS seconds per second of video.
+        one, and otherwise by assuming that the track starts with the video,
+        with a warning when their lengths differ (see _check_length). No other
+        time of the video, such as its creation time, which the camera's own
+        clock stamps, places the track. It runs at --video_duration_ratio GPS
+        seconds per second of video.
 
         Return the clock of the video the track was placed by: the start time,
         or None if the track was assumed to start with the video.
@@ -436,8 +450,8 @@ class GPXVideoExtractor(BaseVideoExtractor):
 
         ratio = self._duration_ratio()
 
-        if self.sync_mode is SyncMode.SYNC and self.video_sync is not None:
-            if self.video_sync.start_time is not None:
+        if self.sync_mode is SyncMode.SYNC:
+            if self.video_sync is not None and self.video_sync.start_time is not None:
                 self._rebase_times(
                     gpx_points,
                     offset=(gpx_points[0].time - self.video_sync.start_time) / ratio,
@@ -446,15 +460,13 @@ class GPXVideoExtractor(BaseVideoExtractor):
                 return VideoClock(
                     video_time=0.0, unix_time=self.video_sync.start_time, rate=ratio
                 )
-            self._check_assumed_start(gpx_points, ratio)
+            self._check_length(gpx_points, ratio)
         elif self.sync_mode is SyncMode.REBASE and self.video_sync is not None:
             self._check_given_start(gpx_points, ratio)
             self._rebase_times(
                 gpx_points, offset=self._gpx_start_video_time(), rate=ratio
             )
             return None
-        elif self.sync_mode is SyncMode.SYNC:
-            self._warn_of_a_long_track(gpx_points)
 
         self._rebase_times(gpx_points, rate=ratio)
         return None
@@ -663,6 +675,10 @@ class GPXVideoExtractor(BaseVideoExtractor):
                     for start, end in gaps
                 )
             )
+            if clock is None and not offset_time:
+                # Assumed to start with the video, the track ends before it
+                # only if it is shorter, which _check_length() warns of
+                return
             if _LOGGER_TOLERANCE_SECONDS < uncovered * rate:
                 LOG.warning(
                     f"{gpx_track} covers only part of {video}{offset_clause}: "
@@ -710,62 +726,76 @@ class GPXVideoExtractor(BaseVideoExtractor):
 
         LOG.warning(message)
 
-    def _check_assumed_start(
-        self, gpx_points: T.Sequence[geo.Point], ratio: float
-    ) -> None:
+    def _check_length(self, gpx_points: T.Sequence[geo.Point], ratio: float) -> None:
         """
-        Check that the GPX track can have started with the video, as it is
-        assumed to when nothing says when the video starts. The video spans
-        **ratio** GPS seconds per second.
+        Warn when the GPX track, assumed to start with the video because the
+        video has no GPS clock to place it by, lasts longer or shorter than the
+        video by more than _GPX_LENGTH_TOLERANCE_SECONDS: the start of the video
+        then needs aligning with the track. A longer track warns only if it also
+        lasts more than _MIN_LONG_GPX_RATIO times as long as the video, and may
+        be that of a timelapse. The video spans **ratio** GPS seconds per second.
 
-        A track that runs on for longer than the whole video was not recorded
-        for the video alone, and the video could start anywhere along it: raise.
-        One that runs on for less may have been started a little before the
-        video, which puts every frame up to that much too early along it: warn.
+        The track is taken to be right, so neither is refused.
+        --interpolation_offset_time places the start of the video along the
+        track, which leaves nothing to warn of.
         """
+        if self.interpolation is not None and self.interpolation.offset_time:
+            return
+
         durations = self._durations(gpx_points, ratio)
         if durations is None:
             return
 
         video_span, gpx_duration = durations
-        excess = gpx_duration - video_span
+        longer = (
+            _GPX_LENGTH_TOLERANCE_SECONDS < gpx_duration - video_span
+            and _MIN_LONG_GPX_RATIO * video_span < gpx_duration
+        )
+        shorter = _GPX_LENGTH_TOLERANCE_SECONDS < video_span - gpx_duration
+        if not (longer or shorter):
+            return
 
-        if video_span < excess:
-            message = (
-                f"The {self.file_format} track in {self.gpx_path} lasts {_format_duration(gpx_duration)} "
-                f"and {self._describe_video_span(video_span, ratio)}, so the video "
-                "could start anywhere along the track. "
+        video = f"the video {self.video_path} {_format_duration(video_span / ratio)}"
+        if ratio != 1.0:
+            video += (
+                f", which at --video_duration_ratio {ratio:g} span "
+                f"{_format_duration(video_span)}"
             )
-            # Not --interpolation_use_gpx_start_time, which starts the track
-            # with the video too, and refuses it for the same reason
-            if gpx_duration < _MAX_RECORDING_SECONDS:
-                message += (
-                    "If the video is a timelapse, specify --video_duration_ratio. If "
-                    "the GPS logger was started with the video and left running, "
-                    "specify --video_start_time "
-                    f"{build_capture_time(min(p.time for p in gpx_points))}, when the "
-                    "track starts. If the track covers more than this video, specify "
-                    "the time the video started as --video_start_time instead"
-                )
-            else:
-                message += (
-                    "A track that long covers more than this video: specify the time "
-                    "the video started as --video_start_time"
-                )
-            raise exceptions.MapillaryGPXVideoStartUnknownError(message)
+        if self.video_sync is None:
+            # process, which has no --video_start_time
+            align = (
+                f"trim the {self.file_format} to the video, or sample the video with "
+                "video_process and --video_start_time"
+            )
+            timelapse = (
+                f"If the video is a timelapse, its {self.file_format} track is expected "
+                "to last longer, and is uploaded whole"
+            )
+        else:
+            align = "specify the time the video started as --video_start_time"
+            timelapse = "If the video is a timelapse, specify --video_duration_ratio"
 
-        if _LOGGER_TOLERANCE_SECONDS < excess:
-            LOG.warning(
-                "Assuming that the %s track in %s starts with the video %s, although "
-                "the track lasts %s longer. If it was started first, the frames are "
-                "placed up to that much too early along it. Specify --video_start_time "
-                "to place them exactly, or --interpolation_use_gpx_start_time if the "
-                "track was started with the video",
-                self.file_format,
-                self.gpx_path,
-                self.video_path,
-                _format_duration(excess),
-            )
+        message = (
+            f"The {self.file_format} track in {self.gpx_path} lasts "
+            f"{_format_duration(gpx_duration)} and {video}, so the track is assumed "
+            f"to start with the video. Please align the video start time with the "
+            f"{self.file_format} track: {align}"
+        )
+        if longer:
+            message += f". {timelapse}"
+
+        gpx_start = min(p.time for p in gpx_points)
+        warning = exceptions.MapillaryGPXAlignmentWarning(
+            message,
+            # To the millisecond, as the times are
+            video_duration=round(video_span / ratio, 3),
+            gpx_duration=round(gpx_duration, 3),
+            gpx_start_time=build_capture_time(gpx_start),
+            gpx_end_time=build_capture_time(gpx_start + gpx_duration),
+            gpx_longer=longer,
+        )
+        LOG.warning(message)
+        self.warnings.append(warning)
 
     def _check_given_start(
         self, gpx_points: T.Sequence[geo.Point], ratio: float
@@ -873,44 +903,6 @@ class GPXVideoExtractor(BaseVideoExtractor):
             )
 
         return clock
-
-    def _warn_of_a_long_track(self, gpx_points: T.Sequence[geo.Point]) -> None:
-        """
-        Warn, in process, of a GPX track assumed to start with the video that
-        runs on for longer than the whole video, which sampling refuses (see
-        _check_assumed_start): the video could start anywhere along it. Only
-        warn, since the track of a timelapse without a GPS clock of its own
-        runs on past the end of the video too.
-
-        With --interpolation_offset_time, it is the offset that places the
-        video along the track, and one way to place it right.
-        """
-        track = describe_long_track(
-            f"The {self.file_format} track in {self.gpx_path}",
-            gpx_points,
-            self.video_path,
-        )
-        if track is None:
-            return
-
-        gpx_start = min(p.time for p in gpx_points)
-        offset_time = (
-            0.0 if self.interpolation is None else self.interpolation.offset_time
-        )
-        if offset_time:
-            LOG.warning(
-                f"{track}, and --interpolation_offset_time {offset_time:g} places its "
-                f"start at {_isoformat(gpx_start + offset_time)} along it. Unless the "
-                "video is a timelapse of the track from there, check that the offset "
-                f"is where the video starts along the track, trim the {self.file_format} to the "
-                "video, or sample the video with video_process and --video_start_time"
-            )
-        else:
-            LOG.warning(
-                f"{track}, and is assumed to start with it. Unless the video is a "
-                f"timelapse of the whole track, trim the {self.file_format} to the video, or sample "
-                "the video with video_process and --video_start_time"
-            )
 
     def _extract_native_video_metadata(self) -> tuple[types.VideoMetadata, bool]:
         """

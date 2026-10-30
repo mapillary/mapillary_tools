@@ -416,13 +416,15 @@ class TestVideoWithoutGPSClock:
     @pytest.mark.parametrize(
         "video_track", [[], UNTIMED_TRACK], ids=["no GPS", "GPS without timestamps"]
     )
-    def test_assumed_start_warns_of_a_short_track(self, tmp_path, caplog, video_track):
+    def test_assumed_start_takes_a_track_a_little_short_silently(
+        self, tmp_path, caplog, video_track
+    ):
+        """Up to a minute short, the track needs no aligning (see _check_length)"""
         video_path = _write_camm_mp4(tmp_path / "video.mp4", video_track)
         with caplog.at_level(logging.WARNING):
             # Covers the first 6 of the video's 12 seconds
             self._extract(tmp_path, video_path, A_UNIX_TIME, 6)
-        [warning] = _warnings(caplog)
-        assert "6 seconds of the video fall outside the track" in warning
+        assert not _warnings(caplog)
 
     def test_assumed_start_is_silent_on_a_covering_track(self, tmp_path, caplog):
         video_path = _write_camm_mp4(tmp_path / "video.mp4", UNTIMED_TRACK)

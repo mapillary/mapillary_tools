@@ -96,6 +96,53 @@ class MapillaryStationaryVideoError(MapillaryDescriptionError):
     pass
 
 
+class MapillaryProcessWarning(UserWarning):
+    """
+    Base class for what processing warns of about a file that it still
+    processes: logged, never raised
+    """
+
+
+class MapillaryGPXAlignmentWarning(MapillaryProcessWarning):
+    """
+    A GPX track assumed to start with a video without a GPS clock lasts longer
+    or shorter than the video: the video start time needs aligning with the
+    track. A track that lasts longer (gpx_longer) may be that of a timelapse.
+    Durations are in seconds, the GPX times capture times.
+    """
+
+    def __init__(
+        self,
+        message: str,
+        video_duration: float,
+        gpx_duration: float,
+        gpx_start_time: str,
+        gpx_end_time: str,
+        gpx_longer: bool,
+    ):
+        super().__init__(message)
+        self.video_duration = video_duration
+        self.gpx_duration = gpx_duration
+        self.gpx_start_time = gpx_start_time
+        self.gpx_end_time = gpx_end_time
+        self.gpx_longer = gpx_longer
+
+    def __reduce__(self):
+        # Pickle with every argument, so that the warning survives the trip
+        # back from a worker process (video geotagging warns in one)
+        return (
+            self.__class__,
+            (
+                self.args[0],
+                self.video_duration,
+                self.gpx_duration,
+                self.gpx_start_time,
+                self.gpx_end_time,
+                self.gpx_longer,
+            ),
+        )
+
+
 class MapillaryGPXVideoStartUnknownError(MapillaryDescriptionError):
     """
     Nothing says how a GPX track lines up with a video without a GPS clock:

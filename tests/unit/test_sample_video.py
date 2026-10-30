@@ -1007,7 +1007,10 @@ class TestSampleNoisyTimelapseByInterval:
             assert len(list(sample_dir.iterdir())) == num_samples
 
     def test_not_by_a_placeholder_clock(self, tmpdir, setup_mock, monkeypatch):
-        """Which GPX sync does not place the GPX by either"""
+        """
+        Which GPX sync does not place the GPX by either, nor by the creation
+        time of the video: the track is assumed to start with the video
+        """
         self._mock_noisy_telemetry(
             monkeypatch,
             datetime.datetime(2015, 1, 1, tzinfo=datetime.timezone.utc).timestamp(),
@@ -1016,7 +1019,26 @@ class TestSampleNoisyTimelapseByInterval:
 
         _validate_interval(
             self._sample(tmpdir, geotag_source=["gpx"], geotag_source_path=gpx),
-            PROBE_START_TIME,
+            self.GPS_START_TIME,
+        )
+
+    def test_not_by_the_creation_time_within_the_gpx(
+        self, tmpdir, setup_mock, monkeypatch
+    ):
+        """
+        The creation time of the video, which the camera's clock stamps, places
+        nothing, even where the track covers it
+        """
+        self._mock_noisy_telemetry(
+            monkeypatch,
+            datetime.datetime(2015, 1, 1, tzinfo=datetime.timezone.utc).timestamp(),
+        )
+        gpx_start = PROBE_START_TIME - datetime.timedelta(seconds=100)
+        gpx = self._write_gpx(Path(tmpdir) / "track.gpx", gpx_start)
+
+        _validate_interval(
+            self._sample(tmpdir, geotag_source=["gpx"], geotag_source_path=gpx),
+            gpx_start,
         )
 
     def test_not_without_a_gpx(self, tmpdir, setup_mock, monkeypatch):

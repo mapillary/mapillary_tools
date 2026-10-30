@@ -3,6 +3,8 @@
 # This source code is licensed under the BSD license found in the
 # LICENSE file in the root directory of this source tree.
 
+from __future__ import annotations
+
 import functools
 import json
 import os
@@ -490,36 +492,58 @@ def test_video_process_by_distance_places_a_gpx_by_the_video_start_time(
     assert capture_times[-1] < "2025_03_14_07_00_36_000", capture_times
 
 
-def test_video_process_by_distance_refuses_to_guess_where_the_video_starts(
-    setup_data: py.path.local,
+@pytest.mark.parametrize(
+    "sampling",
+    [
+        ["--video_sample_distance=3"],
+        ["--video_sample_distance=-1", "--video_sample_interval=1"],
+    ],
+    ids=["by distance", "by interval"],
+)
+@pytest.mark.parametrize(
+    "creation_time", ["2025-03-14T07:00:36Z", None], ids=["creation time", "none"]
+)
+def test_video_process_assumes_a_long_gpx_starts_with_the_video(
+    setup_data: py.path.local, sampling: list[str], creation_time: str | None
 ):
     """
-    Without --video_start_time, a GPX far longer than the video could start
-    anywhere along it, so assuming that it starts with the video is a guess.
+    Without --video_start_time, a video without GPS of its own is assumed to
+    start with the GPX, which is taken to be right: never by its creation time,
+    which the camera's clock stamps, even where the track covers it. A track
+    much longer than the video warns to align the two, and is not refused.
     """
     pytest_skip_if_not_ffmpeg_installed()
 
+    # 93 seconds of track, from 07:00:00, for 5.76 seconds of video
     gpx_file = setup_data.join("gpx").join("sf_30km_h.gpx")
 
     with tempfile.TemporaryDirectory() as dir:
-        video_path = _with_creation_time(
-            setup_data.join("videos").join("sample-5s.mp4"), "2025-03-14T07:00:36Z", dir
-        )
-        with pytest.raises(subprocess.CalledProcessError) as ex:
-            run_video_process(
-                [
-                    "--video_sample_distance=3",
-                    "--geotag_source=gpx",
-                    *["--geotag_source_path", str(gpx_file)],
-                    str(video_path),
-                    str(Path(dir, "samples")),
-                ],
-                capture_output=True,
-                text=True,
+        video_path = str(setup_data.join("videos").join("sample-5s.mp4"))
+        if creation_time is not None:
+            video_path = str(
+                _with_creation_time(py.path.local(video_path), creation_time, dir)
             )
+        desc_path = Path(dir, "descs.json")
+        result = run_video_process(
+            [
+                *sampling,
+                "--geotag_source=gpx",
+                *["--geotag_source_path", str(gpx_file)],
+                *["--desc_path", str(desc_path)],
+                video_path,
+                str(Path(dir, "samples")),
+            ],
+            capture_output=True,
+            text=True,
+        )
+        descs = json.loads(desc_path.read_text())
 
-    assert 7 == ex.value.returncode, ex.value.stderr
-    assert "specify --video_start_time" in ex.value.stderr.lower(), ex.value.stderr
+    assert descs
+    assert all("error" not in desc for desc in descs), descs
+    capture_times = sorted(desc["MAPCaptureTime"] for desc in descs)
+    assert "2025_03_14_07_00_00_000" <= capture_times[0], capture_times
+    assert capture_times[-1] < "2025_03_14_07_00_07_000", capture_times
+    assert "Please align the video start time with the GPX track" in result.stderr
 
 
 def test_video_process_by_distance_with_a_gpx_that_misses_the_video(
