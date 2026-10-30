@@ -13,6 +13,7 @@ import logging
 import math
 import statistics
 import sys
+import time
 import typing as T
 from pathlib import Path
 
@@ -25,7 +26,6 @@ else:
     from typing_extensions import override
 
 from ... import constants, exceptions, geo, telemetry, types, utils
-from ...camm import camm_parser
 from ...mp4 import construct_mp4_parser as cparser, simple_mp4_parser as sparser
 from ...mp4.mp4_sample_parser import MovieBoxParser
 from ...serializer.description import build_capture_time
@@ -40,6 +40,21 @@ LOG = logging.getLogger(__name__)
 # belongs to more than a day apart, while an epoch mix-up exceeds it by orders
 # of magnitude.
 _IMPLAUSIBLE_OFFSET_SECONDS = 24 * 3600
+
+# A video GPS timestamp before this is a placeholder, not the GPS time: until it
+# acquires the time, a GoPro stamps 2000-01-01, or a date in October 2015
+_MIN_GPS_UNIX_TIME = datetime.datetime(
+    2016, 1, 1, tzinfo=datetime.timezone.utc
+).timestamp()
+
+# Nor can a video GPS timestamp lie further than this in the future
+_MAX_GPS_FUTURE_SECONDS = 24 * 3600
+
+# A GPS clock that leaps ahead of the video by more than this has just acquired
+# the GPS time, as a GoPro does from its placeholder date: only its timestamps
+# from there on tell when the video was recorded. Stale first timestamps (see
+# _STALE_STEP_RATE) lag by seconds
+_MAX_CLOCK_JUMP_SECONDS = 60.0
 
 # A GPX track that lasts longer than this is not that of one recording, such as
 # a GPS logger left running after the video, but a log of several trips
@@ -208,7 +223,7 @@ class GPXVideoExtractor(BaseVideoExtractor):
         )
 
         try:
-            native_video_metadata, noisy = self._extract_native_video_metadata()
+            native_video_metadata, _ = self._extract_native_video_metadata()
         except exceptions.MapillaryVideoGPSUnusableError as ex:
             # The GPX replaces the video's own GPS, so GPS that is missing,
             # empty or too noisy must not reject the video
@@ -228,16 +243,7 @@ class GPXVideoExtractor(BaseVideoExtractor):
             )
 
         video_clock = self._read_video_clock(native_video_metadata.points)
-        clock = self._sync_clock(video_clock, gpx_points, noisy)
-        if video_clock is not None and clock is None:
-            LOG.warning(
-                "The GPS clock of %s, whose GPS was rejected as noise, is %.1f days away from %s. "
-                "Syncing the %s from the start of the video instead",
-                self.video_path,
-                abs(gpx_points[0].time - video_clock.to_unix_time(0)) / 86400,
-                self.gpx_path,
-                self.file_format,
-            )
+        clock = self._sync_clock(video_clock, gpx_points)
         if clock is not None and gpx_points and self.sync_mode is SyncMode.REBASE:
             # Distance sampling reads the frames by their composition times:
             # start the track at that of the first frame
@@ -841,14 +847,19 @@ class GPXVideoExtractor(BaseVideoExtractor):
         self,
         clock: VideoClock | None,
         gpx_points: T.Sequence[geo.Point],
-        noisy: bool,
     ) -> VideoClock | None:
         """
         The clock to place the GPX track by along the video, from the GPS
-        clock of the video (None if it has none), whose GPS was rejected as
-        noise if **noisy**. Return None if the track is to be placed as for a
-        video without a GPS clock. --interpolation_use_gpx_start_time starts
-        the track at video time 0.
+        clock of the video (None if it has none). Return None if the track is
+        to be placed as for a video without a GPS clock.
+        --interpolation_use_gpx_start_time starts the track at video time 0.
+
+        The GPS clock places the track whether or not the GPS positions were
+        rejected as noise: its timestamps, which _read_timestamps() keeps only
+        once they are the GPS time, tell when the video was recorded, and a
+        track recorded at another time misses the video. The camera's own
+        clock, such as the creation time of the video, is never consulted:
+        it can be anything.
         """
         if clock is None or not gpx_points:
             return clock
@@ -861,39 +872,7 @@ class GPXVideoExtractor(BaseVideoExtractor):
                 video_time=0.0, unix_time=gpx_points[0].time, rate=clock.rate
             )
 
-        # GPS rejected as noise may not have GPS time yet: GoPro stamps a
-        # placeholder date until it acquires it. That GPS is what the GPX
-        # replaces, so do not let a placeholder clock place the GPX days away
-        # from the video. A clock that agrees with the creation time of the
-        # video is no placeholder: it places the GPX as for any video with GPS,
-        # and a GPX days away from it misses the video
-        offset = gpx_points[0].time - clock.to_unix_time(0)
-        if (
-            abs(offset) > _IMPLAUSIBLE_OFFSET_SECONDS
-            and noisy
-            and self.sync_mode is SyncMode.SYNC
-            and not self._clock_matches_creation_time(clock)
-        ):
-            return None
-
         return clock
-
-    def _clock_matches_creation_time(self, clock: VideoClock) -> bool:
-        """
-        Whether the GPS clock of the video starts within a day of the mvhd
-        creation time of the video, or False if that cannot be read.
-
-        A day absorbs any time zone the creation time is written in (GoPro
-        writes local time), and whether it marks the start or the end of the
-        recording. Some cameras write a creation time that means nothing (a
-        GoPro HERO10 recorded in 2022 reports 2016-01-01), so a clock that does
-        not match it may still be real.
-        """
-        creation_time = _video_creation_time(self.video_path)
-        if creation_time is None:
-            return False
-        gap = abs(clock.to_unix_time(0) - creation_time)
-        return gap <= _IMPLAUSIBLE_OFFSET_SECONDS
 
     def _warn_of_a_long_track(self, gpx_points: T.Sequence[geo.Point]) -> None:
         """
@@ -1027,17 +1006,22 @@ class GPXVideoExtractor(BaseVideoExtractor):
     ) -> list[tuple[float, float]]:
         """
         Read the (video time, Unix time) pairs of the GPS timestamps of the
-        points, leaving out those that the others show to be wrong: those out
-        of order, those before a jump of days (from a placeholder date to the
-        GPS time), and stale first ones
+        points, leaving out those that cannot be the GPS time (zero, before
+        2016, or in the future), and those that the others show to be wrong:
+        those out of order, those before a leap of more than a minute (from a
+        placeholder date to the GPS time), and stale first ones.
+
+        Only the timestamps are judged, not the positions: a GPS can have the
+        time before it has a position good enough to publish.
 
         >>> points = [
-        ...     telemetry.GPSPoint(time=v, lat=1, lon=1, alt=None, angle=None, epoch_time=u, fix=None, precision=None, ground_speed=None)
-        ...     for v, u in [(0, 992.4), (0.4, 1000.4), (1.4, 1001.4), (1.8, 1001.4), (2.4, 1002.4)]
+        ...     telemetry.GPSPoint(time=v, lat=1, lon=1, alt=None, angle=None, epoch_time=1789141180 + u, fix=None, precision=None, ground_speed=None)
+        ...     for v, u in [(0, -7.6), (0.4, 0.4), (1.4, 1.4), (1.8, 1.4), (2.4, 2.4)]
         ... ]
-        >>> GPXVideoExtractor._read_timestamps(points)
-        [(0.4, 1000.4), (1.4, 1001.4), (2.4, 1002.4)]
+        >>> [(v, round(u - 1789141180, 1)) for v, u in GPXVideoExtractor._read_timestamps(points)]
+        [(0.4, 0.4), (1.4, 1.4), (2.4, 2.4)]
         """
+        latest = time.time() + _MAX_GPS_FUTURE_SECONDS
         pairs: list[tuple[float, float]] = []
         for p in video_gps_points:
             # Video GPS timestamps are stored in whatever epoch their container
@@ -1045,6 +1029,11 @@ class GPXVideoExtractor(BaseVideoExtractor):
             # through get_unix_time(), which also skips zero/invalid timestamps
             unix_time = p.get_unix_time()
             if unix_time is None:
+                continue
+            if not _MIN_GPS_UNIX_TIME <= unix_time <= latest:
+                # A placeholder date, or a clock gone wrong
+                continue
+            if not math.isfinite(p.time):
                 continue
             if pairs and unix_time == pairs[-1][1]:
                 # GoPro GPS5 stamps a whole block (~1s) of points with one
@@ -1062,11 +1051,13 @@ class GPXVideoExtractor(BaseVideoExtractor):
         if pace is None:
             return pairs
 
-        # GoPro stamps a placeholder date until the GPS acquires the time
+        # Until it acquires the GPS time, a GoPro stamps a placeholder date,
+        # which can be one since 2016: keep the timestamps after the last leap
+        # (see _MAX_CLOCK_JUMP_SECONDS)
         start = 0
         for idx in range(1, len(pairs)):
             (v0, u0), (v1, u1) = pairs[idx - 1], pairs[idx]
-            if _IMPLAUSIBLE_OFFSET_SECONDS < (u1 - u0) - (v1 - v0) * pace:
+            if _MAX_CLOCK_JUMP_SECONDS < (u1 - u0) - (v1 - v0) * pace:
                 start = idx
 
         # Stale first timestamps (see _STALE_STEP_RATE). Judged by the steps of
@@ -1354,19 +1345,6 @@ def _first_frame_time(video_path: Path) -> float:
     ) as ex:
         LOG.debug("Failed to read the first frame time of %s: %s", video_path, ex)
         return 0.0
-
-
-def _video_creation_time(video_path: Path) -> float | None:
-    """
-    The creation time of the video as Unix time, from its mvhd box, or None if
-    it is unset or cannot be read.
-    """
-    try:
-        moov = MovieBoxParser.parse_file(video_path)
-    except (OSError, sparser.ParsingError, C.ConstructError) as ex:
-        LOG.debug("Failed to read the creation time of %s: %s", video_path, ex)
-        return None
-    return camm_parser._extract_creation_time(moov)
 
 
 def _format_duration(seconds: float) -> str:

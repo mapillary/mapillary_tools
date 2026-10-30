@@ -878,10 +878,11 @@ class TestSampleNoisyTimelapseByInterval:
         With --interpolation_use_gpx_start_time, the clock gives only the pace:
         the samples were all stamped within the first minute of the track
         """
-        # A placeholder date, which the GPX start replaces
+        # A clock a year away from the GPX, whose start replaces it. A clock
+        # that never got past a placeholder date before 2016 gives no pace
         self._mock_noisy_telemetry(
             monkeypatch,
-            datetime.datetime(2015, 1, 1, tzinfo=datetime.timezone.utc).timestamp(),
+            datetime.datetime(2024, 1, 1, tzinfo=datetime.timezone.utc).timestamp(),
         )
         gpx_start = self.GPS_START_TIME + datetime.timedelta(minutes=5)
         gpx = self._write_gpx(Path(tmpdir) / "track.gpx", gpx_start)
@@ -1235,15 +1236,22 @@ class TestGPSClockStartTime:
             2021, 8, 10, 12, 38, 6, tzinfo=datetime.timezone.utc
         )
 
-    def test_uses_the_start_of_a_timelapse(self) -> None:
+    def test_uses_the_clock_rate_of_a_timelapse(self) -> None:
         # Each second of this timelapse spans 10 seconds of GPS time, so the
-        # offset between the two clocks grows by 9 seconds per point. Reading it
-        # at the start of the track keeps the error to a couple of points
-        # rather than half the track
+        # offset between the two clocks grows by 9 seconds per point: mapped
+        # back at the rate of the clock, every point says the same start
         points = [self._gps_point(float(i), 1628599086.0 + 10 * i) for i in range(1000)]
         assert sample_video._gps_clock_start_time(points) == datetime.datetime(
-            2021, 8, 10, 12, 38, 24, tzinfo=datetime.timezone.utc
+            2021, 8, 10, 12, 38, 6, tzinfo=datetime.timezone.utc
         )
+
+    def test_skips_a_placeholder_date(self) -> None:
+        # GoPro stamps a date in October 2015 until it acquires the GPS time
+        points = [
+            self._gps_point(0.0, 1445507624.0),
+            self._gps_point(1.0, 1445507625.0),
+        ]
+        assert sample_video._gps_clock_start_time(points) is None
 
     def test_no_absolute_timestamps(self) -> None:
         assert sample_video._gps_clock_start_time(_make_gps_points(3)) is None
