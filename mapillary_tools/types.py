@@ -13,7 +13,7 @@ import typing as T
 import uuid
 from pathlib import Path
 
-from . import geo, utils
+from . import exceptions, geo, utils
 
 
 class FileType(enum.Enum):
@@ -77,6 +77,10 @@ class VideoMetadata:
     model: str | None = None
     filesize: int | None = None
     camera_uuid: str | None = None
+    # What geotagging warned of about the video, for the process report
+    warnings: list[exceptions.MapillaryProcessWarning] = dataclasses.field(
+        default_factory=list, compare=False, repr=False
+    )
 
     def update_md5sum(self) -> None:
         if self.md5sum is None:

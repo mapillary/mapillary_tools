@@ -88,6 +88,8 @@ def test_a_track_more_than_a_minute_longer_warns_in_process(tmp_path, caplog):
     [warning] = extractor.warnings
     assert isinstance(warning, exceptions.MapillaryGPXAlignmentWarning)
     assert str(warning) == message
+    # returned with the metadata, for the process report
+    assert metadata.warnings == [warning]
     assert warning.video_duration == pytest.approx(5.76, abs=0.01)
     assert warning.gpx_duration == 120
     assert warning.gpx_start_time == "2025_03_14_07_00_00_000"
@@ -202,6 +204,8 @@ def test_the_gpx_source_of_process_warns(tmp_path, caplog):
     assert isinstance(metadata, types.VideoMetadata)
     [warning] = _warnings(caplog)
     assert "Please align the video start time with the GPX track" in warning
+    [returned] = metadata.warnings
+    assert str(returned) == warning
 
 
 def test_a_track_said_to_start_with_the_video_is_silent(tmp_path, caplog):
@@ -229,3 +233,23 @@ def test_a_track_placed_by_the_gps_clock_is_silent(tmp_path, caplog):
         GPXVideoExtractor(GPS_VIDEO, gpx).extract()
 
     assert not _warnings(caplog)
+
+
+def test_a_video_whose_gps_has_no_clock_returns_the_warning(
+    tmp_path, caplog, monkeypatch
+):
+    """Its GPS has no clock to place the track by, as if it had no GPS"""
+    monkeypatch.setattr(
+        GPXVideoExtractor, "_read_video_clock", classmethod(lambda cls, points: None)
+    )
+    # The video lasts 12.14 seconds
+    gpx = _write_gpx(tmp_path / "track.gpx", seconds=120)
+    extractor = GPXVideoExtractor(GPS_VIDEO, gpx)
+
+    with caplog.at_level(logging.WARNING):
+        metadata = extractor.extract()
+
+    [message] = _warnings(caplog)
+    assert "Please align the video start time with the GPX track" in message
+    assert metadata.warnings == extractor.warnings
+    assert len(metadata.warnings) == 1

@@ -9,7 +9,7 @@ import json
 import typing as T
 from pathlib import Path
 
-from . import utils
+from . import types, utils
 
 
 PROCESS_REPORT_SCHEMA_VERSION = 1
@@ -26,12 +26,23 @@ class ProcessReportSkippedFile(T.TypedDict):
     details: ProcessReportDetails
 
 
+class ProcessReportWarning(T.TypedDict):
+    filename: str
+    # The class name of the warning, such as MapillaryGPXAlignmentWarning
+    type: str
+    message: str
+    # The attributes of the warning, which its type defines
+    vars: dict[str, T.Any]
+
+
 class ProcessReport(T.TypedDict):
     schema_version: int
     discovered_file_count: int
     processed_file_count: int
     skipped_file_count: int
     skipped_files: list[ProcessReportSkippedFile]
+    # What processing warned of about the files that it still processed
+    warnings: list[ProcessReportWarning]
 
 
 # These files can accompany capture media but are not themselves process inputs.
@@ -151,7 +162,31 @@ def build_process_report(
         "processed_file_count": processed_file_count,
         "skipped_file_count": skipped_file_count,
         "skipped_files": skipped_files,
+        "warnings": [],
     }
+
+
+def build_process_warnings(
+    metadatas: T.Iterable[types.MetadataOrError],
+) -> list[ProcessReportWarning]:
+    """
+    The warnings that geotagging gave the files it geotagged, by file name
+    """
+    warnings: list[ProcessReportWarning] = []
+    for metadata in metadatas:
+        if not isinstance(metadata, types.VideoMetadata):
+            continue
+        for warning in metadata.warnings:
+            warnings.append(
+                {
+                    "filename": str(metadata.filename.resolve()),
+                    "type": warning.__class__.__name__,
+                    "message": str(warning),
+                    "vars": dict(vars(warning)),
+                }
+            )
+    # Stable, so that the warnings of a file stay in the order given
+    return sorted(warnings, key=lambda warning: warning["filename"])
 
 
 def write_process_report(path: Path, report: ProcessReport) -> None:

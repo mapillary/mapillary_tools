@@ -221,7 +221,8 @@ class GPXVideoExtractor(BaseVideoExtractor):
         self.clip_to_video = clip_to_video
         if interpolation is not None and interpolation.use_gpx_start_time:
             self.sync_mode = SyncMode.REBASE
-        # What extract() warned of about the placement of the track
+        # What extract() warned of about the placement of the track, which it
+        # returns with the metadata of the video
         self.warnings: list[exceptions.MapillaryProcessWarning] = []
 
     @override
@@ -251,6 +252,7 @@ class GPXVideoExtractor(BaseVideoExtractor):
                 filesize=utils.get_file_size(self.video_path),
                 filetype=types.FileType.VIDEO,
                 points=gpx_points,
+                warnings=list(self.warnings),
             )
 
         video_clock = self._read_video_clock(native_video_metadata.points)
@@ -303,7 +305,9 @@ class GPXVideoExtractor(BaseVideoExtractor):
         if self.clip_to_video:
             gpx_points = self._clip_to_video(gpx_points, clock, rate)
 
-        return dataclasses.replace(native_video_metadata, points=gpx_points)
+        return dataclasses.replace(
+            native_video_metadata, points=gpx_points, warnings=list(self.warnings)
+        )
 
     def read_tracks(self) -> None:
         """
