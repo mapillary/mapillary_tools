@@ -254,7 +254,7 @@ class FFMPEG:
         self.run_ffmpeg_non_interactive(cmd)
 
     @classmethod
-    def generate_binary_search(cls, sorted_frame_indices: list[int]) -> str:
+    def generate_binary_search(cls, frame_indices: T.Iterable[int]) -> str:
         """
         Generate a binary search expression for ffmpeg select filter.
 
@@ -262,7 +262,7 @@ class FFMPEG:
         to efficiently select specific frame numbers from a video stream.
 
         Args:
-            sorted_frame_indices: List of frame numbers to select, must be sorted in ascending order
+            frame_indices: Frame numbers to select, in any order and with any repeated
 
         Returns:
             FFmpeg filter expression string using binary search logic
@@ -276,6 +276,16 @@ class FFMPEG:
             'if(lt(n\\\\,2)\\\\,eq(n\\\\,1)\\\\,eq(n\\\\,2))'
             >>> FFMPEG.generate_binary_search([1, 2, 3])
             'if(lt(n\\\\,2)\\\\,eq(n\\\\,1)\\\\,if(lt(n\\\\,3)\\\\,eq(n\\\\,2)\\\\,eq(n\\\\,3)))'
+            >>> FFMPEG.generate_binary_search([3, 1, 2, 1])
+            'if(lt(n\\\\,2)\\\\,eq(n\\\\,1)\\\\,if(lt(n\\\\,3)\\\\,eq(n\\\\,2)\\\\,eq(n\\\\,3)))'
+        """
+        return cls._binary_search(sorted(set(frame_indices)))
+
+    @classmethod
+    def _binary_search(cls, sorted_frame_indices: list[int]) -> str:
+        """
+        The binary search over frame numbers that must be sorted and distinct:
+        it misses any frame that is out of order
         """
 
         length = len(sorted_frame_indices)
@@ -287,8 +297,8 @@ class FFMPEG:
             return f"eq(n\\,{sorted_frame_indices[0]})"
 
         middle_idx = length // 2
-        left = cls.generate_binary_search(sorted_frame_indices[:middle_idx])
-        right = cls.generate_binary_search(sorted_frame_indices[middle_idx:])
+        left = cls._binary_search(sorted_frame_indices[:middle_idx])
+        right = cls._binary_search(sorted_frame_indices[middle_idx:])
 
         return f"if(lt(n\\,{sorted_frame_indices[middle_idx]})\\,{left}\\,{right})"
 
@@ -334,7 +344,7 @@ class FFMPEG:
         stream_selector = ["-map", f"0:{stream_specifier}"]
         output_template = f"{sample_prefix}_{stream_specifier}_%06d{self.FRAME_EXT}"
 
-        eqs = self.generate_binary_search(sorted(frame_indices))
+        eqs = self.generate_binary_search(frame_indices)
 
         # https://github.com/mapillary/mapillary_tools/issues/503
         if sys.platform in ["win32"]:
