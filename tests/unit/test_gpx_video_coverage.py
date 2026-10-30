@@ -527,6 +527,30 @@ class TestFallThrough:
         assert "misses the video" in warning and "by 2.0 hours" in warning
         assert warning.endswith("Geotagged it from the native source instead")
 
+    def test_the_miss_is_reported_if_no_later_source_geotags_the_video(self, tmp_path):
+        video_path = _write_camm_mp4(tmp_path / "video.mp4", _video_track())
+        gpx_path = _write_gpx(tmp_path / "track.gpx", A_UNIX_TIME + 2 * 3600, 10)
+        options = [
+            SourceOption(
+                SourceType.GPX,
+                num_processes=0,
+                source_path=SourcePathOption(source_path=gpx_path),
+            ),
+            # Finds no GPX file to read
+            SourceOption(
+                SourceType.GPX,
+                num_processes=0,
+                source_path=SourcePathOption(source_path=tmp_path / "none.gpx"),
+            ),
+        ]
+
+        [metadata] = factory.process([video_path], options)
+
+        assert isinstance(metadata, types.ErrorMetadata)
+        assert isinstance(metadata.error, exceptions.MapillaryOutsideGPXTrackError)
+        assert "misses the video" in str(metadata.error)
+        assert "by 2.0 hours" in str(metadata.error)
+
     @pytest.mark.parametrize(
         "gpx_start, source",
         [(A_UNIX_TIME, SourceType.GPX), (A_UNIX_TIME + 2 * 3600, SourceType.NATIVE)],
