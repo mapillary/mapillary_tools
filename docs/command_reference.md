@@ -176,9 +176,11 @@ mapillary_tools process MY_CAPTURE_DIR --process_report_path report.json
 
 The process report (version 1) has `discovered_file_count`, `processed_file_count` (the files with a supported
 extension, counted before processing: including those that fail, and those that `--filetypes` leaves out),
-`skipped_file_count`, and `skipped_files` with the name, category, reason code and
-extension of each unsupported file. An unsupported file named on the command line is always reported. The report
-holds absolute file names, so treat it as private.
+`skipped_file_count`, `skipped_files` with the name, category, reason code and extension of each unsupported file,
+and `warnings`: one entry for each warning about a file that was still geotagged, with its `filename`, `type`,
+`message` and `vars` (such as the durations of a `MapillaryGPXAlignmentWarning`). An unsupported file named on the
+command line is always reported. Only `process` and `process_and_upload` list warnings. The report holds absolute
+file names, so treat it as private.
 
 Gotchas:
 
@@ -203,7 +205,9 @@ Gotchas:
 
 Sources are tried in order. A file that a source finds no GPS for, places outside its track, or cannot read
 because ExifTool or an XML file is missing, goes to the next source. If none geotags it, it gets the error of the
-last one that tried, except that the rejection of a video's own GPS is kept over a later "GPX file not found". Other errors end the search:
+last one that tried, with two exceptions: if a GPX or NMEA track missed the file, that miss is reported
+(`MapillaryOutsideGPXTrackError`, which says by how much); and the rejection of a video's own GPS is kept over a
+later "GPX file not found". Other errors end the search:
 a track file that is not valid, or has no time that can be read, fails the files it was to geotag, even if a
 later source could have. A video whose own GPS is rejected as empty or noisy goes on only to `gpx` and `nmea` sources.
 Repeat the option or separate sources with commas. The default is `native`, then `exiftool_runtime`.
@@ -297,15 +301,15 @@ How a track is lined up with a video:
 
 - A video with GPS of its own is synced to the track by its GPS clock, and in `process` the track is cut to the
   video.
-- In `process`, a video without GPS is assumed to start with the track. If the track lasts more than twice as
-  long as the video, it warns: unless the video is a timelapse of the whole track, trim the track to the video,
-  or sample the video with `video_process` and `--video_start_time`.
-- In `video_process`, give the start time of a video without GPS with `--video_start_time`, in UTC. Without it,
-  distance sampling assumes that the track starts with the video, and refuses a track more than twice as long
-  as the video (for a track shorter than a day, the error prints its start, to pass as `--video_start_time` if
-  the logger was started with the video). Interval sampling does the same with `--video_geotag_source gpx`,
-  where its frames then fail without saying why; with `--geotag_source gpx`, it reads the start time from the
-  creation time of the video instead.
+- A video without a GPS clock of its own is assumed to start with the track, in `process` and in every kind of
+  sampling, unless `video_process` is given its start time with `--video_start_time` (in UTC). Its creation time,
+  which comes from the camera's clock, is never used to place a track.
+- When such a track lasts more than a minute longer or shorter than the video (and a longer one more than 1.5
+  times as long), a `MapillaryGPXAlignmentWarning` says so: trim the track to the video, or sample the video
+  with `video_process` and `--video_start_time`. The track of a timelapse is expected to last longer, and is
+  uploaded whole. With `--interpolation_offset_time`, which places the video along the track, nothing is warned.
+- With `--interpolation_use_gpx_start_time`, sampling refuses a track that lasts more than twice as long as the
+  video spans at `--video_duration_ratio`; the error says which option to use instead.
 - In `video_process`, give a timelapse without GPS of its own `--video_duration_ratio`: the seconds of capture
   per second of video, such as 60 for one frame every 2 seconds played at 30 frames per second.
 
@@ -359,6 +363,9 @@ Gotchas:
   whole, by a checksum: a sequence with one image added or removed counts as new and is uploaded again, and a
   video is recognized by its file alone, even if its track changed. The upload history is kept on this computer
   only. `--dry_run` neither reads nor writes it.
+- To look files up in the history, `upload` reads each one in full to compute its checksum, with a progress bar.
+  The checksums are cached in the upload history folder by file path, size and modification time, so the next
+  run skips uploaded files without reading them.
 - An interrupted upload resumes where it stopped the next time you upload the same files.
 - `--organization_key` takes a numeric ID. Organization names are 2 to 32 letters, digits, `-` and `_`, starting
   with a letter, and are case-sensitive. Saving a name again with another ID replaces it.
