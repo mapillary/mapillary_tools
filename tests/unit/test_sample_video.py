@@ -28,7 +28,6 @@ from mapillary_tools import (
     sample_video,
     telemetry,
 )
-from mapillary_tools.geotag import video_start_time
 from mapillary_tools.geotag.options import (
     InterpolationOption,
     SourceOption,
@@ -1008,10 +1007,7 @@ class TestSampleNoisyTimelapseByInterval:
             assert len(list(sample_dir.iterdir())) == num_samples
 
     def test_not_by_a_placeholder_clock(self, tmpdir, setup_mock, monkeypatch):
-        """
-        Which GPX sync does not place the GPX by either: the video has no
-        creation time to place it by, so the track starts with it
-        """
+        """Which GPX sync does not place the GPX by either"""
         self._mock_noisy_telemetry(
             monkeypatch,
             datetime.datetime(2015, 1, 1, tzinfo=datetime.timezone.utc).timestamp(),
@@ -1020,41 +1016,7 @@ class TestSampleNoisyTimelapseByInterval:
 
         _validate_interval(
             self._sample(tmpdir, geotag_source=["gpx"], geotag_source_path=gpx),
-            self.GPS_START_TIME,
-        )
-
-    def test_by_the_creation_time_within_the_gpx(self, tmpdir, setup_mock, monkeypatch):
-        """As GPX sync places the GPX on a video without a GPS clock"""
-        self._mock_noisy_telemetry(
-            monkeypatch,
-            datetime.datetime(2015, 1, 1, tzinfo=datetime.timezone.utc).timestamp(),
-        )
-        creation_time = self.GPS_START_TIME + datetime.timedelta(seconds=100)
-        monkeypatch.setattr(
-            video_start_time, "read_creation_time", lambda path: creation_time
-        )
-        gpx = self._write_gpx(Path(tmpdir) / "track.gpx", self.GPS_START_TIME)
-
-        _validate_interval(
-            self._sample(tmpdir, geotag_source=["gpx"], geotag_source_path=gpx),
-            creation_time,
-        )
-
-    def test_with_the_gpx_if_it_misses_the_creation_time(
-        self, tmpdir, setup_mock, monkeypatch
-    ):
-        self._mock_noisy_telemetry(
-            monkeypatch,
-            datetime.datetime(2015, 1, 1, tzinfo=datetime.timezone.utc).timestamp(),
-        )
-        monkeypatch.setattr(
-            video_start_time, "read_creation_time", lambda path: PROBE_START_TIME
-        )
-        gpx = self._write_gpx(Path(tmpdir) / "track.gpx", self.GPS_START_TIME)
-
-        _validate_interval(
-            self._sample(tmpdir, geotag_source=["gpx"], geotag_source_path=gpx),
-            self.GPS_START_TIME,
+            PROBE_START_TIME,
         )
 
     def test_not_without_a_gpx(self, tmpdir, setup_mock, monkeypatch):

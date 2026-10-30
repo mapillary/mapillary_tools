@@ -99,8 +99,8 @@ class MapillaryStationaryVideoError(MapillaryDescriptionError):
 class MapillaryGPXVideoStartUnknownError(MapillaryDescriptionError):
     """
     Nothing says how a GPX track lines up with a video without a GPS clock:
-    the track is said to start with the video (--interpolation_use_gpx_start_time)
-    but is too long to end with it at the rate the video is said to run.
+    the track is too long either to assume that it starts with the video, or,
+    when it is said to, to end with it at the rate the video is said to run.
     """
 
 
