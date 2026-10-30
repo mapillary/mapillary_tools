@@ -238,8 +238,9 @@ In a directory, files that are not supported images or videos are left out. A fi
 is not one fails, with a `MapillaryUnsupportedFileError` entry in the image description file, unless it is a
 sidecar or companion file such as `.gpx`, `.xml` or `.thm`: those are skipped with a warning.
 
-To write a JSON report of the files found and the unsupported files skipped, specify `--process_report_path`
-(see the [command reference](https://github.com/mapillary/mapillary_tools/blob/main/docs/command_reference.md#process) for its format):
+To write a JSON report of the files found, the unsupported files skipped and the warnings about the files processed,
+specify `--process_report_path` (see the
+[command reference](https://github.com/mapillary/mapillary_tools/blob/main/docs/command_reference.md#process) for its format):
 
 ```sh
 mapillary_tools process MY_CAPTURE_DIR \
@@ -376,11 +377,9 @@ mapillary_tools video_process MY_VIDEO.mp4 \
     --video_start_time 2025_03_14_07_00_30_000
 ```
 
-Without it, distance-based sampling (the default) assumes that the track starts with the video, and refuses a track
-more than twice as long as the video. Interval-based sampling (`--video_sample_distance -1 --video_sample_interval N`)
-reads the start time from the video creation time instead. Cameras disagree on whether the creation time marks the start
-or the end of the recording (most dashcams write the end), so mapillary_tools uses the camera model or a date and time
-in the file name to tell which, and assumes the start when neither says.
+Without it, the track is assumed to start with the video. The creation time of a video, which comes from the camera's
+clock, is never used to place a track. When the track lasts more than a minute longer or shorter than the video,
+mapillary_tools warns: trim the GPX to the video, or specify `--video_start_time`.
 
 A timelapse video packs several seconds of capture into each second of video. Its GPS clock, if it has one, tells how
 many. If it has none, specify how many with `--video_duration_ratio`, for instance 60 for a timelapse that took a frame
@@ -412,8 +411,8 @@ misses fails. To avoid that, process the images on their own with `--file_types 
 
 Another option `--interpolation_use_gpx_start_time` moves your images to align with the beginning of the GPS track.
 This is useful when you can confirm that you start GPS recording and capturing at the same time, or with a known delay.
-For a video without a GPS clock, a track that lasts more than twice as long as the video spans at its
-`--video_duration_ratio` is then refused. If the GPS logger was left running after the video, pass the start of the
+For a video without a GPS clock, `video_process` then refuses a track that lasts more than twice as long as the video
+spans at its `--video_duration_ratio`. If the GPS logger was left running after the video, pass the start of the
 track as `--video_start_time` instead, which places the video the same way: the error prints it.
 
 ```sh
@@ -513,9 +512,9 @@ VIDEO_DIR/
 ### Limitations of `--video_geotag_source`
 
 **A GPX track is synced by the GPS clock of the video, if the video has GPS of its own, and otherwise aligned with
-the start of the video.** In `process`, a video without GPS of its own is assumed to start with the track, and a track
-that lasts more than twice as long as the video gets a warning: unless the video is a timelapse of the whole track, trim
-the GPX to the video, or sample the video with `video_process` and `--video_start_time`.
+the start of the video.** A video without GPS of its own is assumed to start with the track, with a warning when the
+track lasts more than a minute longer or shorter than the video: trim the GPX to the video, or sample the video with
+`video_process` and `--video_start_time`. The track of a timelapse is expected to last longer, and is uploaded whole.
 
 As with images, `--interpolation_offset_time N` adds N seconds to the time of the video to find its positions along
 the GPX track, and `--interpolation_use_gpx_start_time` aligns the start of the video with the start of the track, even
