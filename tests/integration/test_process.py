@@ -1715,6 +1715,39 @@ def test_process_video_with_a_gpx_far_longer_than_it_warns(
     assert desc["MAPGPSTrack"][0][0] == 0
 
 
+def test_process_video_with_a_gpx_longer_than_a_day_fails(
+    setup_data: py.path.local,
+):
+    """
+    A track that lasts more than a day is a log of several trips, whose start
+    is that of the first: process does not assume that the video starts with
+    it, as sampling does not for any track that runs on past the video for
+    longer than the video lasts
+    """
+    video_path = setup_data.join("videos").join("sample-5s.mp4")
+    start = datetime.datetime(2025, 3, 14, 7, 0, 0, tzinfo=datetime.timezone.utc)
+    gpx_file = setup_data.join("track.gpx")
+    # Two trips two days apart
+    _write_track_parts(
+        gpx_file,
+        [(start, 10, 37.0), (start + datetime.timedelta(days=2), 10, 37.1)],
+    )
+
+    [desc] = run_process_for_descs(
+        [
+            *["--geotag_source", "gpx"],
+            *["--geotag_source_path", str(gpx_file)],
+            str(video_path),
+        ]
+    )
+
+    assert desc["error"]["type"] == "MapillaryGPXVideoStartUnknownError"
+    message = desc["error"]["message"]
+    assert "lasts 2.0 days" in message
+    assert "could start anywhere along the track" in message
+    assert "trim the GPX to the video" in message
+
+
 def test_process_image_with_a_placeholder_capture_time_and_offset(
     tmpdir: py.path.local,
 ):
