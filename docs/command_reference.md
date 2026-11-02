@@ -179,8 +179,9 @@ extension, counted before processing: including those that fail, and those that 
 `skipped_file_count`, `skipped_files` with the name, category, reason code and extension of each unsupported file,
 and `warnings`: one entry for each warning about a file that was still geotagged, with its `filename`, `type`,
 `message` and `vars` (such as the durations of a `MapillaryGPXAlignmentWarning`). An unsupported file named on the
-command line is always reported. Only `process` and `process_and_upload` list warnings. The report holds absolute
-file names, so treat it as private.
+command line is always reported. Only `process` and `process_and_upload` list warnings. The report is written before
+processing starts, and again with the warnings once geotagging has run. It holds absolute file names, so treat it
+as private.
 
 Gotchas:
 
