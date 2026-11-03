@@ -5,9 +5,14 @@
 
 """
 A GPX track placed on a video without a GPS clock is assumed to start with the
-video, and taken to be right. When the two lengths differ by more than a
-minute (and a longer track also lasts more than 1.5 times as long), the video
-start time needs aligning with the track, which process and sampling warn of.
+video. When the two lengths differ by more than a minute (and a longer track
+also lasts more than 1.5 times as long), the video start time needs aligning
+with the track, which process and sampling warn of.
+
+A track that runs on for longer than the whole video could have the video start
+anywhere along it: sampling refuses it, unless --video_start_time places the
+video or --video_duration_ratio makes the track fit, and so does process a
+track that lasts longer than a day.
 """
 
 from __future__ import annotations
@@ -97,15 +102,157 @@ def test_a_track_more_than_a_minute_longer_warns_in_process(tmp_path, caplog):
     assert warning.gpx_longer
 
 
-def test_sampling_warns_with_its_own_options(tmp_path, caplog):
-    gpx = _write_gpx(tmp_path / "track.gpx", seconds=120)
+def test_sampling_warns_with_its_own_options(tmp_path, caplog, monkeypatch):
+    """Of a track longer than the video, though not twice as long"""
+    _video_lasting(monkeypatch, 600)
+    gpx = _write_gpx(tmp_path / "track.gpx", seconds=1000)
+    extractor = GPXVideoExtractor(NO_GPS_VIDEO, gpx, video_sync=VideoSyncOption())
 
     with caplog.at_level(logging.WARNING):
-        GPXVideoExtractor(NO_GPS_VIDEO, gpx, video_sync=VideoSyncOption()).extract()
+        metadata = extractor.extract()
 
     [message] = _warnings(caplog)
     assert "specify the time the video started as --video_start_time" in message
     assert "If the video is a timelapse, specify --video_duration_ratio" in message
+    assert metadata.points[0].time == 0
+    [warning] = extractor.warnings
+    assert warning.gpx_longer
+
+
+def test_sampling_refuses_a_track_more_than_twice_as_long_as_the_video(
+    tmp_path, caplog
+):
+    """
+    The video could start anywhere along it: refused, as it was before the
+    warning, rather than warned of
+    """
+    gpx = _write_gpx(tmp_path / "track.gpx", seconds=120)
+    extractor = GPXVideoExtractor(NO_GPS_VIDEO, gpx, video_sync=VideoSyncOption())
+
+    with caplog.at_level(logging.WARNING):
+        with pytest.raises(exceptions.MapillaryGPXVideoStartUnknownError) as excinfo:
+            extractor.extract()
+
+    message = str(excinfo.value)
+    assert "lasts 2.0 minutes and the video only 5.76 seconds" in message
+    assert "so the video could start anywhere along the track" in message
+    assert "If the video is a timelapse, specify --video_duration_ratio" in message
+    assert "specify --video_start_time 2025_03_14_07_00_00_000" in message
+    assert not _warnings(caplog)
+    assert not extractor.warnings
+
+
+@pytest.mark.parametrize("seconds, refused", [(1200, False), (1201, True)])
+def test_sampling_refuses_past_twice_the_video(tmp_path, monkeypatch, seconds, refused):
+    _video_lasting(monkeypatch, 600)
+    gpx = _write_gpx(tmp_path / "track.gpx", seconds=seconds)
+    extractor = GPXVideoExtractor(NO_GPS_VIDEO, gpx, video_sync=VideoSyncOption())
+
+    if refused:
+        with pytest.raises(exceptions.MapillaryGPXVideoStartUnknownError):
+            extractor.extract()
+    else:
+        extractor.extract()
+        [warning] = extractor.warnings
+        assert warning.gpx_longer
+
+
+def test_sampling_takes_a_track_placed_by_the_video_start_time(tmp_path, caplog):
+    """--video_start_time places the video along the track: nothing to refuse"""
+    gpx = _write_gpx(tmp_path / "track.gpx", seconds=600)
+    video_start = GPX_START.timestamp() + 300
+
+    with caplog.at_level(logging.WARNING):
+        metadata = GPXVideoExtractor(
+            NO_GPS_VIDEO, gpx, video_sync=VideoSyncOption(start_time=video_start)
+        ).extract()
+
+    assert metadata.points[300].time == pytest.approx(0)
+    assert not _warnings(caplog)
+
+
+def test_sampling_takes_a_track_looked_up_at_an_offset(tmp_path, caplog):
+    """--interpolation_offset_time places the video along the track"""
+    gpx = _write_gpx(tmp_path / "track.gpx", seconds=600)
+
+    with caplog.at_level(logging.WARNING):
+        GPXVideoExtractor(
+            NO_GPS_VIDEO,
+            gpx,
+            video_sync=VideoSyncOption(),
+            interpolation=InterpolationOption(offset_time=30),
+        ).extract()
+
+    assert not _warnings(caplog)
+
+
+def test_process_refuses_a_track_longer_than_a_day(tmp_path, caplog, monkeypatch):
+    """A log of several trips, whose start is that of the first"""
+    _video_lasting(monkeypatch, 600)
+    gpx = _write_gpx(tmp_path / "track.gpx", seconds=86400)
+    extractor = GPXVideoExtractor(NO_GPS_VIDEO, gpx)
+
+    with caplog.at_level(logging.WARNING):
+        with pytest.raises(exceptions.MapillaryGPXVideoStartUnknownError) as excinfo:
+            extractor.extract()
+
+    message = str(excinfo.value)
+    assert "lasts 1.0 days and the video only 10.0 minutes" in message
+    assert (
+        "A track that long covers more than this video: trim the GPX to the video, "
+        "or sample the video with video_process and --video_start_time"
+    ) in message
+    assert not _warnings(caplog)
+    assert not extractor.warnings
+
+
+def test_process_warns_of_a_track_shorter_than_a_day(tmp_path, caplog, monkeypatch):
+    """Which may be that of a timelapse, as long as it lasts"""
+    _video_lasting(monkeypatch, 600)
+    gpx = _write_gpx(tmp_path / "track.gpx", seconds=86399)
+    extractor = GPXVideoExtractor(NO_GPS_VIDEO, gpx)
+
+    with caplog.at_level(logging.WARNING):
+        metadata = extractor.extract()
+
+    assert metadata.points[0].time == 0
+    [warning] = extractor.warnings
+    assert warning.gpx_longer
+
+
+def test_process_takes_a_track_longer_than_a_day_that_fits_the_video(
+    tmp_path, caplog, monkeypatch
+):
+    """
+    Of a video more than half as long, which the track does not run on past
+    for longer than it lasts: warned of as longer than the video
+    """
+    _video_lasting(monkeypatch, 13 * 3600)
+    gpx = _write_gpx(tmp_path / "track.gpx", seconds=25 * 3600)
+    extractor = GPXVideoExtractor(NO_GPS_VIDEO, gpx)
+
+    with caplog.at_level(logging.WARNING):
+        metadata = extractor.extract()
+
+    assert metadata.points[0].time == 0
+    [warning] = extractor.warnings
+    assert warning.gpx_longer
+
+
+def test_process_takes_a_track_longer_than_a_day_looked_up_at_an_offset(
+    tmp_path, caplog, monkeypatch
+):
+    """--interpolation_offset_time places the video along the track"""
+    _video_lasting(monkeypatch, 600)
+    gpx = _write_gpx(tmp_path / "track.gpx", seconds=86400)
+
+    with caplog.at_level(logging.WARNING):
+        metadata = GPXVideoExtractor(
+            NO_GPS_VIDEO, gpx, interpolation=InterpolationOption(offset_time=3600)
+        ).extract()
+
+    assert metadata.points[0].time == pytest.approx(-3600)
+    assert "Please align the video start time" not in caplog.text
 
 
 def test_a_track_up_to_a_minute_longer_is_silent(tmp_path, caplog):
@@ -171,6 +318,23 @@ def test_the_duration_ratio_spans_the_video_in_sampling(tmp_path, caplog):
             NO_GPS_VIDEO, gpx, video_sync=VideoSyncOption(duration_ratio=30)
         ).extract()
 
+    assert not _warnings(caplog)
+
+
+def test_the_duration_ratio_fits_a_track_in_sampling(tmp_path, caplog):
+    """
+    At 15 GPS seconds per second, the 5.76 seconds of video span 86 seconds,
+    which the 120-second track, refused at 1x, runs on past by less than that:
+    warned of only
+    """
+    gpx = _write_gpx(tmp_path / "track.gpx", seconds=120)
+
+    with caplog.at_level(logging.WARNING):
+        metadata = GPXVideoExtractor(
+            NO_GPS_VIDEO, gpx, video_sync=VideoSyncOption(duration_ratio=15)
+        ).extract()
+
+    assert metadata.points[0].time == 0
     assert not _warnings(caplog)
 
 

@@ -1185,6 +1185,73 @@ class TestGPXStartTimeByInterval:
         sample_video._check_gpx_start_by_interval(self.VIDEO, options, video_sync)
 
 
+class TestAssumedGPXStartByInterval:
+    """
+    Without --video_start_time, the interval samples of a video without a GPS
+    clock are stamped from the start of the GPX track that geotags them, which
+    is assumed to start with the video, as in distance sampling. A track that
+    runs on for longer than the whole video is refused, as there.
+    """
+
+    VIDEO = TestGPXStartTimeByInterval.VIDEO
+    GPX_START = datetime.datetime(2025, 3, 14, 7, 0, 0, tzinfo=datetime.timezone.utc)
+
+    @staticmethod
+    def _start_time(
+        tmp_path: Path,
+        seconds: int,
+        video_sync: VideoSyncOption,
+        interpolation: InterpolationOption | None = None,
+    ) -> datetime.datetime | None:
+        gpx = TestGPXStartTimeByInterval._write_gpx(tmp_path / "track.gpx", seconds)
+        options = sample_video._parse_geotag_options(
+            ["gpx"],
+            gpx,
+            None,
+            tmp_path,
+            video_sync,
+            interpolation or InterpolationOption(),
+        )
+        return sample_video._track_file_start_time(
+            TestAssumedGPXStartByInterval.VIDEO, options, video_sync
+        )
+
+    def test_a_track_far_longer_than_the_video_is_refused(self, tmp_path, caplog):
+        with caplog.at_level(logging.WARNING):
+            with pytest.raises(
+                exceptions.MapillaryGPXVideoStartUnknownError
+            ) as excinfo:
+                self._start_time(tmp_path, 60, VideoSyncOption())
+
+        message = str(excinfo.value)
+        assert "so the video could start anywhere along the track" in message
+        assert "If the video is a timelapse, specify --video_duration_ratio" in message
+        assert "Please align the video start time" not in caplog.text
+
+    def test_a_track_up_to_twice_as_long_starts_the_samples(self, tmp_path):
+        """The 5.76-second video, with an 11-second track"""
+        assert self._start_time(tmp_path, 11, VideoSyncOption()) == self.GPX_START
+
+    def test_the_duration_ratio_fits_the_track(self, tmp_path):
+        """At 15x, the video spans 86 seconds, past which the track runs on less"""
+        assert (
+            self._start_time(tmp_path, 60, VideoSyncOption(duration_ratio=15))
+            == self.GPX_START
+        )
+
+    def test_the_offset_time_places_the_video_along_the_track(self, tmp_path):
+        """The geotagging stage adds the offset to the capture time of each sample"""
+        assert (
+            self._start_time(
+                tmp_path,
+                60,
+                VideoSyncOption(),
+                InterpolationOption(offset_time=30),
+            )
+            == self.GPX_START
+        )
+
+
 class TestGPSClockStartTime:
     """Tests for _gps_clock_start_time."""
 

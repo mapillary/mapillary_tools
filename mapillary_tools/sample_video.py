@@ -718,10 +718,11 @@ def _track_file_start_time(
     of the first source that geotags images, which the geotagging stage places
     the interval samples along by their capture times: the start of the track,
     which is assumed to start with the video, as GPX sync places a track on
-    such a video (see GPXVideoExtractor._place_without_video_gps), with a
-    warning when their lengths differ. None without such a track, or when
-    --interpolation_use_gpx_start_time starts the track with the video, which
-    the geotagging stage does.
+    such a video (see GPXVideoExtractor._place_without_video_gps): refused
+    if it runs on for longer than the whole video, and warned of if their
+    lengths differ (see GPXVideoExtractor._check_length). None without such a
+    track, or when --interpolation_use_gpx_start_time starts the track with
+    the video, which the geotagging stage does.
     """
     for option in geotag_options:
         extractor_class = _TRACK_FILE_EXTRACTORS.get(option.source)
@@ -751,6 +752,8 @@ def _track_file_start_time(
             return None
         if not gpx_points:
             return None
+        # Refused or warned of as in distance sampling, which places the track
+        # by GPX sync
         extractor._check_length(
             gpx_points, 1.0 if video_sync is None else video_sync.duration_ratio
         )

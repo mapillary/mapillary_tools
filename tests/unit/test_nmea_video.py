@@ -181,8 +181,19 @@ class TestPlacedAsAGPX:
             assert nmea_point == pytest.approx(gpx_point, abs=1e-6)
 
     def test_messages_name_the_nmea_file(self, tmp_path):
+        nmea = _write_nmea(tmp_path / "track.nmea", seconds=60)
+
+        with pytest.raises(exceptions.MapillaryGPXVideoStartUnknownError) as excinfo:
+            NMEAVideoExtractor(
+                NO_GPS_VIDEO, nmea, video_sync=VideoSyncOption()
+            ).extract()
+
+        assert str(excinfo.value).startswith(f"The NMEA track in {nmea} lasts")
+
+    def test_warnings_name_the_nmea_file(self, tmp_path):
+        """process warns of a track far longer than the video, rather than refuse it"""
         nmea = _write_nmea(tmp_path / "track.nmea", seconds=120)
-        extractor = NMEAVideoExtractor(NO_GPS_VIDEO, nmea, video_sync=VideoSyncOption())
+        extractor = NMEAVideoExtractor(NO_GPS_VIDEO, nmea)
 
         extractor.extract()
 
