@@ -309,8 +309,14 @@ How a track is lined up with a video:
   times as long), a `MapillaryGPXAlignmentWarning` says so: trim the track to the video, or sample the video
   with `video_process` and `--video_start_time`. The track of a timelapse is expected to last longer, and is
   uploaded whole. With `--interpolation_offset_time`, which places the video along the track, nothing is warned.
-- With `--interpolation_use_gpx_start_time`, sampling refuses a track that lasts more than twice as long as the
-  video spans at `--video_duration_ratio`; the error says which option to use instead.
+- `video_process` refuses a track that runs on past the end of the video for longer than the video lasts (more
+  than twice as long as the video spans at `--video_duration_ratio`), as the video could start anywhere along
+  it: `MapillaryGPXVideoStartUnknownError`, exit code 7. `--video_start_time` or `--interpolation_offset_time`
+  places the video instead. The error says which option to use, and for a track shorter than a day, prints its
+  start. With `--video_geotag_source gpx`, interval sampling writes the frames without positions instead, which
+  then fail, and only logs the refusal as a warning. `--interpolation_use_gpx_start_time` refuses such a track too.
+- `process` uploads a long track with the warning, as that of a timelapse, but refuses a track of a day or more
+  (a log of several trips) unless the video lasts more than half as long.
 - In `video_process`, give a timelapse without GPS of its own `--video_duration_ratio`: the seconds of capture
   per second of video, such as 60 for one frame every 2 seconds played at 30 frames per second.
 
