@@ -379,7 +379,9 @@ mapillary_tools video_process MY_VIDEO.mp4 \
 
 Without it, the track is assumed to start with the video. The creation time of a video, which comes from the camera's
 clock, is never used to place a track. When the track lasts more than a minute longer or shorter than the video,
-mapillary_tools warns: trim the GPX to the video, or specify `--video_start_time`.
+mapillary_tools warns: trim the GPX to the video, or specify `--video_start_time`. A track that runs on past the end
+of the video for longer than the video lasts is refused, as the video could start anywhere along it: the error prints
+the start of the track, to pass as `--video_start_time` if the GPS logger was started with the video.
 
 A timelapse video packs several seconds of capture into each second of video. Its GPS clock, if it has one, tells how
 many. If it has none, specify how many with `--video_duration_ratio`, for instance 60 for a timelapse that took a frame
@@ -514,7 +516,8 @@ VIDEO_DIR/
 **A GPX track is synced by the GPS clock of the video, if the video has GPS of its own, and otherwise aligned with
 the start of the video.** A video without GPS of its own is assumed to start with the track, with a warning when the
 track lasts more than a minute longer or shorter than the video: trim the GPX to the video, or sample the video with
-`video_process` and `--video_start_time`. The track of a timelapse is expected to last longer, and is uploaded whole.
+`video_process` and `--video_start_time`. The track of a timelapse is expected to last longer, and is uploaded whole,
+but a track of a day or more is refused unless the video lasts more than half as long.
 
 As with images, `--interpolation_offset_time N` adds N seconds to the time of the video to find its positions along
 the GPX track, and `--interpolation_use_gpx_start_time` aligns the start of the video with the start of the track, even
