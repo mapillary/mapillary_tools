@@ -71,10 +71,34 @@ class UploadService:
             raise ValueError("Expect positive chunk size")
 
         while True:
-            data = stream.read(chunk_size)
+            to_read = cls._bounded_read_size(stream, chunk_size)
+            if to_read == 0:
+                break
+            data = stream.read(to_read)
             if not data:
                 break
             yield data
+
+    @classmethod
+    def _bounded_read_size(cls, stream: T.IO[bytes], chunk_size: int) -> int:
+        """Cap read() to remaining bytes so FileIO does not allocate chunk_size (e.g. 1 GiB)."""
+        remaining = cls._remaining_bytes(stream)
+        if remaining is None:
+            return chunk_size
+        if remaining <= 0:
+            return 0
+        return min(chunk_size, remaining)
+
+    @classmethod
+    def _remaining_bytes(cls, stream: T.IO[bytes]) -> int | None:
+        try:
+            pos = stream.tell()
+            stream.seek(0, io.SEEK_END)
+            end = stream.tell()
+            stream.seek(pos, io.SEEK_SET)
+        except (OSError, AttributeError, io.UnsupportedOperation):
+            return None
+        return max(0, end - pos)
 
     @classmethod
     def shift_chunks(
