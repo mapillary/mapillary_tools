@@ -41,7 +41,7 @@ class Command:
         )
         group.add_argument(
             "--video_start_time",
-            help="Video start time specified in YYYY_MM_DD_HH_MM_SS_sss in UTC. For example 2020_12_28_12_36_36_508 represents 2020-12-28T12:36:36.508Z.",
+            help="Video start time, either as YYYY_MM_DD_HH_MM_SS_sss in UTC (for example 2020_12_28_12_36_36_508 represents 2020-12-28T12:36:36.508Z) or as ISO 8601, which may include a UTC offset (for example 2020-12-28T13:36:36.508+01:00). Use the ISO 8601 form for cameras that record local time, such as GoPro MAX. An ISO 8601 value without an offset is interpreted in the system local timezone.",
             default=None,
             required=False,
         )
