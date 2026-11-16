@@ -20,9 +20,12 @@ on:
 jobs:
   build:
     strategy:
+      # A job that fails to set up should not cancel the others
+      fail-fast: false
       matrix:
         python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
-        platform: ["ubuntu-latest", "macos-latest", "windows-latest"]
+        # ubuntu-latest is Ubuntu 26.04, for which setup-python has no Python 3.9
+        platform: ["ubuntu-24.04", "macos-latest", "windows-latest"]
         # https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-python
         # Optional - x64 or x86 architecture, defaults to x64
         # architecture: "x64"
