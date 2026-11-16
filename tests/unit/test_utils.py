@@ -356,3 +356,54 @@ def test_md5sum_fp_progress():
 
     assert md5.hexdigest() == hashlib.md5(data).hexdigest()
     assert sum(progress) == len(data)
+
+
+def test_path_resolver_resolves_like_path_resolve(tmp_path: Path, monkeypatch):
+    folder = tmp_path / "folder"
+    folder.joinpath("sub").mkdir(parents=True)
+    image = folder / "image.jpg"
+    image.touch()
+    paths = [
+        image,
+        folder / "sub" / ".." / "image.jpg",
+        folder / "missing.jpg",
+        folder / "sub" / "..",
+        Path("image.jpg"),
+        Path("sub") / "image.jpg",
+        Path("."),
+        Path(".."),
+    ]
+    if not sys.platform.startswith("win"):
+        # A link to a folder, a link to a file, and a link that leads nowhere
+        (tmp_path / "linked_folder").symlink_to(folder)
+        (folder / "linked_image.jpg").symlink_to(image)
+        (folder / "broken_link.jpg").symlink_to(tmp_path / "nowhere.jpg")
+        paths += [
+            tmp_path / "linked_folder" / "image.jpg",
+            tmp_path / "linked_folder" / "linked_image.jpg",
+            folder / "linked_image.jpg",
+            folder / "broken_link.jpg",
+        ]
+    monkeypatch.chdir(folder)
+
+    resolver = utils.PathResolver()
+    # Twice, to resolve with the folders resolved before too
+    for _ in range(2):
+        assert [resolver.resolve(p) for p in paths] == [p.resolve() for p in paths]
+
+
+@pytest.mark.skipif(
+    sys.platform.startswith("win") or (hasattr(os, "geteuid") and os.geteuid() == 0),
+    reason="Folder permissions do not apply on Windows or to root",
+)
+def test_path_resolver_in_a_folder_that_cannot_be_searched(tmp_path: Path):
+    folder = tmp_path / "unsearchable"
+    folder.mkdir()
+    image = folder / "image.jpg"
+    image.touch()
+    # Listed, but its files cannot be looked at
+    folder.chmod(0o600)
+    try:
+        assert utils.PathResolver().resolve(image) == image.resolve()
+    finally:
+        folder.chmod(0o700)

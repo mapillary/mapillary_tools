@@ -686,20 +686,20 @@ def _api_logging_failed(payload: dict, exc: Exception, dry_run: bool = False):
             LOG.warning(f"Error from logging action {action}", exc_info=True)
 
 
-_M = T.TypeVar("_M", bound=types.Metadata)
-
-
 class _UploadCandidates(T.NamedTuple):
     image_metadatas: list[types.ImageMetadata]
     video_metadatas: list[types.VideoMetadata]
     zip_paths: list[Path]
 
 
-def _find_metadata_with_filename_existed_in(
-    metadatas: T.Iterable[_M], paths: T.Iterable[Path]
-) -> list[_M]:
-    resolved_image_paths = set(p.resolve() for p in paths)
-    return [d for d in metadatas if d.filename.resolve() in resolved_image_paths]
+def _iterate_import_files(
+    import_paths: T.Sequence[Path], skip_subfolders: bool
+) -> T.Generator[Path, None, None]:
+    for path in import_paths:
+        if path.is_dir():
+            yield from utils.iterate_files(path, not skip_subfolders)
+        else:
+            yield path
 
 
 def _find_upload_candidates(
@@ -707,16 +707,40 @@ def _find_upload_candidates(
     import_paths: T.Sequence[Path],
     skip_subfolders: bool,
 ) -> _UploadCandidates:
-    image_metadatas = _find_metadata_with_filename_existed_in(
-        (m for m in metadatas if isinstance(m, types.ImageMetadata)),
-        utils.find_images(import_paths, skip_subfolders=skip_subfolders),
-    )
-    video_metadatas = _find_metadata_with_filename_existed_in(
-        (m for m in metadatas if isinstance(m, types.VideoMetadata)),
-        utils.find_videos(import_paths, skip_subfolders=skip_subfolders),
-    )
+    resolver = utils.PathResolver()
+    found_image_paths: set[Path] = set()
+    found_video_paths: set[Path] = set()
+    # Resolved path to the path found, in the order found
+    found_zip_paths: dict[Path, Path] = {}
+
+    # Look through the import paths once for all file types, and show the
+    # progress, as it takes long for many files or on network drives
+    with tqdm(
+        desc="Finding files",
+        unit=" files",
+        disable=LOG.isEnabledFor(logging.DEBUG),
+    ) as pbar:
+        for path in _iterate_import_files(import_paths, skip_subfolders):
+            if utils.is_image_file(path):
+                found_image_paths.add(resolver.resolve(path))
+            elif utils.is_video_file(path):
+                found_video_paths.add(resolver.resolve(path))
+            elif path.suffix.lower() == ".zip":
+                found_zip_paths.setdefault(resolver.resolve(path), path)
+            pbar.update(1)
+
+    image_metadatas: list[types.ImageMetadata] = []
+    video_metadatas: list[types.VideoMetadata] = []
+    for metadata in metadatas:
+        if isinstance(metadata, types.ImageMetadata):
+            if resolver.resolve(metadata.filename) in found_image_paths:
+                image_metadatas.append(metadata)
+        elif isinstance(metadata, types.VideoMetadata):
+            if resolver.resolve(metadata.filename) in found_video_paths:
+                video_metadatas.append(metadata)
+
     zip_paths: list[Path] = []
-    for zip_path in utils.find_zipfiles(import_paths, skip_subfolders=skip_subfolders):
+    for zip_path in found_zip_paths.values():
         if zip_path.name.startswith("._"):
             # The AppleDouble file (._NAME) that macOS writes beside a file it
             # copies to a drive that cannot hold its metadata: named like a
@@ -850,26 +874,36 @@ def _load_valid_metadatas_from_desc_path(
         desc_path = _find_desc_path(import_paths)
 
     if desc_path == "-":
-        try:
-            metadatas = DescriptionJSONSerializer.deserialize_stream(sys.stdin.buffer)
-        except json.JSONDecodeError as ex:
-            raise exceptions.MapillaryInvalidDescriptionFile(
-                f"Invalid JSON stream from {desc_path}: {ex}"
-            ) from ex
+        return _deserialize_desc_stream(sys.stdin.buffer, desc_path)
 
-    else:
-        if not os.path.isfile(desc_path):
-            raise exceptions.MapillaryFileNotFoundError(
-                f"Description file not found: {desc_path}"
-            )
-        with open(desc_path, "rb") as fp:
-            try:
-                metadatas = DescriptionJSONSerializer.deserialize_stream(fp)
-            except json.JSONDecodeError as ex:
-                raise exceptions.MapillaryInvalidDescriptionFile(
-                    f"Invalid JSON stream from {desc_path}: {ex}"
-                ) from ex
+    if not os.path.isfile(desc_path):
+        raise exceptions.MapillaryFileNotFoundError(
+            f"Description file not found: {desc_path}"
+        )
+    with open(desc_path, "rb") as fp:
+        return _deserialize_desc_stream(fp, desc_path)
 
+
+def _deserialize_desc_stream(fp: T.IO[bytes], desc_path: str) -> list[types.Metadata]:
+    try:
+        descs = json.load(fp)
+    except json.JSONDecodeError as ex:
+        raise exceptions.MapillaryInvalidDescriptionFile(
+            f"Invalid JSON stream from {desc_path}: {ex}"
+        ) from ex
+
+    # Show the progress, as validating every entry takes long for large
+    # description files
+    metadatas: list[types.Metadata] = []
+    with tqdm(
+        descs,
+        desc="Loading the description file",
+        unit=" entries",
+        disable=LOG.isEnabledFor(logging.DEBUG),
+    ) as pbar:
+        for desc in pbar:
+            if "error" not in desc:
+                metadatas.append(DescriptionJSONSerializer.from_desc(desc))
     return metadatas
 
 
