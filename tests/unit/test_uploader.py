@@ -6,13 +6,24 @@
 import dataclasses
 import hashlib
 import os
+import sys
+import time
 import typing as T
 from pathlib import Path
 from unittest.mock import patch
 
 import py.path
 import pytest
-from mapillary_tools import api_v4, geo, types, upload, uploader
+from mapillary_tools import (
+    api_v4,
+    constants,
+    geo,
+    history,
+    types,
+    upload,
+    uploader,
+    utils,
+)
 from mapillary_tools.mp4 import construct_mp4_parser as cparser
 from mapillary_tools.serializer import description
 
@@ -855,41 +866,250 @@ def test_update_md5sums(tmpdir: py.path.local):
     assert metadatas[1].md5sum == "0" * 32
 
 
-def test_update_md5sums_with_checksum_cache(tmpdir: py.path.local):
-    image_path = Path(tmpdir.join("image.jpg"))
+def _count_checksum_reads(monkeypatch) -> list[str]:
+    """Record the name of each file read to compute its checksum"""
+    reads: list[str] = []
+    md5sum_fp = utils.md5sum_fp
+
+    def _md5sum_fp(fp, *args, **kwargs):
+        reads.append(os.path.basename(getattr(fp, "name", "")))
+        return md5sum_fp(fp, *args, **kwargs)
+
+    monkeypatch.setattr(utils, "md5sum_fp", _md5sum_fp)
+    return reads
+
+
+def _image_metadatas(paths: T.Sequence[Path]) -> list[types.ImageMetadata]:
+    return [
+        types.ImageMetadata(filename=path, lat=0, lon=0, alt=None, angle=None, time=idx)
+        for idx, path in enumerate(paths)
+    ]
+
+
+def _rewrite_keeping_size_and_mtime(path: Path, data: bytes) -> None:
+    """Rewrite the file in place, then set its modification time back"""
+    stat = path.stat()
+    assert len(data) == stat.st_size
+    for _ in range(100):
+        with path.open("r+b") as fp:
+            fp.write(data)
+        os.utime(path, ns=(stat.st_atime_ns, stat.st_mtime_ns))
+        # The change time can come from a coarse clock
+        if path.stat().st_ctime_ns != stat.st_ctime_ns:
+            break
+        time.sleep(0.01)
+    new_stat = path.stat()
+    assert (new_stat.st_size, new_stat.st_mtime_ns) == (stat.st_size, stat.st_mtime_ns)
+    assert new_stat.st_ctime_ns != stat.st_ctime_ns
+
+
+def test_update_md5sums_with_checksum_cache(tmp_path: Path, monkeypatch):
+    image_path = tmp_path / "image.jpg"
     image_path.write_bytes(b"image bytes")
-    other_path = Path(tmpdir.join("other.jpg"))
+    other_path = tmp_path / "other.jpg"
     other_path.write_bytes(b"other bytes")
     checksum_cache = uploader.create_checksum_cache(
-        Path(tmpdir.join("history", "checksum_cache"))
+        tmp_path / "history" / "checksum_cache"
     )
     assert checksum_cache is not None
+    reads = _count_checksum_reads(monkeypatch)
 
-    def _metadatas() -> list[types.ImageMetadata]:
-        return [
-            types.ImageMetadata(
-                filename=path, lat=0, lon=0, alt=None, angle=None, time=idx
-            )
-            for idx, path in enumerate([image_path, other_path])
-        ]
-
-    metadatas = _metadatas()
+    metadatas = _image_metadatas([image_path, other_path])
     uploader._update_md5sums(metadatas, desc="", checksum_cache=checksum_cache)
     assert [m.md5sum for m in metadatas] == [
         hashlib.md5(b"image bytes").hexdigest(),
         hashlib.md5(b"other bytes").hexdigest(),
     ]
+    assert reads == ["image.jpg", "other.jpg"]
 
-    # Same size and modification time: taken from the cache, not read again
-    stat = image_path.stat()
-    image_path.write_bytes(b"IMAGE BYTES")
-    os.utime(image_path, ns=(stat.st_atime_ns, stat.st_mtime_ns))
+    # Unchanged: taken from the cache, not read again
+    reads.clear()
+    metadatas = _image_metadatas([image_path, other_path])
+    uploader._update_md5sums(metadatas, desc="", checksum_cache=checksum_cache)
+    assert [m.md5sum for m in metadatas] == [
+        hashlib.md5(b"image bytes").hexdigest(),
+        hashlib.md5(b"other bytes").hexdigest(),
+    ]
+    assert reads == []
+
     # Changed size: read again
     other_path.write_bytes(b"other bytes, changed")
+    # Changed modification time only: read again
+    stat = image_path.stat()
+    os.utime(image_path, ns=(stat.st_atime_ns, stat.st_mtime_ns + 1_000_000_000))
 
-    metadatas = _metadatas()
+    reads.clear()
+    metadatas = _image_metadatas([image_path, other_path])
     uploader._update_md5sums(metadatas, desc="", checksum_cache=checksum_cache)
     assert [m.md5sum for m in metadatas] == [
         hashlib.md5(b"image bytes").hexdigest(),
         hashlib.md5(b"other bytes, changed").hexdigest(),
     ]
+    assert sorted(reads) == ["image.jpg", "other.jpg"]
+
+
+@pytest.mark.skipif(
+    sys.platform == "win32",
+    reason="On Windows, os.stat has no change time: an edit in place that keeps the size and modification time keeps the file ID and creation time",
+)
+def test_update_md5sums_rereads_file_edited_keeping_size_and_mtime(
+    tmp_path: Path, monkeypatch
+):
+    """
+    Editing the GPS of an image with exiftool -P keeps its size and
+    modification time: its cached checksum must not be taken, or the edited
+    image would match the upload history of the image before the edit
+    """
+    image_path = tmp_path / "image.jpg"
+    image_path.write_bytes(b"image bytes")
+    checksum_cache = uploader.create_checksum_cache(
+        tmp_path / "history" / "checksum_cache"
+    )
+    assert checksum_cache is not None
+    uploader._update_md5sums(
+        _image_metadatas([image_path]), desc="", checksum_cache=checksum_cache
+    )
+
+    _rewrite_keeping_size_and_mtime(image_path, b"IMAGE BYTES")
+
+    reads = _count_checksum_reads(monkeypatch)
+    metadatas = _image_metadatas([image_path])
+    uploader._update_md5sums(metadatas, desc="", checksum_cache=checksum_cache)
+    assert metadatas[0].md5sum == hashlib.md5(b"IMAGE BYTES").hexdigest()
+    assert reads == ["image.jpg"]
+
+
+@pytest.mark.skipif(
+    sys.platform == "win32",
+    reason="On Windows, os.stat has no change time: an edit in place that keeps the size and modification time keeps the file ID and creation time",
+)
+def test_upload_does_not_skip_image_edited_keeping_size_and_mtime(
+    setup_unittest_data: py.path.local,
+    setup_upload: py.path.local,
+    tmp_path: Path,
+    monkeypatch,
+    caplog,
+):
+    history_path = tmp_path / "history"
+    monkeypatch.setattr(constants, "MAPILLARY_UPLOAD_HISTORY_PATH", str(history_path))
+    monkeypatch.setattr(constants, "MAPILLARY__ENABLE_UPLOAD_HISTORY_FOR_DRY_RUN", True)
+    image_dir = tmp_path / "images"
+    image_dir.mkdir()
+    image_path = image_dir / "image.jpg"
+    image_path.write_bytes(Path(setup_unittest_data.join("test_exif.jpg")).read_bytes())
+
+    def _upload() -> str:
+        metadata = types.ImageMetadata(
+            filename=image_path,
+            lat=58.5927694,
+            lon=16.1840944,
+            alt=None,
+            angle=None,
+            time=1613222681.14,
+            MAPSequenceUUID="sequence",
+            filesize=image_path.stat().st_size,
+        )
+        upload.upload(
+            image_dir,
+            {"user_upload_token": "YOUR_USER_ACCESS_TOKEN"},
+            num_upload_workers=1,
+            _metadatas_from_process=[metadata],
+            dry_run=True,
+        )
+        return types.update_sequence_md5sum([metadata])
+
+    first_sequence_md5sum = _upload()
+    assert history.read_history_record(first_sequence_md5sum) is not None
+
+    # Change a byte of the image data, keeping the size and modification
+    # time, as editing it with exiftool -P can
+    data = bytearray(image_path.read_bytes())
+    data[-10] = 0x01 if data[-10] != 0x01 else 0x02
+    _rewrite_keeping_size_and_mtime(image_path, bytes(data))
+
+    caplog.clear()
+    second_sequence_md5sum = _upload()
+    assert second_sequence_md5sum == types.update_sequence_md5sum(
+        [
+            types.ImageMetadata(
+                filename=image_path,
+                lat=0,
+                lon=0,
+                alt=None,
+                angle=None,
+                time=0,
+                md5sum=hashlib.md5(bytes(data)).hexdigest(),
+            )
+        ]
+    )
+    assert second_sequence_md5sum != first_sequence_md5sum
+    assert "UploadedAlready" not in caplog.text
+    assert history.read_history_record(second_sequence_md5sum) is not None
+
+
+def test_update_md5sums_rereads_file_replaced_keeping_size_and_mtime(
+    tmp_path: Path, monkeypatch
+):
+    image_path = tmp_path / "image.jpg"
+    image_path.write_bytes(b"image bytes")
+    checksum_cache = uploader.create_checksum_cache(
+        tmp_path / "history" / "checksum_cache"
+    )
+    assert checksum_cache is not None
+    uploader._update_md5sums(
+        _image_metadatas([image_path]), desc="", checksum_cache=checksum_cache
+    )
+
+    # Replaced by another file of the same size and modification time, as a
+    # copy that keeps the modification time does
+    stat = image_path.stat()
+    replacement_path = tmp_path / "replacement.jpg"
+    replacement_path.write_bytes(b"IMAGE BYTES")
+    os.utime(replacement_path, ns=(stat.st_atime_ns, stat.st_mtime_ns))
+    os.replace(replacement_path, image_path)
+    assert image_path.stat().st_size == stat.st_size
+    assert image_path.stat().st_mtime_ns == stat.st_mtime_ns
+
+    reads = _count_checksum_reads(monkeypatch)
+    metadatas = _image_metadatas([image_path])
+    uploader._update_md5sums(metadatas, desc="", checksum_cache=checksum_cache)
+    assert metadatas[0].md5sum == hashlib.md5(b"IMAGE BYTES").hexdigest()
+    assert reads == ["image.jpg"]
+
+
+def test_update_md5sums_does_not_cache_file_changed_while_read(
+    tmp_path: Path, monkeypatch
+):
+    image_path = tmp_path / "image.jpg"
+    image_path.write_bytes(b"image bytes")
+    other_path = tmp_path / "other.jpg"
+    other_path.write_bytes(b"other bytes")
+    checksum_cache = uploader.create_checksum_cache(
+        tmp_path / "history" / "checksum_cache"
+    )
+    assert checksum_cache is not None
+
+    md5sum_fp = utils.md5sum_fp
+
+    def _md5sum_fp_while_image_grows(fp, *args, **kwargs):
+        md5 = md5sum_fp(fp, *args, **kwargs)
+        if os.path.basename(fp.name) == "image.jpg":
+            with image_path.open("ab") as image_fp:
+                image_fp.write(b", and more")
+        return md5
+
+    monkeypatch.setattr(utils, "md5sum_fp", _md5sum_fp_while_image_grows)
+    metadatas = _image_metadatas([image_path, other_path])
+    uploader._update_md5sums(metadatas, desc="", checksum_cache=checksum_cache)
+    # The checksum read is used, but not cached
+    assert metadatas[0].md5sum == hashlib.md5(b"image bytes").hexdigest()
+    assert len(checksum_cache.keys()) == 1
+
+    reads = _count_checksum_reads(monkeypatch)
+    metadatas = _image_metadatas([image_path, other_path])
+    uploader._update_md5sums(metadatas, desc="", checksum_cache=checksum_cache)
+    assert [m.md5sum for m in metadatas] == [
+        hashlib.md5(b"image bytes, and more").hexdigest(),
+        hashlib.md5(b"other bytes").hexdigest(),
+    ]
+    assert reads == ["image.jpg"]

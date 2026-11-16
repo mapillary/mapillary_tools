@@ -1155,10 +1155,35 @@ def create_checksum_cache(path: Path) -> history.PersistentCache | None:
 
 
 def _checksum_cache_key(path: Path) -> str:
-    # A file whose path, size and modification time are unchanged is taken
-    # as unchanged, as rsync does by default
+    # A file whose path, size, modification time, change time and file ID are
+    # unchanged is taken as unchanged, as git does. Size and modification time
+    # alone are not enough: editing the GPS of an image with exiftool -P keeps
+    # both, and the checksum cached for the old contents would then match the
+    # upload history of the old image, so the edited image would be skipped
+    # as already uploaded. The system sets the change time on every change,
+    # and it can not be set back; a file replaced by another gets a new file
+    # ID. On Windows, st_ctime is the creation time: there only the file ID
+    # tells a replaced file, on NTFS. FAT and exFAT, as on memory cards, store
+    # no change time, and Windows makes their file IDs from the position of
+    # the file in its folder, which the replacing file can take, so an edit
+    # there that keeps the size and modification time may not be told
     stat = path.stat()
-    return json.dumps([os.path.abspath(path), stat.st_size, stat.st_mtime_ns])
+    return json.dumps(
+        [
+            os.path.abspath(path),
+            stat.st_size,
+            stat.st_mtime_ns,
+            stat.st_ctime_ns,
+            stat.st_ino,
+        ]
+    )
+
+
+def _checksum_cache_key_or_none(path: Path) -> str | None:
+    try:
+        return _checksum_cache_key(path)
+    except OSError:
+        return None
 
 
 def _update_md5sums(
@@ -1173,7 +1198,9 @@ def _update_md5sums(
 
     With a checksum cache, take the checksums of the files from it, and cache
     the checksums computed, so that uploading the files again, as when they
-    were already uploaded, does not read them again.
+    were already uploaded, does not read them again. A file that changed
+    while it was read is not cached, as its checksum may be of the contents
+    before or during the change.
     """
     missing = [metadata for metadata in metadatas if metadata.md5sum is None]
     if not missing:
@@ -1200,16 +1227,28 @@ def _update_md5sums(
         unit_divisor=1024,
         disable=LOG.isEnabledFor(logging.DEBUG),
     ) as pbar:
+        unchanged: list[types.ImageMetadata | types.VideoMetadata] = []
         for metadata in missing:
             with metadata.filename.open("rb") as fp:
                 metadata.md5sum = utils.md5sum_fp(fp, progress=pbar.update).hexdigest()
+            if checksum_cache is not None:
+                if (
+                    _checksum_cache_key_or_none(metadata.filename)
+                    == cache_keys[metadata.filename]
+                ):
+                    unchanged.append(metadata)
+                else:
+                    LOG.debug(
+                        "Not caching the checksum of %s, changed while read",
+                        metadata.filename,
+                    )
 
-    if checksum_cache is not None:
+    if checksum_cache is not None and unchanged:
         try:
             checksum_cache.set_many(
                 {
                     cache_keys[metadata.filename]: T.cast(str, metadata.md5sum)
-                    for metadata in missing
+                    for metadata in unchanged
                 },
                 expires_in=CHECKSUM_CACHE_EXPIRES_IN,
             )

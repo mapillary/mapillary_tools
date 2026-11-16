@@ -371,8 +371,8 @@ Gotchas:
   video is recognized by its file alone, even if its track changed. The upload history is kept on this computer
   only. `--dry_run` neither reads nor writes it.
 - To look files up in the history, `upload` reads each one in full to compute its checksum, with a progress bar.
-  The checksums are cached in the upload history folder by file path, size and modification time, so the next
-  run skips uploaded files without reading them.
+  The checksums are cached in the upload history folder by file path, size, modification time, change time and
+  file ID, so the next run skips uploaded files without reading them.
 - An interrupted upload resumes where it stopped the next time you upload the same files.
 - `--organization_key` takes a numeric ID. Organization names are 2 to 32 letters, digits, `-` and `_`, starting
   with a letter, and are case-sensitive. Saving a name again with another ID replaces it.
