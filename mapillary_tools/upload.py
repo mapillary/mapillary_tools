@@ -94,9 +94,7 @@ def upload(
         )
         # Cache the checksums that the history is looked up by, so that files
         # already uploaded are not read again to be skipped
-        checksum_cache = uploader.create_checksum_cache(
-            Path(constants.MAPILLARY_UPLOAD_HISTORY_PATH).joinpath("checksum_cache")
-        )
+        checksum_cache = _create_checksum_cache()
 
     # Set up tdqm
     _setup_tdqm(emitter)
@@ -186,18 +184,35 @@ def _has_upload_history_record(md5sum: str) -> bool:
     return isinstance(record, dict)
 
 
+def _create_checksum_cache() -> history.PersistentCache | None:
+    return uploader.create_checksum_cache(
+        Path(constants.MAPILLARY_UPLOAD_HISTORY_PATH).joinpath("checksum_cache")
+    )
+
+
 def check_upload_history(
     import_path: Path | T.Sequence[Path],
     desc_path: str | None = None,
     skip_subfolders: bool = False,
     _metadatas_from_process: T.Sequence[types.MetadataOrError] | None = None,
 ) -> list[UploadHistoryCheckResult]:
-    """Return upload-history matches without uploading or changing history."""
+    """
+    Return upload-history matches without uploading or changing history.
+
+    The checksums of the files are taken from, and computed ones written to,
+    the checksum cache that upload uses, so that neither a later check nor
+    the upload reads the files again to compute them. Nothing else is written.
+    """
     import_paths = _normalize_import_paths(import_path)
     metadatas = _load_descs(_metadatas_from_process, import_paths, desc_path)
     candidates = _find_upload_candidates(
         metadatas, import_paths, skip_subfolders=skip_subfolders
     )
+
+    # As upload, use the cache only with the upload history
+    checksum_cache: history.PersistentCache | None = None
+    if not _is_history_disabled(dry_run=False):
+        checksum_cache = _create_checksum_cache()
 
     results: list[UploadHistoryCheckResult] = []
     image_results_to_check: list[
@@ -205,9 +220,13 @@ def check_upload_history(
     ] = []
     image_md5sums_to_check: set[str] = set()
 
-    for sequence_uuid, sequence in types.group_and_sort_images(
-        candidates.image_metadatas
-    ).items():
+    sequences = types.group_and_sort_images(candidates.image_metadatas)
+    for sequence_idx, (sequence_uuid, sequence) in enumerate(sequences.items()):
+        uploader._update_md5sums(
+            sequence,
+            desc=f"Checksumming IMAGE ({sequence_idx + 1}/{len(sequences)})",
+            checksum_cache=checksum_cache,
+        )
         sequence_md5sum = types.update_sequence_md5sum(sequence)
         filenames = [metadata.filename for metadata in sequence]
         sequence_already_uploaded = _has_upload_history_record(sequence_md5sum)
@@ -243,10 +262,15 @@ def check_upload_history(
             result["filenames"]
         )
 
-    for video_metadata in sorted(
+    sorted_video_metadatas = sorted(
         candidates.video_metadatas, key=lambda metadata: metadata.filename
-    ):
-        video_metadata.update_md5sum()
+    )
+    for idx, video_metadata in enumerate(sorted_video_metadatas):
+        uploader._update_md5sums(
+            [video_metadata],
+            desc=f"Checksumming {video_metadata.filetype.value.upper()} {video_metadata.filename.name} ({idx + 1}/{len(sorted_video_metadatas)})",
+            checksum_cache=checksum_cache,
+        )
         assert isinstance(video_metadata.md5sum, str), "md5sum should be calculated"
         filenames = [video_metadata.filename]
         already_uploaded_filenames = (

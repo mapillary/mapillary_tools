@@ -502,8 +502,9 @@ video or zip file: its file type, sequence UUID, checksum, file names, `already_
 `already_uploaded`, which is true only when all its files are in the history. Images are looked up one by one,
 also in sequences uploaded before, so it can report as uploaded a sequence that `upload` would upload again.
 
-It reads only the local upload history: it needs no login, makes no network requests, and changes nothing.
-Uploads from another computer, or with `--dry_run`, are not in it.
+It reads only the local upload history: it needs no login and makes no network requests. Uploads from another
+computer, or with `--dry_run`, are not in it. It writes only the checksums of the files, to the cache that `upload`
+uses, so that a later check or upload does not read them again.
 
 ## zip
 

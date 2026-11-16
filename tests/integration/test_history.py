@@ -43,7 +43,14 @@ def test_check_upload_history_is_read_only_and_matches_upload(
     results = run_check_upload_history(command_args)
     assert results
     assert all(not result["already_uploaded"] for result in results)
-    assert not Path(os.environ["MAPILLARY_UPLOAD_HISTORY_PATH"]).exists()
+    # No upload history is written: only the checksum cache, which upload
+    # uses too
+    history_path = Path(os.environ["MAPILLARY_UPLOAD_HISTORY_PATH"])
+    assert [path.name for path in history_path.iterdir()]
+    assert all(
+        path.is_file() and path.name.startswith("checksum_cache")
+        for path in history_path.iterdir()
+    )
 
     run_process_and_upload_for_descs(process_args)
 

@@ -300,7 +300,8 @@ mapillary_tools check_upload_history MY_CAPTURE_DIR \
 It prints a JSON array with one entry per image sequence, video or zip file, which tells whether it was already
 uploaded (see the
 [command reference](https://github.com/mapillary/mapillary_tools/blob/main/docs/command_reference.md#check_upload_history)).
-It reads only the local upload history: it needs no login, makes no network requests, and changes nothing.
+It reads only the local upload history: it needs no login and makes no network requests.
+It writes only the checksums of the files, to the cache that `upload` uses, so that a later check or upload does not read them again.
 
 # Advanced Usage
 
