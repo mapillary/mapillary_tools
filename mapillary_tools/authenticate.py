@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import getpass
 import logging
 import re
@@ -29,17 +30,41 @@ def authenticate(
     user_password: str | None = None,
     jwt: str | None = None,
     delete: bool = False,
+    organization_key: str | None = None,
     organization_name: str | None = None,
 ):
     """
-    Prompt for authentication information and save it to the config file
+    Prompt for authentication information and save it to the config file.
+
+    With organization_key and organization_name, save the organization ID under
+    the name in the profile, logging in only if the profile does not exist yet
+    or login options are given
     """
 
-    if organization_name is not None and not delete:
-        raise exceptions.MapillaryBadParameterError(
-            "authenticate takes --organization_name only with --delete. To save an "
-            "organization name, upload with --organization_key ID --organization_name NAME"
-        )
+    if organization_name is not None:
+        organization_name = organization_name.strip()
+    if organization_key is not None:
+        organization_key = organization_key.strip()
+
+    if delete:
+        if organization_key is not None:
+            raise exceptions.MapillaryBadParameterError(
+                "authenticate --delete takes --organization_name NAME, not --organization_key"
+            )
+    elif organization_key is None:
+        if organization_name is not None:
+            raise exceptions.MapillaryBadParameterError(
+                "authenticate takes --organization_name with --organization_key ID "
+                "to save the name, or with --delete to delete it"
+            )
+    else:
+        if organization_name is None:
+            raise exceptions.MapillaryBadParameterError(
+                "To save an organization, give the name to save its ID under: "
+                "--organization_key ID --organization_name NAME"
+            )
+        _validate_organization_name(organization_name)
+        _validate_organization_id(organization_key)
 
     # We still have to accept --user_name for the back compatibility
     profile_name = user_name
@@ -65,10 +90,33 @@ def authenticate(
     assert profile_name is not None, "profile_name should be set"
 
     if delete and organization_name is not None:
-        _delete_organization(profile_name, organization_name.strip(), all_user_items)
+        _delete_organization(profile_name, organization_name, all_user_items)
     elif delete:
         config.remove_config(profile_name)
         LOG.info('Profile "%s" deleted', profile_name)
+    elif (
+        organization_key is not None
+        and profile_name in all_user_items
+        and not jwt
+        and user_email is None
+        and user_password is None
+    ):
+        # Save the organization in the profile without logging in again, with
+        # the token saved in it checked
+        assert organization_name is not None
+        with _connection_errors_raised_as_mapillary_errors():
+            try:
+                profile_items = _verify_user_auth(
+                    _validate_profile(all_user_items[profile_name])
+                )
+            except exceptions.MapillaryUploadUnauthorizedError as ex:
+                raise exceptions.MapillaryUploadUnauthorizedError(
+                    f'{str(ex).rstrip(".")}. To log in to profile "{profile_name}" '
+                    "again and save the organization, add --jwt TOKEN or --user_email EMAIL"
+                ) from ex
+        _fetch_and_save_organization(
+            profile_name, profile_items, organization_key, organization_name
+        )
     else:
         if profile_name in all_user_items:
             LOG.warning(
@@ -99,6 +147,47 @@ def authenticate(
             LOG.info(
                 'Profile "%s" created: %s', profile_name, http._sanitize(user_items)
             )
+
+        if organization_key is not None:
+            assert organization_name is not None
+            _fetch_and_save_organization(
+                profile_name, user_items, organization_key, organization_name
+            )
+
+
+def _fetch_and_save_organization(
+    profile_name: str,
+    user_items: config.UserItem,
+    organization_key: str,
+    organization_name: str,
+) -> None:
+    with _connection_errors_raised_as_mapillary_errors():
+        data = _fetch_organization(user_items, organization_key)
+    saved_user_items = config.load_user(profile_name)
+    _save_organization(
+        profile_name,
+        organization_name,
+        # The ID as the server returns it
+        str(data.get("id") or organization_key),
+        data.get("name"),
+        config.list_organizations(saved_user_items) if saved_user_items else {},
+    )
+
+
+@contextlib.contextmanager
+def _connection_errors_raised_as_mapillary_errors() -> T.Iterator[None]:
+    try:
+        yield
+    except requests.Timeout as ex:
+        raise exceptions.MapillaryUploadTimeoutError(str(ex)) from ex
+    except requests.ConnectionError as ex:
+        raise exceptions.MapillaryUploadConnectionError(str(ex)) from ex
+
+
+def _fetch_organization(user_items: config.UserItem, organization_id: str) -> T.Any:
+    with api_v4.create_user_session(user_items["user_upload_token"]) as session:
+        resp = api_v4.fetch_organization(session, organization_id)
+    return api_v4.jsonify_response(resp)
 
 
 def fetch_user_items(
@@ -189,9 +278,7 @@ def fetch_user_items(
         )
 
         if organization_id is not None:
-            with api_v4.create_user_session(user_items["user_upload_token"]) as session:
-                resp = api_v4.fetch_organization(session, organization_id)
-            data = api_v4.jsonify_response(resp)
+            data = _fetch_organization(user_items, organization_id)
             LOG.info(
                 f"Uploading to organization: {data.get('name')} (ID: {data.get('id')})"
             )
@@ -360,6 +447,13 @@ def _validate_profile_name(profile_name: str):
 def _validate_organization_name(organization_name: str):
     # The same rules as profile names, so that a name is never taken for an ID
     _validate_name(organization_name, "organization name")
+
+
+def _validate_organization_id(organization_key: str):
+    if not _ORGANIZATION_ID_PATTERN.fullmatch(organization_key):
+        raise exceptions.MapillaryBadParameterError(
+            f'--organization_key takes an organization ID, a number, not "{organization_key}"'
+        )
 
 
 def _list_all_profiles(profiles: dict[str, config.UserItem]) -> None:

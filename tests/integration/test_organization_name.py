@@ -127,6 +127,36 @@ def test_save_then_use_organization_name(
     assert graph_api == [ORGANIZATION_ID, ORGANIZATION_ID]
 
 
+def test_authenticate_saves_organization_name(
+    setup_config: py.path.local,
+    setup_data: py.path.local,
+    setup_upload: py.path.local,
+    graph_api: list[str],
+):
+    # Saved without logging in again: the token stays
+    run_command(
+        [
+            *["--user_name", USERNAME],
+            *["--organization_key", ORGANIZATION_ID],
+            *["--organization_name", "work"],
+        ],
+        command="authenticate",
+    )
+    assert config.load_user(USERNAME, config_path=str(setup_config)) == {
+        "user_upload_token": "test_user_token",
+        "MAPOrganization.work": ORGANIZATION_ID,
+    }
+    assert graph_api == [ORGANIZATION_ID]
+
+    run_process_and_upload_for_descs(
+        ["--file_types=image", "--organization_name", "work"]
+        + [str(setup_data.join("images"))]
+    )
+    keys = _history_organization_keys()
+    assert keys and set(keys) == {ORGANIZATION_ID}
+    assert graph_api == [ORGANIZATION_ID, ORGANIZATION_ID]
+
+
 def test_video_process_and_upload_by_organization_name(
     setup_config: py.path.local,
     setup_data: py.path.local,

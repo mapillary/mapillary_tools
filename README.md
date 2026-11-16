@@ -263,9 +263,8 @@ To upload to an organization by a name instead of its ID, save a name for it onc
 The name is saved in the user profile in the config file:
 
 ```sh
-# Upload to the organization, and save its ID under the name "work" in the profile "my_username"
-mapillary_tools upload MY_CAPTURE_DIR \
-    --desc_path /tmp/mapillary_image_description.json \
+# Save the ID of the organization under the name "work" in the profile "my_username"
+mapillary_tools authenticate \
     --user_name "my_username" \
     --organization_key "my_organization_id" \
     --organization_name "work"
@@ -277,6 +276,7 @@ mapillary_tools upload MY_CAPTURE_DIR \
     --organization_name "work"
 ```
 
+An upload can save the name too: give it `--organization_key` and `--organization_name` together.
 `--organization_name` works with `upload`, `process_and_upload` and `video_process_and_upload`.
 A name is 2 to 32 letters, numbers, hyphens and underscores, starting with a letter, and it is case-sensitive.
 Saving a name that is already saved with another ID replaces the ID.
@@ -550,8 +550,16 @@ Authenticate for user `my_username`. If the user is already authenticated, it wi
 mapillary_tools authenticate --user_name "my_username"
 ```
 
-The command lists the existing profiles first, with the organization names saved in each of them
-(see [Upload](#upload) to save one). Updating the credentials keeps the saved names.
+The command lists the existing profiles first, with the organization names saved in each of them.
+Updating the credentials keeps the saved names.
+
+Save the ID of an organization under the name `work` in the profile `my_username`, to upload to it with
+`--organization_name "work"` (see [Upload](#upload)). The profile is not logged in again, unless it is new or
+`--jwt`, `--user_email` or `--user_password` is given:
+
+```sh
+mapillary_tools authenticate --user_name "my_username" --organization_key "my_organization_id" --organization_name "work"
+```
 
 Delete the organization name `work` saved in the profile `my_username`. The profile and its other saved names are kept:
 

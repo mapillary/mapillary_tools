@@ -511,6 +511,237 @@ def test_authenticate_takes_organization_name_only_to_delete(config_path: Path):
     assert config_path.read_text() == before
 
 
+def _forbid_login(monkeypatch: pytest.MonkeyPatch) -> None:
+    def _no_login(*args, **kwargs):
+        raise AssertionError("should not log in")
+
+    monkeypatch.setattr(authenticate, "_prompt_login", _no_login)
+
+
+def test_authenticate_saves_organization_without_logging_in(
+    config_path: Path,
+    fetched: list[str],
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+):
+    _add_profile("me", MAPSettingsUserKey="1001")
+    _forbid_login(monkeypatch)
+    verified: list[str] = []
+
+    def _verify_user_auth(user_items: config.UserItem) -> config.UserItem:
+        verified.append(user_items["user_upload_token"])
+        return {**user_items, "MAPSettingsUsername": "me_on_mapillary"}
+
+    monkeypatch.setattr(authenticate, "_verify_user_auth", _verify_user_auth)
+    caplog.set_level(logging.INFO)
+
+    authenticate.authenticate(
+        user_name="me", organization_key=" 01234567890 ", organization_name=" work "
+    )
+
+    # The token is checked, and the ID is saved as the server returns it
+    assert verified == ["me_token"]
+    assert fetched == ["01234567890"]
+    assert config.load_user("me") == {
+        "user_upload_token": "me_token",
+        "MAPSettingsUserKey": "1001",
+        "MAPOrganization.work": "1234567890",
+    }
+    assert (
+        'Saved organization "work": Acme Mapping (ID: 1234567890) in profile "me"'
+        in caplog.text
+    )
+    assert "will be overridden" not in caplog.text
+
+    # Then uploads go to it by the name
+    user_items = authenticate.fetch_user_items(organization_name="work")
+    assert user_items["MAPOrganizationKey"] == "1234567890"
+
+    # Saving the name with another ID replaces the ID
+    caplog.clear()
+    authenticate.authenticate(
+        user_name="me", organization_key="2222222222", organization_name="work"
+    )
+    assert _saved("me") == {"work": "2222222222"}
+    assert (
+        'The organization "work" (ID: 1234567890) already exists in profile "me" and will be overridden'
+        in caplog.text
+    )
+
+
+def test_authenticate_saves_organization_in_the_profile_chosen(
+    config_path: Path, fetched: list[str], monkeypatch: pytest.MonkeyPatch
+):
+    _add_profile("me")
+    _add_profile("other")
+    _forbid_login(monkeypatch)
+    _enable_prompt(monkeypatch, ["2"])
+
+    authenticate.authenticate(organization_key="1234567890", organization_name="work")
+
+    assert _saved("me") == {}
+    assert _saved("other") == {"work": "1234567890"}
+
+
+def test_authenticate_logs_in_and_saves_organization(
+    config_path: Path, fetched: list[str], monkeypatch: pytest.MonkeyPatch
+):
+    _add_profile("me", **{"MAPOrganization.home": "2222222222"})
+    verified: list[str] = []
+
+    def _verify_user_auth(user_items: config.UserItem) -> config.UserItem:
+        verified.append(user_items["user_upload_token"])
+        return user_items
+
+    monkeypatch.setattr(authenticate, "_verify_user_auth", _verify_user_auth)
+
+    # With a login option, an existing profile logs in again first
+    authenticate.authenticate(
+        user_name="me",
+        jwt="new_token",
+        organization_key="1234567890",
+        organization_name="work",
+    )
+    assert config.load_user("me") == {
+        "user_upload_token": "new_token",
+        "MAPOrganization.home": "2222222222",
+        "MAPOrganization.work": "1234567890",
+    }
+
+    # A new profile logs in first
+    authenticate.authenticate(
+        user_name="new",
+        jwt="other_token",
+        organization_key="1234567890",
+        organization_name="work",
+    )
+    assert config.load_user("new") == {
+        "user_upload_token": "other_token",
+        "MAPOrganization.work": "1234567890",
+    }
+    assert fetched == ["1234567890", "1234567890"]
+    # Each token is checked once, by the login
+    assert verified == ["new_token", "other_token"]
+    assert "MAPOrganizationKey" not in config_path.read_text()
+
+
+def test_authenticate_keeps_the_login_if_the_organization_is_rejected(
+    config_path: Path, fetched: list[str], monkeypatch: pytest.MonkeyPatch
+):
+    _add_profile("me", **{"MAPOrganization.home": "2222222222"})
+
+    # The login works, the organization ID is wrong
+    with pytest.raises(requests.HTTPError):
+        authenticate.authenticate(
+            user_name="me",
+            jwt="new_token",
+            organization_key="999",
+            organization_name="work",
+        )
+    with pytest.raises(requests.HTTPError):
+        authenticate.authenticate(
+            user_name="new",
+            jwt="other_token",
+            organization_key="999",
+            organization_name="work",
+        )
+
+    # The logins are kept, so that a mistyped ID needs no login again
+    assert config.load_user("me") == {
+        "user_upload_token": "new_token",
+        "MAPOrganization.home": "2222222222",
+    }
+    assert config.load_user("new") == {"user_upload_token": "other_token"}
+
+    # Saving with the right ID then does not log in
+    _forbid_login(monkeypatch)
+    authenticate.authenticate(
+        user_name="new", organization_key="1234567890", organization_name="work"
+    )
+    assert config.load_user("new") == {
+        "user_upload_token": "other_token",
+        "MAPOrganization.work": "1234567890",
+    }
+    assert fetched == ["999", "999", "1234567890"]
+
+
+def test_authenticate_new_profile_without_login_options_needs_a_login(
+    config_path: Path, fetched: list[str]
+):
+    _add_profile("me")
+    before = config_path.read_text()
+
+    # Without prompts, the login of the new profile fails
+    with pytest.raises(exceptions.MapillaryBadParameterError, match="user_email"):
+        authenticate.authenticate(
+            user_name="new", organization_key="1234567890", organization_name="work"
+        )
+
+    assert fetched == []
+    assert config_path.read_text() == before
+
+
+def test_authenticate_saves_no_organization_the_server_rejects(
+    config_path: Path, fetched: list[str], monkeypatch: pytest.MonkeyPatch
+):
+    _add_profile("me", **{"MAPOrganization.work": "1234567890"})
+    before = config_path.read_text()
+
+    with pytest.raises(requests.HTTPError):
+        authenticate.authenticate(
+            user_name="me", organization_key="999", organization_name="work"
+        )
+    assert fetched == ["999"]
+    assert config_path.read_text() == before
+
+    def _unauthorized(user_items: config.UserItem) -> config.UserItem:
+        raise exceptions.MapillaryUploadUnauthorizedError("Invalid token.")
+
+    monkeypatch.setattr(authenticate, "_verify_user_auth", _unauthorized)
+    # With how to log in again, as the profile was not logged in
+    with pytest.raises(
+        exceptions.MapillaryUploadUnauthorizedError,
+        match=r'^Invalid token\. To log in to profile "me" again and save the organization, add --jwt TOKEN or --user_email EMAIL$',
+    ):
+        authenticate.authenticate(
+            user_name="me", organization_key="2222222222", organization_name="work"
+        )
+    assert fetched == ["999"]
+    assert config_path.read_text() == before
+
+
+@pytest.mark.parametrize(
+    "kwargs, message",
+    [
+        ({"organization_key": "1234567890"}, "--organization_name NAME"),
+        ({"organization_name": "work"}, "--delete"),
+        ({"organization_key": "work", "organization_name": "work"}, "organization ID"),
+        ({"organization_key": "1234567890", "organization_name": "1work"}, "Invalid"),
+        (
+            {"organization_key": "1234567890", "delete": True},
+            "not --organization_key",
+        ),
+    ],
+)
+def test_authenticate_organization_options_fail_before_anything(
+    config_path: Path,
+    fetched: list[str],
+    monkeypatch: pytest.MonkeyPatch,
+    kwargs: dict,
+    message: str,
+):
+    _add_profile("me", **{"MAPOrganization.work": "1234567890"})
+    before = config_path.read_text()
+    _forbid_login(monkeypatch)
+    _enable_prompt(monkeypatch, [])
+
+    with pytest.raises(exceptions.MapillaryBadParameterError, match=message):
+        authenticate.authenticate(**kwargs)
+
+    assert fetched == []
+    assert config_path.read_text() == before
+
+
 @pytest.mark.parametrize(
     "command", ["upload", "process_and_upload", "video_process_and_upload"]
 )
