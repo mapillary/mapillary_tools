@@ -12,6 +12,7 @@ from unittest.mock import patch
 
 import py.path
 import pytest
+import requests
 from mapillary_tools import api_v4, geo, types, upload, uploader
 from mapillary_tools.mp4 import construct_mp4_parser as cparser
 from mapillary_tools.serializer import description
@@ -226,6 +227,53 @@ def test_upload_blackvue(tmpdir: py.path.local, setup_upload: py.path.local):
     assert setup_upload.join("this_is_a_blackvue.mp4").exists()
     with open(setup_upload.join("this_is_a_blackvue.mp4"), "rb") as fp:
         assert fp.read() == b"this is a fake video"
+
+
+def _finish_upload_with_response(
+    monkeypatch, body: bytes, finished: T.List[dict]
+) -> str:
+    resp = requests.Response()
+    resp.status_code = 200
+    resp.reason = "OK"
+    resp._content = body
+    resp.url = "https://graph.mapillary.com/finish_upload"
+    resp.request = requests.Request("POST", resp.url).prepare()
+    monkeypatch.setattr(api_v4, "finish_upload", lambda *args, **kwargs: resp)
+
+    user_items: T.Dict[str, str] = {"user_upload_token": "YOUR_USER_ACCESS_TOKEN"}
+    emitter = uploader.EventEmitter()
+    emitter.on("upload_finished")(finished.append)
+    mly_uploader = uploader.Uploader(
+        uploader.UploadOptions(T.cast(T.Any, user_items)), emitter=emitter
+    )
+    return mly_uploader.finish_upload(
+        "file_handle", api_v4.ClusterFileType.ZIP, progress={}
+    )
+
+
+def test_finish_upload_returns_cluster_id(monkeypatch):
+    finished: T.List[dict] = []
+    cluster_id = _finish_upload_with_response(
+        monkeypatch, b'{"cluster_id": "123"}', finished
+    )
+    assert cluster_id == "123"
+    assert finished == [{"cluster_id": "123"}]
+
+
+@pytest.mark.parametrize(
+    "body", [b"{}", b'{"cluster_id": null, "organization_id": null}', b"[]"]
+)
+def test_finish_upload_without_cluster_id_fails(monkeypatch, body: bytes):
+    # Not finished: nothing may be counted as uploaded or written to the
+    # upload history, which hooks on upload_finished, or the files would be
+    # skipped as already uploaded from then on
+    finished: T.List[dict] = []
+    with pytest.raises(api_v4.HTTPContentError) as exc_info:
+        _finish_upload_with_response(monkeypatch, body, finished)
+    assert str(exc_info.value) == (
+        "Cluster ID not found in the response, so the upload was not finished"
+    )
+    assert finished == []
 
 
 def _write_empty_mp4(path: Path, timescale: int) -> None:
