@@ -46,7 +46,29 @@ def history_desc_path(md5sum: str) -> Path:
     )
 
 
+def is_unfinished_upload(record: T.Any) -> bool:
+    """
+    Tell whether an upload history record is of an upload that Mapillary did
+    not finish, so nothing was uploaded: its summary has the cluster ID null.
+    upload wrote such records when finish_upload answered without a cluster
+    ID, as for an organization that the account is not a member of. Only an
+    explicit null counts: records written before 0.14.0 have no cluster ID.
+    """
+    if not isinstance(record, dict):
+        return False
+    summary = record.get("summary")
+    return (
+        isinstance(summary, dict)
+        and "cluster_id" in summary
+        and summary["cluster_id"] is None
+    )
+
+
 def read_history_record(md5sum: str) -> None | T.Dict[str, T.Any]:
+    """
+    Read the upload history record of the checksum, or return None if there
+    is none, or if it is of an upload that Mapillary did not finish
+    """
     if not constants.MAPILLARY_UPLOAD_HISTORY_PATH:
         return None
 
@@ -57,10 +79,19 @@ def read_history_record(md5sum: str) -> None | T.Dict[str, T.Any]:
 
     with path.open("r") as fp:
         try:
-            return json.load(fp)
+            record = json.load(fp)
         except json.JSONDecodeError as ex:
             LOG.error(f"Failed to read upload history {path}: {ex}")
             return None
+
+    if is_unfinished_upload(record):
+        LOG.info(
+            "Not taken as uploaded: the upload in the history record %s was not finished",
+            path,
+        )
+        return None
+
+    return record
 
 
 def _normalize_md5sum(value: T.Any) -> str | None:
@@ -111,6 +142,9 @@ def find_uploaded_image_md5s(md5sums: T.Iterable[str]) -> set[str]:
 
             if not isinstance(record, dict):
                 LOG.warning("Invalid upload history record %s", path)
+                continue
+
+            if is_unfinished_upload(record):
                 continue
 
             descs = record.get("descs")
