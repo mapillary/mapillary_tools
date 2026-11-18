@@ -115,8 +115,10 @@ class UploaderProgress(T.TypedDict, total=True):
 class SequenceProgress(T.TypedDict, total=False):
     """Progress data at sequence level"""
 
-    # Used to check if a zip file is uploaded or not. Images and videos are
-    # looked up in the upload history by file fingerprint instead
+    # Tells the uploads apart in the progress events, also across runs: the
+    # checksum that a zip file carries, or a key of the file paths of the
+    # images or video (see upload_key). The upload history doesn't use it: it
+    # looks files up by fingerprint
     sequence_md5sum: str
 
     # Used to resume from the previous upload,
@@ -254,6 +256,7 @@ class VideoUploader:
                 "sequence_idx": idx,
                 "file_type": video_metadata.filetype.value,
                 "import_path": str(video_metadata.filename),
+                "sequence_md5sum": upload_key([video_metadata.filename]),
             }
 
             try:
@@ -603,6 +606,9 @@ class ImageSequenceUploader:
                 "sequence_image_count": len(sequence),
                 "sequence_uuid": sequence_uuid,
                 "file_type": types.FileType.IMAGE.value,
+                "sequence_md5sum": upload_key(
+                    [metadata.filename for metadata in sequence]
+                ),
             }
 
             try:
@@ -1119,6 +1125,20 @@ class Uploader:
             session_key = _suffix_session_key(session_key, types.FileType(filetype))
 
         return session_key
+
+
+def upload_key(paths: T.Iterable[Path]) -> str:
+    """
+    The key of an upload of these files in its progress events: the same files
+    give the same key, also in another run, so that the progress of an upload
+    started again is counted once. Computed from the file paths: no file is
+    read.
+    """
+    hasher = hashlib.blake2b(digest_size=16)
+    for path in paths:
+        hasher.update(os.fsencode(os.path.abspath(path)))
+        hasher.update(b"\0")
+    return hasher.hexdigest()
 
 
 def _validate_metadatas(metadatas: T.Sequence[types.ImageMetadata]):

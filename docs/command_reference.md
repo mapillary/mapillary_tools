@@ -374,6 +374,8 @@ Gotchas:
 - To look a file up, `upload` compares its size with the sizes of the files uploaded before. Only when one
   matches does it read the file's fingerprint: 64 KiB from its start, middle and end. Files uploaded with earlier
   versions were recorded by checksum instead, so they are not found, and are uploaded once more.
+- A file of the same size as an uploaded file that differs from it only outside these three blocks is taken as
+  uploaded. Captures from cameras don't differ that way; `--reupload` uploads such a file anyway.
 - An interrupted upload resumes where it stopped the next time you upload the same files.
 - `--organization_key` takes a numeric ID. Organization names are 2 to 32 letters, digits, `-` and `_`, starting
   with a letter, and are case-sensitive. Saving a name again with another ID replaces it.

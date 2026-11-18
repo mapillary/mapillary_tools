@@ -310,18 +310,28 @@ def test_upload_continues_after_points_too_far_apart(
             )
         )
 
+    emitter = uploader.EventEmitter()
+    video_events: list[dict] = []
+    emitter.on("upload_start")(lambda payload: video_events.append(dict(payload)))
+    emitter.on("upload_end")(lambda payload: video_events.append(dict(payload)))
+
     results = {
         metadata.filename.name: result
         for metadata, result in uploader.VideoUploader.upload_videos(
             uploader.Uploader(
                 uploader.UploadOptions(
                     {"user_upload_token": "YOUR_USER_ACCESS_TOKEN"}, dry_run=True
-                )
+                ),
+                emitter=emitter,
             ),
             metadatas,
         )
     }
     assert isinstance(results["a_bad.mp4"].error, uploader.GPSPointsTooFarApartError)
+    # The video uploaded is keyed by its path in its progress events
+    assert {payload["sequence_md5sum"] for payload in video_events} == {
+        uploader.upload_key([video_dir / "b_good.mp4"])
+    }
     assert str(results["a_bad.mp4"].error) == (
         "a_bad.mp4: The GPS timestamps of the video jump by 22.1 hours between "
         "0.000 s and 79740.000 s, more than the uploaded video can store (19.9 "
@@ -800,6 +810,72 @@ class TestImageSequenceUploader:
             f"Sequence 2 should not have error: {result_2.error}"
         )
         assert result_2.result is not None, "Sequence 2 should have result"
+
+    def test_image_sequence_uploader_keys_its_progress_events(
+        self, setup_unittest_data: py.path.local
+    ):
+        """
+        Every event of the upload of a sequence carries the same sequence_md5sum,
+        the key by which progress consumers like the Desktop Uploader count the
+        bytes uploaded: not only the sequence events, but also the ones of its
+        images, which carry the image path in import_path
+        """
+        upload_options = uploader.UploadOptions(
+            {"user_upload_token": "YOUR_USER_ACCESS_TOKEN"},
+            upload_cache_path=Path(setup_unittest_data.join("upload_cache")),
+            dry_run=True,
+        )
+        emitter = uploader.EventEmitter()
+        events: list[tuple[str, dict]] = []
+        for event_name in [
+            "upload_start",
+            "upload_progress",
+            "upload_end",
+            "upload_finished",
+        ]:
+            emitter.on(event_name)(
+                lambda payload, name=event_name: events.append((name, dict(payload)))
+            )
+
+        data = Path(setup_unittest_data.join("test_exif.jpg")).read_bytes()
+        image_paths = []
+        for idx in range(2):
+            image = bytearray(data)
+            image[-10] = idx + 1 if data[-10] != idx + 1 else idx + 101
+            image_path = Path(setup_unittest_data.join(f"image_{idx}.jpg"))
+            image_path.write_bytes(bytes(image))
+            image_paths.append(image_path)
+        image_metadatas = [
+            description.DescriptionJSONSerializer.from_desc(
+                {
+                    "MAPLatitude": 58.5927694,
+                    "MAPLongitude": 16.1840944 + idx * 0.0001,
+                    "MAPCaptureTime": f"2021_02_13_13_24_4{idx}_140",
+                    "filename": str(image_path),
+                    "filetype": "image",
+                    "MAPSequenceUUID": "keyed_sequence",
+                }
+            )
+            for idx, image_path in enumerate(image_paths)
+        ]
+
+        results = list(
+            uploader.ImageSequenceUploader(upload_options, emitter).upload_images(
+                image_metadatas
+            )
+        )
+
+        assert [result.error for _, result in results] == [None]
+        assert sorted(
+            payload["import_path"]
+            for name, payload in events
+            if name == "upload_progress"
+        ) == sorted(str(image_path) for image_path in image_paths)
+        # The same images give the same key, also in another run
+        assert {payload.get("sequence_md5sum") for _, payload in events} == {
+            uploader.upload_key(image_paths)
+        }
+        assert uploader.upload_key(image_paths) != uploader.upload_key(image_paths[:1])
 
     def test_image_sequence_uploader_event_emission(
         self, setup_unittest_data: py.path.local

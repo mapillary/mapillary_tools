@@ -12,6 +12,9 @@ three blocks is hashed whole. Every block of a compressed image or video
 differs from one capture to another, and an MP4 index sits at one end of the
 file, so two different captures of the same size do not share a fingerprint
 in practice. Computing one takes three small reads, whatever the file size.
+
+Two files of the same size that differ only outside the three blocks have
+the same fingerprint: one is taken as the other in the upload history.
 """
 
 from __future__ import annotations

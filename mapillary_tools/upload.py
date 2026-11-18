@@ -74,6 +74,12 @@ def upload(
 
     config.UserItemSchemaValidator.validate(user_items)
 
+    # The files to upload: the processed files found in the import paths. The
+    # upload history records these, not every file of the description file
+    candidates = _find_upload_candidates(
+        metadatas, import_paths, skip_subfolders=skip_subfolders
+    )
+
     # Setup the emitter -- the order matters here
 
     emitter = uploader.EventEmitter()
@@ -89,7 +95,11 @@ def upload(
             "run_at": time.time(),
         }
         _setup_history(
-            emitter, upload_run_params, metadatas, reupload=reupload, nofinish=nofinish
+            emitter,
+            upload_run_params,
+            candidates.image_metadatas,
+            reupload=reupload,
+            nofinish=nofinish,
         )
 
     # Set up tdqm
@@ -114,9 +124,7 @@ def upload(
 
     mly_uploader = uploader.Uploader(upload_options, emitter=emitter)
 
-    results = _gen_upload_everything(
-        mly_uploader, metadatas, import_paths, skip_subfolders
-    )
+    results = _gen_upload_everything(mly_uploader, candidates)
 
     upload_successes = 0
     upload_errors: list[Exception] = []
@@ -299,7 +307,7 @@ def _is_history_disabled(dry_run: bool) -> bool:
 def _setup_history(
     emitter: uploader.EventEmitter,
     upload_run_params: JSONDict,
-    metadatas: list[types.Metadata],
+    image_metadatas: T.Sequence[types.ImageMetadata],
     reupload: bool,
     nofinish: bool,
 ) -> None:
@@ -312,19 +320,14 @@ def _setup_history(
     uploaded = history.read_uploaded_files() or history.UploadedFiles()
     # Computed to look the files up, and reused to record them
     fingerprints: dict[Path, str] = {}
+    # The images that upload uploads, by sequence, as it groups them
+    sequences = types.group_and_sort_images(image_metadatas)
 
     def uploaded_filenames(payload: uploader.Progress) -> list[Path]:
         """The images of the sequence, or the video or zip file"""
         sequence_uuid = payload.get("sequence_uuid")
         if sequence_uuid is not None:
-            sequence = [
-                metadata
-                for metadata in metadatas
-                if isinstance(metadata, types.ImageMetadata)
-                and metadata.MAPSequenceUUID == sequence_uuid
-            ]
-            sequence.sort(key=lambda metadata: metadata.sort_key())
-            return [metadata.filename for metadata in sequence]
+            return [metadata.filename for metadata in sequences.get(sequence_uuid, [])]
         import_path = payload.get("import_path")
         assert import_path is not None, f"import_path has to be set for {payload}"
         return [Path(import_path)]
@@ -748,15 +751,8 @@ def _find_upload_candidates(
 
 
 def _gen_upload_everything(
-    mly_uploader: uploader.Uploader,
-    metadatas: T.Sequence[types.Metadata],
-    import_paths: T.Sequence[Path],
-    skip_subfolders: bool,
+    mly_uploader: uploader.Uploader, candidates: _UploadCandidates
 ):
-    candidates = _find_upload_candidates(
-        metadatas, import_paths, skip_subfolders=skip_subfolders
-    )
-
     # Upload images
     image_uploader = uploader.ImageSequenceUploader(
         mly_uploader.upload_options, emitter=mly_uploader.emitter

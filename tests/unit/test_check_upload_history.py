@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import os
 import shutil
 import sys
@@ -485,6 +486,7 @@ def _uploaded_files(upload_path: Path) -> list[str]:
 def test_upload_records_images_and_skips_them_the_next_time(
     tmp_path, monkeypatch, caplog
 ):
+    caplog.set_level(logging.INFO)
     history_path, upload_path = _setup_dry_run_upload(tmp_path, monkeypatch)
     image_dir = tmp_path / "images"
     image_dir.mkdir()
@@ -562,6 +564,7 @@ def test_upload_records_images_and_skips_them_the_next_time(
 def test_upload_skips_an_uploaded_video_without_reading_it_for_the_session_key(
     tmp_path, monkeypatch, caplog
 ):
+    caplog.set_level(logging.INFO)
     _, upload_path = _setup_dry_run_upload(tmp_path, monkeypatch)
     video_dir = tmp_path / "videos"
     video_dir.mkdir()
@@ -626,6 +629,7 @@ def test_upload_skips_an_uploaded_video_without_reading_it_for_the_session_key(
 def test_upload_records_a_zip_file_and_skips_it_the_next_time(
     tmp_path, monkeypatch, caplog
 ):
+    caplog.set_level(logging.INFO)
     history_path, upload_path = _setup_dry_run_upload(tmp_path, monkeypatch)
     image_dir = tmp_path / "images"
     image_dir.mkdir()
@@ -675,3 +679,123 @@ def test_upload_records_a_zip_file_and_skips_it_the_next_time(
 
     assert _uploaded_files(upload_path) == []
     assert f"UploadedAlready: Skipping {zip_path.name}, already uploaded" in caplog.text
+
+
+def _distinct_images(image_dir: Path, count: int) -> list[Path]:
+    """Images of the same size that are different images"""
+    data = TEST_IMAGE_DIR.joinpath("DSC00001.JPG").read_bytes()
+    image_paths = []
+    for idx in range(count):
+        image = bytearray(data)
+        # A byte of the image data
+        image[-10] = idx + 1 if data[-10] != idx + 1 else idx + 101
+        image_path = image_dir / f"IMG_{idx:04d}.jpg"
+        image_path.write_bytes(bytes(image))
+        image_paths.append(image_path)
+    return image_paths
+
+
+def _image_metadatas(image_paths: list[Path]) -> list[types.Metadata]:
+    return [
+        types.ImageMetadata(
+            filename=image_path,
+            lat=58.5927694 + idx * 0.0001,
+            lon=16.1840944,
+            alt=None,
+            angle=None,
+            time=1613222681.0 + idx,
+            MAPSequenceUUID="sequence",
+            filesize=image_path.stat().st_size,
+        )
+        for idx, image_path in enumerate(image_paths)
+    ]
+
+
+def _upload_images(import_path, image_paths: list[Path]) -> None:
+    upload.upload(
+        import_path,
+        {"user_upload_token": "YOUR_USER_ACCESS_TOKEN"},
+        num_upload_workers=1,
+        _metadatas_from_process=_image_metadatas(image_paths),
+        dry_run=True,
+    )
+
+
+def _recorded_filenames(history_path: Path) -> list[list[str]]:
+    return [
+        [entry["filename"] for entry in json.loads(path.read_text())["files"]]
+        for path in history_path.glob(f"{history.UPLOADED_FILES_DIR}/*/*.json")
+    ]
+
+
+def test_upload_records_only_the_images_that_it_uploads(tmp_path, monkeypatch, caplog):
+    """
+    Uploading some of the images of a description file records those, not
+    the other images of their sequence in it
+    """
+    caplog.set_level(logging.INFO)
+    history_path, upload_path = _setup_dry_run_upload(tmp_path, monkeypatch)
+    image_dir = tmp_path / "images"
+    image_dir.mkdir()
+    image_paths = _distinct_images(image_dir, 4)
+
+    _upload_images(image_paths[:2], image_paths)
+
+    assert _recorded_filenames(history_path) == [
+        [os.path.abspath(image_path) for image_path in image_paths[:2]]
+    ]
+    assert upload.check_upload_history(
+        image_dir, _metadatas_from_process=_image_metadatas(image_paths)
+    ) == [_result("image", "sequence", image_paths, image_paths[:2])]
+
+    # The other images were not uploaded, so the sequence is uploaded
+    for name in _uploaded_files(upload_path):
+        upload_path.joinpath(name).unlink()
+    caplog.clear()
+    _upload_images(image_dir, image_paths)
+
+    assert _uploaded_files(upload_path)
+    assert "UploadedAlready" not in caplog.text
+
+
+def test_upload_records_a_sequence_with_an_image_deleted_after_process(
+    tmp_path, monkeypatch, caplog
+):
+    """
+    An image of the description file that was deleted is not uploaded, nor
+    recorded: the sequence of the others is, and is skipped the next time
+    """
+    caplog.set_level(logging.INFO)
+    history_path, upload_path = _setup_dry_run_upload(tmp_path, monkeypatch)
+    image_dir = tmp_path / "images"
+    image_dir.mkdir()
+    image_paths = _distinct_images(image_dir, 3)
+    metadatas = _image_metadatas(image_paths)
+    image_paths[1].unlink()
+
+    def _upload():
+        upload.upload(
+            image_dir,
+            {"user_upload_token": "YOUR_USER_ACCESS_TOKEN"},
+            num_upload_workers=1,
+            _metadatas_from_process=metadatas,
+            dry_run=True,
+        )
+
+    _upload()
+
+    assert _uploaded_files(upload_path)
+    assert "Error writing upload history" not in caplog.text
+    assert _recorded_filenames(history_path) == [
+        [os.path.abspath(image_paths[0]), os.path.abspath(image_paths[2])]
+    ]
+
+    for name in _uploaded_files(upload_path):
+        upload_path.joinpath(name).unlink()
+    caplog.clear()
+    _upload()
+
+    assert _uploaded_files(upload_path) == []
+    assert (
+        "UploadedAlready: Skipping sequence_sequence, already uploaded" in caplog.text
+    )
