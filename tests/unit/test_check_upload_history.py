@@ -19,6 +19,7 @@ from mapillary_tools import (
     fingerprint,
     geo,
     history,
+    history_index,
     types,
     upload,
     uploader,
@@ -87,8 +88,11 @@ def _count_reads(monkeypatch) -> list[str]:
 
 
 def _history_files(history_path: Path) -> dict[Path, bytes]:
+    """The files of the upload history but its index"""
     return {
-        path: path.read_bytes() for path in history_path.rglob("*") if path.is_file()
+        path: path.read_bytes()
+        for path in history_path.rglob("*")
+        if path.is_file() and not path.name.startswith(history_index.INDEX_FILENAME)
     }
 
 

@@ -510,7 +510,8 @@ compatibility), file names, `already_uploaded_filenames`, and `already_uploaded`
 files are in the history. Files are looked up as `upload` looks them up, so `upload` skips the entries reported
 as uploaded. A file is read only when a file of the same size was uploaded, and then only for its fingerprint.
 
-It reads only the local upload history: it needs no login, makes no network requests, and changes nothing.
+It reads only the local upload history: it needs no login, makes no network requests, and changes nothing but
+the index of the upload history, which it brings up to date to look files up faster.
 Uploads from another computer, or with `--dry_run`, are not in it.
 
 ## zip

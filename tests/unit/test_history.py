@@ -167,6 +167,32 @@ class TestUploadedFiles:
         assert uploaded is not None
         assert uploaded.uploaded_at == {"a" * 32: None}
 
+    def test_records_are_written_whole(self, tmp_path, monkeypatch):
+        history_path = tmp_path / "history"
+        monkeypatch.setattr(
+            history.constants, "MAPILLARY_UPLOAD_HISTORY_PATH", str(history_path)
+        )
+        path = tmp_path / "video.mp4"
+        path.write_bytes(b"video")
+        history.write_uploaded_files(
+            [_uploaded_file(path)], {}, {"upload_end_time": 1.0}
+        )
+        [record_path] = history_path.rglob("*.json")
+        record = json.loads(record_path.read_text())
+
+        def _fail(source, destination):
+            raise OSError("No space left on device")
+
+        monkeypatch.setattr(history, "_replace", _fail)
+        with pytest.raises(OSError):
+            history.write_uploaded_files(
+                [_uploaded_file(path)], {}, {"upload_end_time": 2.0}
+            )
+
+        # The record written before is kept, and no partial one is left
+        assert json.loads(record_path.read_text()) == record
+        assert [p for p in history_path.rglob("*") if p.is_file()] == [record_path]
+
     def test_no_history(self, tmp_path, monkeypatch):
         monkeypatch.setattr(history.constants, "MAPILLARY_UPLOAD_HISTORY_PATH", "")
         monkeypatch.chdir(tmp_path)

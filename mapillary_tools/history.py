@@ -5,11 +5,14 @@
 
 from __future__ import annotations
 
+import contextlib
 import dataclasses
 import json
 import logging
 import os
 import sqlite3
+import sys
+import tempfile
 import threading
 import time
 import typing as T
@@ -32,6 +35,10 @@ UPLOADED_FILES_DIR = "fingerprints_v1"
 # a local time
 _MAX_UPLOADED_AT = 32503680000
 
+# Larger file sizes are not taken: the largest integer that SQLite stores (see
+# history_index)
+_MAX_FILESIZE = 2**63 - 1
+
 
 @dataclasses.dataclass(frozen=True)
 class UploadedFile:
@@ -40,11 +47,27 @@ class UploadedFile:
     fingerprint: str
 
 
+class UploadedFilesLookup(T.Protocol):
+    """The files recorded in the upload history, to look files up"""
+
+    def find(
+        self, path: Path, fingerprints: dict[Path, str] | None = None
+    ) -> str | None: ...
+
+    def last_uploaded_at(self, file_fingerprint: str) -> float | None: ...
+
+    def add(
+        self, files: T.Iterable[UploadedFile], uploaded_at: float | None
+    ) -> None: ...
+
+    def close(self) -> None: ...
+
+
 @dataclasses.dataclass
 class UploadedFiles:
     """
-    The files recorded in the upload history: their sizes, and when each
-    fingerprint was uploaded (None if not known)
+    The files recorded in the upload history, in memory: their sizes, and when
+    each fingerprint was uploaded (None if not known)
     """
 
     sizes: set[int] = dataclasses.field(default_factory=set)
@@ -69,12 +92,18 @@ class UploadedFiles:
             return None
         return file_fingerprint
 
+    def last_uploaded_at(self, file_fingerprint: str) -> float | None:
+        return self.uploaded_at.get(file_fingerprint)
+
     def add(self, files: T.Iterable[UploadedFile], uploaded_at: float | None) -> None:
         for file in files:
             self.sizes.add(file.filesize)
             previous = self.uploaded_at.get(file.fingerprint)
             if previous is None or (uploaded_at is not None and previous < uploaded_at):
                 self.uploaded_at[file.fingerprint] = uploaded_at
+
+    def close(self) -> None:
+        pass
 
 
 def _uploaded_files_dir() -> Path:
@@ -101,8 +130,9 @@ def is_unfinished_upload(record: T.Any) -> bool:
 
 def read_uploaded_files() -> UploadedFiles | None:
     """
-    Read the files recorded in the upload history, in one pass over its
-    records, or return None if there is no upload history
+    Read the files recorded in the upload history into memory, in one pass
+    over its records, or return None if there is no upload history. See
+    history_index for looking files up without reading every record.
     """
     if not constants.MAPILLARY_UPLOAD_HISTORY_PATH:
         return None
@@ -126,17 +156,26 @@ def read_uploaded_files() -> UploadedFiles | None:
                     path,
                 )
                 continue
-            if not _add_uploaded_files_record(uploaded, record):
+            parsed = parse_uploaded_files_record(record)
+            if parsed is None:
                 LOG.warning("Invalid upload history record %s", path)
+                continue
+            uploaded.add(*parsed)
     except OSError as ex:
         LOG.warning("Failed to scan upload history %s: %s", root, ex)
 
     return uploaded
 
 
-def _add_uploaded_files_record(uploaded: UploadedFiles, record: T.Any) -> bool:
+def parse_uploaded_files_record(
+    record: T.Any,
+) -> tuple[list[UploadedFile], float | None] | None:
+    """
+    The files of an upload history record and when they were uploaded (None
+    if not known), or None if the record is invalid
+    """
     if not isinstance(record, dict) or not isinstance(record.get("files"), list):
-        return False
+        return None
 
     summary = record.get("summary")
     uploaded_at = summary.get("upload_end_time") if isinstance(summary, dict) else None
@@ -147,20 +186,22 @@ def _add_uploaded_files_record(uploaded: UploadedFiles, record: T.Any) -> bool:
         or not 0 <= uploaded_at <= _MAX_UPLOADED_AT
     ):
         uploaded_at = None
+    else:
+        uploaded_at = float(uploaded_at)
 
     files: list[UploadedFile] = []
     for entry in record["files"]:
         if not isinstance(entry, dict):
-            return False
+            return None
         filesize = entry.get("filesize")
         file_fingerprint = entry.get("fingerprint")
         if (
             isinstance(filesize, bool)
             or not isinstance(filesize, int)
-            or filesize < 0
+            or not 0 <= filesize <= _MAX_FILESIZE
             or not fingerprint.is_fingerprint(file_fingerprint)
         ):
-            return False
+            return None
         files.append(
             UploadedFile(
                 Path(str(entry.get("filename"))),
@@ -169,8 +210,7 @@ def _add_uploaded_files_record(uploaded: UploadedFiles, record: T.Any) -> bool:
             )
         )
 
-    uploaded.add(files, uploaded_at)
-    return True
+    return files, uploaded_at
 
 
 def write_uploaded_files(
@@ -195,8 +235,32 @@ def write_uploaded_files(
             for file in files
         ],
     }
-    with open(path, "w") as fp:
-        fp.write(json.dumps(record))
+    # Written whole or not at all: a reader never sees a partial record, and
+    # one interrupted while written is not lost
+    fd, temp_name = tempfile.mkstemp(
+        dir=path.parent, prefix=f"{path.name}.", suffix=".tmp"
+    )
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as fp:
+            fp.write(json.dumps(record))
+        _replace(temp_name, path)
+    except BaseException:
+        with contextlib.suppress(OSError):
+            os.remove(temp_name)
+        raise
+
+
+def _replace(source: str, destination: Path) -> None:
+    # On Windows a file can't be replaced while another process reads it
+    attempts = 5 if sys.platform == "win32" else 1
+    for attempt in range(attempts):
+        try:
+            os.replace(source, destination)
+            return
+        except PermissionError:
+            if attempt == attempts - 1:
+                raise
+            time.sleep(0.1)
 
 
 def _retry_on_database_lock_error(fn):
