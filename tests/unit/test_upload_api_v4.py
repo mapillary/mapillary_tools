@@ -92,3 +92,41 @@ def test_chunkize_caps_read_to_remaining_bytes():
     )
     assert b"".join(chunks) == b"hello world"
     assert spy.read_sizes == [len(b"hello world")]
+
+
+class _SeekSpy(_ReadSpy):
+    def __init__(self, data: bytes):
+        super().__init__(data)
+        self.seek_count = 0
+
+    def seek(self, offset: int, whence: int = io.SEEK_SET) -> int:
+        self.seek_count += 1
+        return super().seek(offset, whence)
+
+
+def test_chunkize_measures_remaining_bytes_once():
+    # Seeking a video stream rebuilt from many samples walks all of them,
+    # so seeking for every chunk made large video uploads quadratic
+    spy = _SeekSpy(b"hello world")
+    spy.seek(6)
+    spy.seek_count = 0
+    chunks = list(upload_api_v4.UploadService.chunkize_byte_stream(spy, 2))
+    assert chunks == [b"wo", b"rl", b"d"]
+    assert spy.read_sizes == [2, 2, 1]
+    assert spy.seek_count == 2
+
+
+class _UnseekableStream:
+    def __init__(self, data: bytes):
+        self._stream = io.BytesIO(data)
+
+    def read(self, size: int = -1) -> bytes:
+        return self._stream.read(size)
+
+
+def test_chunkize_unseekable_stream():
+    stream = _UnseekableStream(b"hello world")
+    chunks = list(
+        upload_api_v4.UploadService.chunkize_byte_stream(stream, 4)  # type: ignore[arg-type]
+    )
+    assert chunks == [b"hell", b"o wo", b"rld"]

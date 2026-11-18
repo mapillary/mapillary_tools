@@ -70,24 +70,21 @@ class UploadService:
         if chunk_size <= 0:
             raise ValueError("Expect positive chunk size")
 
+        # Cap read() to the remaining bytes so FileIO does not allocate
+        # chunk_size (e.g. 1 GiB). Measure them once: seeking a video stream
+        # rebuilt from many samples walks all of them
+        remaining = cls._remaining_bytes(stream)
+
         while True:
-            to_read = cls._bounded_read_size(stream, chunk_size)
-            if to_read == 0:
+            to_read = chunk_size if remaining is None else min(chunk_size, remaining)
+            if to_read <= 0:
                 break
             data = stream.read(to_read)
             if not data:
                 break
+            if remaining is not None:
+                remaining -= len(data)
             yield data
-
-    @classmethod
-    def _bounded_read_size(cls, stream: T.IO[bytes], chunk_size: int) -> int:
-        """Cap read() to remaining bytes so FileIO does not allocate chunk_size (e.g. 1 GiB)."""
-        remaining = cls._remaining_bytes(stream)
-        if remaining is None:
-            return chunk_size
-        if remaining <= 0:
-            return 0
-        return min(chunk_size, remaining)
 
     @classmethod
     def _remaining_bytes(cls, stream: T.IO[bytes]) -> int | None:
