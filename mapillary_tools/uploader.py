@@ -983,8 +983,15 @@ class Uploader:
                 )
 
             body = api_v4.jsonify_response(resp)
-            # TODO: Validate cluster_id
-            cluster_id = body.get("cluster_id")
+            if not isinstance(body, dict) or not body.get("cluster_id"):
+                # Without a cluster ID nothing was created. Fail before the
+                # upload is counted and written to the upload history, or it
+                # would be skipped as already uploaded from then on
+                raise api_v4.HTTPContentError(
+                    "Cluster ID not found in the response, so the upload was not finished",
+                    resp,
+                )
+            cluster_id = body["cluster_id"]
 
         progress["cluster_id"] = cluster_id
         self.emitter.emit("upload_finished", progress)
