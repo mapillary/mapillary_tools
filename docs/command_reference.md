@@ -42,7 +42,7 @@ For the full list of options of the version you have installed, run `mapillary_t
 | `sample_video`             | Extracts frames from videos as geotagged images. Needs FFmpeg.                                     |
 | `video_process`            | `sample_video`, then `process` the frames.                                                         |
 | `video_process_and_upload` | `video_process`, then `upload` the frames.                                                         |
-| `authenticate`             | Adds, updates or deletes user profiles, and deletes saved organization names.                      |
+| `authenticate`             | Adds, updates or deletes user profiles, and saves or deletes organization names.                   |
 | `check_upload_history`     | Tells whether processed files were already uploaded from this computer.                            |
 | `zip`                      | Writes processed image sequences into zip files, to upload later.                                  |
 
@@ -357,7 +357,7 @@ Uploads the images (as sequences), videos and zip files under the import paths, 
 mapillary_tools process MY_CAPTURE_DIR
 mapillary_tools upload MY_CAPTURE_DIR --user_name my_profile
 
-# Save the organization ID under the name "work" once, then use the name
+# Save the organization ID under the name "work" once (or with authenticate), then use the name
 mapillary_tools upload MY_CAPTURE_DIR --organization_key 1234567890 --organization_name work
 mapillary_tools upload MY_CAPTURE_DIR --organization_name work
 ```
@@ -467,7 +467,7 @@ mapillary_tools authenticate [--user_name PROFILE] [OPTIONS]
 
 Logs in to Mapillary and saves the credentials as a profile in the config file
 (a file in `~/.config/mapillary/configs/`, or the file that `MAPILLARY_CONFIG_PATH` names). It lists the existing profiles first, with the
-organization names saved in each.
+organization names saved in each. It also saves and deletes the organization names of a profile.
 
 | Option                       | Description                                                                         |
 | ---------------------------- | ----------------------------------------------------------------------------------- |
@@ -475,18 +475,22 @@ organization names saved in each.
 | `--user_email`, `--user_password` | Log in without prompts.                                                         |
 | `--jwt TOKEN`                | Save a user access token instead of logging in.                                     |
 | `--delete`                   | Delete the profile, or with `--organization_name NAME`, only that saved name.       |
+| `--organization_key ID`      | With `--organization_name NAME`, save the organization ID under NAME in the profile. |
+| `--organization_name NAME`   | The organization name to save, or with `--delete`, to delete.                       |
 
 ```sh
 mapillary_tools authenticate --user_name my_profile
 mapillary_tools authenticate --user_name my_profile --delete
+mapillary_tools authenticate --user_name my_profile --organization_key 1234567890 --organization_name work
 mapillary_tools authenticate --user_name my_profile --organization_name work --delete
 ```
 
 Gotchas:
 
 - Authenticating an existing profile again replaces its credentials, and keeps its saved organization names.
-- Organization names are saved by `upload`, not by `authenticate`
-  (`--organization_key ID --organization_name NAME`).
+- Saving an organization name does not log an existing profile in again, unless `--jwt`, `--user_email` or
+  `--user_password` is given. It checks the profile's token and looks up the organization ID on Mapillary, so it
+  needs a connection. A new profile logs in first.
 - Without a terminal, or with `MAPILLARY_TOOLS_PROMPT_DISABLED=YES`, give everything as options: missing values
   are an error instead of a prompt.
 

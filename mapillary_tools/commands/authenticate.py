@@ -40,8 +40,14 @@ class Command:
             action="store_true",
         )
         parser.add_argument(
+            "--organization_key",
+            help="The Mapillary organization ID to save in the user profile under --organization_name NAME. An existing profile is not logged in again, unless login options are given.",
+            default=None,
+            required=False,
+        )
+        parser.add_argument(
             "--organization_name",
-            help="The saved organization name to delete from the user profile, with --delete",
+            help="With --organization_key ID, save the ID under this name in the user profile, to upload with --organization_name NAME. With --delete, delete the saved name. Names are 2 to 32 letters, numbers, hyphens and underscores, starting with a letter.",
             default=None,
             required=False,
         )
