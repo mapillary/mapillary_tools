@@ -834,7 +834,7 @@ def test_upload_history_records_the_saved_organization(
         )
         commands.main()
 
-        [record] = [json.loads(p.read_text()) for p in history_path.glob("*/*.json")]
+        [record] = [json.loads(p.read_text()) for p in history_path.glob("**/*.json")]
         assert record["params"]["organization_key"] == "1234567890"
 
     assert fetched == ["1234567890", "1234567890"]

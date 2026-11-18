@@ -4,8 +4,6 @@
 # LICENSE file in the root directory of this source tree.
 
 import dataclasses
-import hashlib
-import os
 import typing as T
 from pathlib import Path
 from unittest.mock import patch
@@ -874,70 +872,3 @@ class TestImageSequenceUploader:
         )
         assert "entity_size" in start_payload, "upload_start should contain entity_size"
         assert start_payload["sequence_uuid"] == "event_test_sequence"
-
-
-def test_update_md5sums(tmpdir: py.path.local):
-    image_path = Path(tmpdir.join("image.jpg"))
-    image_path.write_bytes(b"image bytes")
-    other_path = Path(tmpdir.join("other.jpg"))
-    other_path.write_bytes(b"other bytes")
-    metadatas = [
-        types.ImageMetadata(
-            filename=image_path, lat=0, lon=0, alt=None, angle=None, time=0
-        ),
-        types.ImageMetadata(
-            filename=other_path,
-            lat=0,
-            lon=0,
-            alt=None,
-            angle=None,
-            time=1,
-            md5sum="0" * 32,
-        ),
-    ]
-
-    uploader._update_md5sums(metadatas, desc="Checksumming IMAGE (1/1)")
-
-    assert metadatas[0].md5sum == hashlib.md5(b"image bytes").hexdigest()
-    # Checksums given are kept
-    assert metadatas[1].md5sum == "0" * 32
-
-
-def test_update_md5sums_with_checksum_cache(tmpdir: py.path.local):
-    image_path = Path(tmpdir.join("image.jpg"))
-    image_path.write_bytes(b"image bytes")
-    other_path = Path(tmpdir.join("other.jpg"))
-    other_path.write_bytes(b"other bytes")
-    checksum_cache = uploader.create_checksum_cache(
-        Path(tmpdir.join("history", "checksum_cache"))
-    )
-    assert checksum_cache is not None
-
-    def _metadatas() -> list[types.ImageMetadata]:
-        return [
-            types.ImageMetadata(
-                filename=path, lat=0, lon=0, alt=None, angle=None, time=idx
-            )
-            for idx, path in enumerate([image_path, other_path])
-        ]
-
-    metadatas = _metadatas()
-    uploader._update_md5sums(metadatas, desc="", checksum_cache=checksum_cache)
-    assert [m.md5sum for m in metadatas] == [
-        hashlib.md5(b"image bytes").hexdigest(),
-        hashlib.md5(b"other bytes").hexdigest(),
-    ]
-
-    # Same size and modification time: taken from the cache, not read again
-    stat = image_path.stat()
-    image_path.write_bytes(b"IMAGE BYTES")
-    os.utime(image_path, ns=(stat.st_atime_ns, stat.st_mtime_ns))
-    # Changed size: read again
-    other_path.write_bytes(b"other bytes, changed")
-
-    metadatas = _metadatas()
-    uploader._update_md5sums(metadatas, desc="", checksum_cache=checksum_cache)
-    assert [m.md5sum for m in metadatas] == [
-        hashlib.md5(b"image bytes").hexdigest(),
-        hashlib.md5(b"other bytes, changed").hexdigest(),
-    ]

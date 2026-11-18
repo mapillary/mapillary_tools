@@ -5,45 +5,76 @@
 
 from __future__ import annotations
 
+import dataclasses
 import json
 import logging
 import os
 import sqlite3
-import string
 import threading
 import time
 import typing as T
 from functools import wraps
 from pathlib import Path
 
-from . import constants, store, types
-from .serializer.description import DescriptionJSONSerializer
+from . import constants, fingerprint, store
 
 JSONDict = T.Dict[str, T.Union[str, int, float, None]]
 
 LOG = logging.getLogger(__name__)
 
 
-def _validate_hexdigits(md5sum: str):
-    try:
-        assert set(md5sum).issubset(string.hexdigits)
-        assert 4 <= len(md5sum)
-        _ = int(md5sum, 16)
-    except Exception:
-        raise ValueError(f"Invalid md5sum {md5sum}")
+# Uploaded files are recorded by fingerprint (see fingerprint.py), one record
+# per uploaded image sequence, video or zip file, in this folder of the upload
+# history. Records written by earlier versions, by checksum, are not read
+UPLOADED_FILES_DIR = "fingerprints_v1"
 
 
-def history_desc_path(md5sum: str) -> Path:
-    _validate_hexdigits(md5sum)
-    subfolder = md5sum[:2]
-    assert subfolder, f"Invalid md5sum {md5sum}"
-    basename = md5sum[2:]
-    assert basename, f"Invalid md5sum {md5sum}"
-    return (
-        Path(constants.MAPILLARY_UPLOAD_HISTORY_PATH)
-        .joinpath(subfolder)
-        .joinpath(f"{basename}.json")
-    )
+@dataclasses.dataclass(frozen=True)
+class UploadedFile:
+    filename: Path
+    filesize: int
+    fingerprint: str
+
+
+@dataclasses.dataclass
+class UploadedFiles:
+    """
+    The files recorded in the upload history: their sizes, and when each
+    fingerprint was uploaded (None if not known)
+    """
+
+    sizes: set[int] = dataclasses.field(default_factory=set)
+    uploaded_at: dict[str, float | None] = dataclasses.field(default_factory=dict)
+
+    def find(
+        self, path: Path, fingerprints: dict[Path, str] | None = None
+    ) -> str | None:
+        """
+        Return the fingerprint of the file if it was uploaded, or None. The
+        file is read only when an uploaded file had the same size. Computed
+        fingerprints are kept in the fingerprints given, by path.
+        """
+        if os.path.getsize(path) not in self.sizes:
+            return None
+        file_fingerprint = None if fingerprints is None else fingerprints.get(path)
+        if file_fingerprint is None:
+            file_fingerprint = fingerprint.fingerprint_file(path)
+            if fingerprints is not None:
+                fingerprints[path] = file_fingerprint
+        if file_fingerprint not in self.uploaded_at:
+            return None
+        return file_fingerprint
+
+    def add(self, files: T.Iterable[UploadedFile], uploaded_at: float | None) -> None:
+        for file in files:
+            self.sizes.add(file.filesize)
+            previous = self.uploaded_at.get(file.fingerprint)
+            if previous is None or (uploaded_at is not None and previous < uploaded_at):
+                self.uploaded_at[file.fingerprint] = uploaded_at
+
+
+def _uploaded_files_dir() -> Path:
+    return Path(constants.MAPILLARY_UPLOAD_HISTORY_PATH).joinpath(UPLOADED_FILES_DIR)
 
 
 def is_unfinished_upload(record: T.Any) -> bool:
@@ -64,128 +95,99 @@ def is_unfinished_upload(record: T.Any) -> bool:
     )
 
 
-def read_history_record(md5sum: str) -> None | T.Dict[str, T.Any]:
+def read_uploaded_files() -> UploadedFiles | None:
     """
-    Read the upload history record of the checksum, or return None if there
-    is none, or if it is of an upload that Mapillary did not finish
-    """
-    if not constants.MAPILLARY_UPLOAD_HISTORY_PATH:
-        return None
-
-    path = history_desc_path(md5sum)
-
-    if not path.is_file():
-        return None
-
-    with path.open("r") as fp:
-        try:
-            record = json.load(fp)
-        except json.JSONDecodeError as ex:
-            LOG.error(f"Failed to read upload history {path}: {ex}")
-            return None
-
-    if is_unfinished_upload(record):
-        LOG.info(
-            "Not taken as uploaded: the upload in the history record %s was not finished",
-            path,
-        )
-        return None
-
-    return record
-
-
-def _normalize_md5sum(value: T.Any) -> str | None:
-    if not isinstance(value, str) or len(value) != 32:
-        return None
-
-    try:
-        _validate_hexdigits(value)
-    except ValueError:
-        return None
-
-    return value.lower()
-
-
-def find_uploaded_image_md5s(md5sums: T.Iterable[str]) -> set[str]:
-    """Find image checksums stored in upload-history descriptions.
-
-    Upload history is sharded by the checksum of a whole sequence, so checking
-    whether images came from a previously uploaded larger sequence requires a
-    bounded scan of the records. Only requested checksums are retained, and the
-    scan stops as soon as all of them have been found.
+    Read the files recorded in the upload history, in one pass over its
+    records, or return None if there is no upload history
     """
     if not constants.MAPILLARY_UPLOAD_HISTORY_PATH:
-        return set()
+        return None
 
-    wanted = {
-        normalized
-        for md5sum in md5sums
-        if (normalized := _normalize_md5sum(md5sum)) is not None
-    }
-    if not wanted:
-        return set()
-
-    root = Path(constants.MAPILLARY_UPLOAD_HISTORY_PATH)
+    uploaded = UploadedFiles()
+    root = _uploaded_files_dir()
     if not root.is_dir():
-        return set()
+        return uploaded
 
-    found: set[str] = set()
     try:
-        history_paths = root.glob("*/*.json")
-        for path in history_paths:
+        for path in root.glob("*/*.json"):
             try:
                 with path.open("r", encoding="utf-8") as fp:
                     record = json.load(fp)
             except (OSError, UnicodeError, json.JSONDecodeError) as ex:
                 LOG.warning("Failed to read upload history %s: %s", path, ex)
                 continue
-
-            if not isinstance(record, dict):
-                LOG.warning("Invalid upload history record %s", path)
-                continue
-
             if is_unfinished_upload(record):
+                LOG.info(
+                    "Not taken as uploaded: the upload in the history record %s was not finished",
+                    path,
+                )
                 continue
-
-            descs = record.get("descs")
-            if not isinstance(descs, list):
-                continue
-
-            for desc in descs:
-                if not isinstance(desc, dict):
-                    continue
-                if desc.get("filetype") != types.FileType.IMAGE.value:
-                    continue
-                md5sum = _normalize_md5sum(desc.get("md5sum"))
-                if md5sum in wanted:
-                    found.add(md5sum)
-
-            if found == wanted:
-                break
+            if not _add_uploaded_files_record(uploaded, record):
+                LOG.warning("Invalid upload history record %s", path)
     except OSError as ex:
         LOG.warning("Failed to scan upload history %s: %s", root, ex)
 
-    return found
+    return uploaded
 
 
-def write_history(
-    md5sum: str,
-    params: JSONDict,
-    summary: JSONDict,
-    metadatas: T.Sequence[types.Metadata] | None = None,
+def _add_uploaded_files_record(uploaded: UploadedFiles, record: T.Any) -> bool:
+    if not isinstance(record, dict) or not isinstance(record.get("files"), list):
+        return False
+
+    summary = record.get("summary")
+    uploaded_at = summary.get("upload_end_time") if isinstance(summary, dict) else None
+    if isinstance(uploaded_at, bool) or not isinstance(uploaded_at, (int, float)):
+        uploaded_at = None
+
+    files: list[UploadedFile] = []
+    for entry in record["files"]:
+        if not isinstance(entry, dict):
+            return False
+        filesize = entry.get("filesize")
+        file_fingerprint = entry.get("fingerprint")
+        if (
+            isinstance(filesize, bool)
+            or not isinstance(filesize, int)
+            or filesize < 0
+            or not fingerprint.is_fingerprint(file_fingerprint)
+        ):
+            return False
+        files.append(
+            UploadedFile(
+                Path(str(entry.get("filename"))),
+                filesize,
+                T.cast(str, file_fingerprint),
+            )
+        )
+
+    uploaded.add(files, uploaded_at)
+    return True
+
+
+def write_uploaded_files(
+    files: T.Sequence[UploadedFile], params: JSONDict, summary: JSONDict
 ) -> None:
-    if not constants.MAPILLARY_UPLOAD_HISTORY_PATH:
+    """Record the files of an uploaded image sequence, video or zip file"""
+    if not constants.MAPILLARY_UPLOAD_HISTORY_PATH or not files:
         return
-    path = history_desc_path(md5sum)
+    key = fingerprint.combine_fingerprints(file.fingerprint for file in files)
+    path = _uploaded_files_dir().joinpath(key[:2]).joinpath(f"{key[2:]}.json")
     LOG.debug("Writing upload history: %s", path)
-    path.resolve().parent.mkdir(parents=True, exist_ok=True)
-    history: dict[str, T.Any] = {"params": params, "summary": summary}
-    if metadatas is not None:
-        history["descs"] = [
-            DescriptionJSONSerializer.as_desc(metadata) for metadata in metadatas
-        ]
+    path.parent.mkdir(parents=True, exist_ok=True)
+    record = {
+        "params": params,
+        "summary": summary,
+        "files": [
+            {
+                "filename": os.path.abspath(file.filename),
+                "filesize": file.filesize,
+                "fingerprint": file.fingerprint,
+            }
+            for file in files
+        ],
+    }
     with open(path, "w") as fp:
-        fp.write(json.dumps(history))
+        fp.write(json.dumps(record))
 
 
 def _retry_on_database_lock_error(fn):

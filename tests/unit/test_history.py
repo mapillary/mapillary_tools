@@ -4,163 +4,168 @@
 # LICENSE file in the root directory of this source tree.
 
 import json
-import tempfile
+import os
 import typing as T
 from pathlib import Path
-from unittest.mock import patch
 
 import pytest
-from mapillary_tools import constants, history, types, upload
+from mapillary_tools import constants, fingerprint, history, types, upload
 
 
-class TestValidateHexdigits:
-    def test_valid_md5sum(self):
-        # Should not raise
-        history._validate_hexdigits("abcdef1234567890")
-
-    def test_valid_short_hex(self):
-        history._validate_hexdigits("abcd")
-
-    def test_too_short_raises(self):
-        with pytest.raises(ValueError, match="Invalid md5sum"):
-            history._validate_hexdigits("abc")
-
-    def test_non_hex_raises(self):
-        with pytest.raises(ValueError, match="Invalid md5sum"):
-            history._validate_hexdigits("xyz123")
-
-    def test_empty_raises(self):
-        with pytest.raises(ValueError, match="Invalid md5sum"):
-            history._validate_hexdigits("")
+def _uploaded_file(path: Path) -> history.UploadedFile:
+    return history.UploadedFile(
+        path, path.stat().st_size, fingerprint.fingerprint_file(path)
+    )
 
 
-class TestHistoryDescPath:
-    def test_returns_path_with_subfolder(self):
-        path = history.history_desc_path("aabbccdd")
-        assert "aa" in str(path)
-        assert path.name == "bbccdd.json"
+class TestUploadedFiles:
+    def test_written_files_are_read_back(self, tmp_path, monkeypatch):
+        history_path = tmp_path / "history"
+        monkeypatch.setattr(
+            history.constants, "MAPILLARY_UPLOAD_HISTORY_PATH", str(history_path)
+        )
+        first = tmp_path / "first.jpg"
+        first.write_bytes(b"first image")
+        second = tmp_path / "second.jpg"
+        second.write_bytes(b"second image, longer")
+        files = [_uploaded_file(first), _uploaded_file(second)]
 
-    def test_long_md5sum(self):
-        md5 = "d41d8cd98f00b204e9800998ecf8427e"
-        path = history.history_desc_path(md5)
-        assert path.name == md5[2:] + ".json"
-        assert path.parent.name == "d4"
+        history.write_uploaded_files(
+            files, {"version": "test"}, {"upload_end_time": 123.0}
+        )
 
+        [record_path] = history_path.glob(f"{history.UPLOADED_FILES_DIR}/*/*.json")
+        record = json.loads(record_path.read_text())
+        assert record["params"] == {"version": "test"}
+        assert record["files"] == [
+            {
+                "filename": os.path.abspath(first),
+                "filesize": len(b"first image"),
+                "fingerprint": files[0].fingerprint,
+            },
+            {
+                "filename": os.path.abspath(second),
+                "filesize": len(b"second image, longer"),
+                "fingerprint": files[1].fingerprint,
+            },
+        ]
+        # No checksum record is written
+        assert list(history_path.glob("*/*.json")) == []
 
-class TestReadHistoryRecord:
-    def test_returns_none_when_no_history_path(self):
-        with patch.object(history.constants, "MAPILLARY_UPLOAD_HISTORY_PATH", ""):
-            result = history.read_history_record("aabbccdd")
-            assert result is None
+        uploaded = history.read_uploaded_files()
+        assert uploaded is not None
+        assert uploaded.sizes == {len(b"first image"), len(b"second image, longer")}
+        assert uploaded.uploaded_at == {
+            files[0].fingerprint: 123.0,
+            files[1].fingerprint: 123.0,
+        }
 
-    def test_returns_none_when_file_not_found(self):
-        with tempfile.TemporaryDirectory() as tmpdir:
-            with patch.object(
-                history.constants,
-                "MAPILLARY_UPLOAD_HISTORY_PATH",
-                tmpdir,
-            ):
-                result = history.read_history_record("aabbccdd")
-                assert result is None
+    def test_find_reads_only_files_of_uploaded_sizes(self, tmp_path, monkeypatch):
+        uploaded_path = tmp_path / "uploaded.mp4"
+        uploaded_path.write_bytes(b"video A")
+        uploaded = history.UploadedFiles()
+        uploaded.add([_uploaded_file(uploaded_path)], 1.0)
+        new_size = tmp_path / "new.mp4"
+        new_size.write_bytes(b"a new video")
+        same_size = tmp_path / "same-size.mp4"
+        same_size.write_bytes(b"video B")
 
-    def test_reads_valid_history(self):
-        with tempfile.TemporaryDirectory() as tmpdir:
-            with patch.object(
-                history.constants,
-                "MAPILLARY_UPLOAD_HISTORY_PATH",
-                tmpdir,
-            ):
-                path = history.history_desc_path("aabbccdd")
-                path.parent.mkdir(parents=True, exist_ok=True)
-                record = {"params": {"key": "val"}, "summary": {"count": 1}}
-                with open(path, "w") as fp:
-                    json.dump(record, fp)
+        reads: list[str] = []
+        fingerprint_file = fingerprint.fingerprint_file
 
-                result = history.read_history_record("aabbccdd")
-                assert result is not None
-                assert result["params"]["key"] == "val"
+        def _fingerprint_file(path):
+            reads.append(path.name)
+            return fingerprint_file(path)
 
-    def test_returns_none_on_corrupt_json(self):
-        with tempfile.TemporaryDirectory() as tmpdir:
-            with patch.object(
-                history.constants,
-                "MAPILLARY_UPLOAD_HISTORY_PATH",
-                tmpdir,
-            ):
-                path = history.history_desc_path("aabbccdd")
-                path.parent.mkdir(parents=True, exist_ok=True)
-                with open(path, "w") as fp:
-                    fp.write("not valid json{{{")
+        monkeypatch.setattr(fingerprint, "fingerprint_file", _fingerprint_file)
+        fingerprints: dict[Path, str] = {}
 
-                result = history.read_history_record("aabbccdd")
-                assert result is None
+        assert uploaded.find(new_size, fingerprints) is None
+        assert reads == []
+        assert uploaded.find(same_size, fingerprints) is None
+        assert uploaded.find(uploaded_path, fingerprints) is not None
+        assert reads == ["same-size.mp4", "uploaded.mp4"]
+        # Fingerprints computed are kept
+        assert uploaded.find(uploaded_path, fingerprints) is not None
+        assert reads == ["same-size.mp4", "uploaded.mp4"]
+        assert set(fingerprints) == {same_size, uploaded_path}
 
+    def test_add_keeps_the_latest_upload_time(self):
+        file = history.UploadedFile(Path("video.mp4"), 1, "0" * 32)
+        uploaded = history.UploadedFiles()
+        uploaded.add([file], None)
+        assert uploaded.uploaded_at == {"0" * 32: None}
+        uploaded.add([file], 2.0)
+        uploaded.add([file], 1.0)
+        assert uploaded.uploaded_at == {"0" * 32: 2.0}
 
-class TestWriteHistory:
-    def test_write_history_creates_file(self):
-        with tempfile.TemporaryDirectory() as tmpdir:
-            with patch.object(
-                history.constants,
-                "MAPILLARY_UPLOAD_HISTORY_PATH",
-                tmpdir,
-            ):
-                history.write_history(
-                    "aabbccdd",
-                    params={"user": "test"},
-                    summary={"uploaded": 5},
-                )
-                path = history.history_desc_path("aabbccdd")
-                assert path.exists()
-                with open(path) as fp:
-                    data = json.load(fp)
-                assert data["params"]["user"] == "test"
-                assert data["summary"]["uploaded"] == 5
+    def test_invalid_records_are_skipped(self, tmp_path, monkeypatch, caplog):
+        history_path = tmp_path / "history"
+        monkeypatch.setattr(
+            history.constants, "MAPILLARY_UPLOAD_HISTORY_PATH", str(history_path)
+        )
+        root = history_path / history.UPLOADED_FILES_DIR
+        records = {
+            "00/invalid-json.json": b"{",
+            "01/not-utf8.json": b"\xff",
+            "02/not-a-dict.json": b"[]",
+            "03/no-files.json": json.dumps({"summary": {}}).encode(),
+            "04/bad-entry.json": json.dumps(
+                {"files": [{"filesize": "1", "fingerprint": "0" * 32}]}
+            ).encode(),
+            "05/bad-fingerprint.json": json.dumps(
+                {"files": [{"filesize": 1, "fingerprint": "not one"}]}
+            ).encode(),
+            "06/valid.json": json.dumps(
+                {
+                    "summary": {"upload_end_time": "yesterday"},
+                    "files": [
+                        {"filename": "a.jpg", "filesize": 7, "fingerprint": "a" * 32}
+                    ],
+                }
+            ).encode(),
+        }
+        for name, contents in records.items():
+            root.joinpath(name).parent.mkdir(parents=True, exist_ok=True)
+            root.joinpath(name).write_bytes(contents)
 
-    def test_write_history_no_path(self):
-        with patch.object(history.constants, "MAPILLARY_UPLOAD_HISTORY_PATH", ""):
-            # Should be a no-op
-            history.write_history("aabbccdd", params={}, summary={})
+        with caplog.at_level("WARNING"):
+            uploaded = history.read_uploaded_files()
 
-    def test_write_history_with_metadatas(self):
-        with tempfile.TemporaryDirectory() as tmpdir:
-            with patch.object(
-                history.constants,
-                "MAPILLARY_UPLOAD_HISTORY_PATH",
-                tmpdir,
-            ):
-                metadata = types.ImageMetadata(
-                    time=1000.0,
-                    lat=48.0,
-                    lon=11.0,
-                    alt=100.0,
-                    angle=45.0,
-                    filename=Path("img.jpg"),
-                    MAPFilename="img.jpg",
-                )
-                history.write_history(
-                    "aabbccdd",
-                    params={},
-                    summary={},
-                    metadatas=[metadata],
-                )
-                path = history.history_desc_path("aabbccdd")
-                with open(path) as fp:
-                    data = json.load(fp)
-                assert "descs" in data
-                assert len(data["descs"]) == 1
+        assert uploaded is not None
+        assert uploaded.sizes == {7}
+        assert uploaded.uploaded_at == {"a" * 32: None}
+        for name in list(records)[:-1]:
+            assert name.split("/")[1] in caplog.text
+
+    def test_no_history(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(history.constants, "MAPILLARY_UPLOAD_HISTORY_PATH", "")
+        monkeypatch.chdir(tmp_path)
+        assert history.read_uploaded_files() is None
+        path = tmp_path / "video.mp4"
+        path.write_bytes(b"video")
+        history.write_uploaded_files([_uploaded_file(path)], {}, {})
+        assert [p.name for p in tmp_path.iterdir()] == ["video.mp4"]
+
+    def test_empty_history(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(
+            history.constants,
+            "MAPILLARY_UPLOAD_HISTORY_PATH",
+            str(tmp_path / "history"),
+        )
+        uploaded = history.read_uploaded_files()
+        assert uploaded == history.UploadedFiles()
+        assert not (tmp_path / "history").exists()
 
 
 TEST_IMAGE_DIR = Path(__file__).parent.parent.joinpath("data", "images")
 
 
-def _write_record(md5sum: str, summary: dict, descs: T.Optional[list] = None) -> Path:
-    path = history.history_desc_path(md5sum)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    record: dict = {"params": {}, "summary": summary}
-    if descs is not None:
-        record["descs"] = descs
-    path.write_text(json.dumps(record))
-    return path
+def _write_record(summary: dict, *paths: Path) -> Path:
+    files = [_uploaded_file(path) for path in paths]
+    history.write_uploaded_files(files, {}, T.cast(history.JSONDict, summary))
+    key = fingerprint.combine_fingerprints(file.fingerprint for file in files)
+    return history._uploaded_files_dir() / key[:2] / f"{key[2:]}.json"
 
 
 class TestUnfinishedUploads:
@@ -174,37 +179,38 @@ class TestUnfinishedUploads:
             constants, "MAPILLARY_UPLOAD_HISTORY_PATH", str(tmp_path / "history")
         )
 
-    def test_unfinished_record_is_not_read(self):
-        _write_record("a" * 32, {"cluster_id": None, "upload_end_time": 1.0})
-        assert history.read_history_record("a" * 32) is None
+    def test_unfinished_record_is_not_read(self, tmp_path, caplog):
+        video_path = tmp_path / "video.mp4"
+        video_path.write_bytes(b"video")
+        record_path = _write_record(
+            {"cluster_id": None, "upload_end_time": 1.0}, video_path
+        )
+
+        with caplog.at_level("INFO"):
+            uploaded = history.read_uploaded_files()
+
+        assert uploaded == history.UploadedFiles()
+        assert f"the upload in the history record {record_path} was not finished" in (
+            caplog.text
+        )
+        assert "Invalid upload history record" not in caplog.text
 
     @pytest.mark.parametrize(
         "summary",
         [
-            # Written before 0.14.0, which added the cluster ID
             {"upload_end_time": 1.0},
             {"cluster_id": "123", "upload_end_time": 1.0},
             # Uploaded with --dry_run
             {"cluster_id": "0", "upload_end_time": 1.0},
         ],
     )
-    def test_finished_record_is_read(self, summary: dict):
-        _write_record("a" * 32, summary)
-        record = history.read_history_record("a" * 32)
-        assert record is not None
-        assert record["summary"] == summary
-
-    def test_find_uploaded_image_md5s_skips_unfinished_records(self):
-        unfinished_image, finished_image = "b" * 32, "c" * 32
-        _write_record(
-            "a" * 32,
-            {"cluster_id": None},
-            [{"filetype": "image", "md5sum": unfinished_image}],
-        )
-        _write_record("d" * 32, {}, [{"filetype": "image", "md5sum": finished_image}])
-        assert history.find_uploaded_image_md5s([unfinished_image, finished_image]) == {
-            finished_image
-        }
+    def test_finished_record_is_read(self, tmp_path, summary: dict):
+        video_path = tmp_path / "video.mp4"
+        video_path.write_bytes(b"video")
+        _write_record(summary, video_path)
+        uploaded = history.read_uploaded_files()
+        assert uploaded is not None
+        assert uploaded.find(video_path) == fingerprint.fingerprint_file(video_path)
 
     def test_check_upload_history_ignores_unfinished_records(self, tmp_path):
         image_paths = [tmp_path / "first.jpg", tmp_path / "second.jpg"]
@@ -229,17 +235,12 @@ class TestUnfinishedUploads:
             )
             return result
 
-        sequence_md5sum = check()["sequence_md5sum"]
-        image_descs = [
-            {"filetype": "image", "md5sum": metadata.md5sum} for metadata in metadatas
-        ]
-        # Neither the sequence nor its images, also looked up one by one
-        _write_record(sequence_md5sum, {"cluster_id": None}, image_descs)
+        _write_record({"cluster_id": None}, *image_paths)
         result = check()
         assert result["already_uploaded"] is False
         assert result["already_uploaded_filenames"] == []
 
-        _write_record(sequence_md5sum, {"cluster_id": "123"}, image_descs)
+        _write_record({"cluster_id": "123"}, *image_paths)
         assert check()["already_uploaded"] is True
 
     def test_upload_uploads_unfinished_upload_again(self, tmp_path, monkeypatch):
@@ -279,7 +280,9 @@ class TestUnfinishedUploads:
             )
 
         upload_images()
-        [record_path] = (tmp_path / "history").glob("*/*.json")
+        [record_path] = (tmp_path / "history").glob(
+            f"{history.UPLOADED_FILES_DIR}/*/*.json"
+        )
 
         def rewrite_summary(**summary) -> None:
             record = json.loads(record_path.read_text())
