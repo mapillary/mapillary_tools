@@ -219,6 +219,31 @@ def find_image_samples(
     return samples_by_video, ambiguous
 
 
+class PathResolver:
+    """
+    Resolve the paths of many files like Path.resolve(), resolving each folder
+    only once. Path.resolve() checks every folder on the way to a file, which
+    takes long for many files, especially on network drives
+    """
+
+    def __init__(self) -> None:
+        self._folders: dict[Path, Path] = {}
+
+    def resolve(self, path: Path) -> Path:
+        # On Windows, resolving also gives a file name the case it has on the drive.
+        # os.path.islink() ignores errors as Path.resolve() does, such as for a file
+        # in a folder that can be listed but not searched, which Path.is_symlink()
+        # raises before Python 3.14
+        if os.name == "nt" or path.name in ("", "..") or os.path.islink(path):
+            return path.resolve()
+        folder = path.parent
+        resolved_folder = self._folders.get(folder)
+        if resolved_folder is None:
+            resolved_folder = folder.resolve()
+            self._folders[folder] = resolved_folder
+        return resolved_folder.joinpath(path.name)
+
+
 def deduplicate_paths(paths: T.Iterable[Path]) -> T.Generator[Path, None, None]:
     resolved_paths: set[Path] = set()
     for p in paths:
