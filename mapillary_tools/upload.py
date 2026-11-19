@@ -25,6 +25,7 @@ from . import (
     exceptions,
     fingerprint,
     history,
+    history_index,
     http,
     ipc,
     types,
@@ -80,9 +81,22 @@ def upload(
         metadatas, import_paths, skip_subfolders=skip_subfolders
     )
 
+    try:
+        upload_options = uploader.UploadOptions(
+            user_items,
+            dry_run=dry_run,
+            nofinish=nofinish,
+            noresume=noresume,
+            num_upload_workers=num_upload_workers,
+        )
+    except ValueError as ex:
+        raise exceptions.MapillaryBadParameterError(str(ex)) from ex
+
     # Setup the emitter -- the order matters here
 
     emitter = uploader.EventEmitter()
+
+    uploaded: history.UploadedFilesLookup | None = None
 
     # Check duplications first
     if not _is_history_disabled(dry_run):
@@ -94,7 +108,7 @@ def upload(
             "version": VERSION,
             "run_at": time.time(),
         }
-        _setup_history(
+        uploaded = _setup_history(
             emitter,
             upload_run_params,
             candidates.image_metadatas,
@@ -110,17 +124,6 @@ def upload(
 
     # Send the progress via IPC, and log the progress in debug mode
     _setup_ipc(emitter)
-
-    try:
-        upload_options = uploader.UploadOptions(
-            user_items,
-            dry_run=dry_run,
-            nofinish=nofinish,
-            noresume=noresume,
-            num_upload_workers=num_upload_workers,
-        )
-    except ValueError as ex:
-        raise exceptions.MapillaryBadParameterError(str(ex)) from ex
 
     mly_uploader = uploader.Uploader(upload_options, emitter=emitter)
 
@@ -148,6 +151,8 @@ def upload(
         _api_logging_finished(_summarize(stats), dry_run=dry_run)
 
     finally:
+        if uploaded is not None:
+            uploaded.close()
         # We collected stats after every upload is finished
         assert upload_successes == len(stats), (
             f"Expect {upload_successes} success but got {stats}"
@@ -199,7 +204,17 @@ def check_upload_history(
     candidates = _find_upload_candidates(
         metadatas, import_paths, skip_subfolders=skip_subfolders
     )
-    uploaded = history.read_uploaded_files()
+    uploaded = history_index.open_uploaded_files()
+    try:
+        return _check_upload_history(candidates, uploaded)
+    finally:
+        if uploaded is not None:
+            uploaded.close()
+
+
+def _check_upload_history(
+    candidates: _UploadCandidates, uploaded: history.UploadedFilesLookup | None
+) -> list[UploadHistoryCheckResult]:
     fingerprints: dict[Path, str] = {}
 
     def find_uploaded(filenames: T.Sequence[Path]) -> list[Path]:
@@ -310,14 +325,15 @@ def _setup_history(
     image_metadatas: T.Sequence[types.ImageMetadata],
     reupload: bool,
     nofinish: bool,
-) -> None:
+) -> history.UploadedFilesLookup:
     """
     Skip the image sequences, videos and zip files found in the upload
-    history, and record the uploaded ones. A sequence is found when each of
+    history, and record the uploaded ones. Return the files recorded, to close
+    when the upload is done. A sequence is found when each of
     its images is: an uploaded file had the same size and fingerprint (see
     fingerprint.py), so that a file whose size no uploaded file had is not read.
     """
-    uploaded = history.read_uploaded_files() or history.UploadedFiles()
+    uploaded = history_index.open_uploaded_files() or history.UploadedFiles()
     # Computed to look the files up, and reused to record them
     fingerprints: dict[Path, str] = {}
     # The images that upload uploads, by sequence, as it groups them
@@ -362,7 +378,7 @@ def _setup_history(
             uploaded_ats = [
                 uploaded_at
                 for file_fingerprint in found
-                if (uploaded_at := uploaded.uploaded_at.get(file_fingerprint))
+                if (uploaded_at := uploaded.last_uploaded_at(file_fingerprint))
                 is not None
             ]
             skip_or_reupload(payload, max(uploaded_ats, default=None))
@@ -398,6 +414,8 @@ def _setup_history(
             files,
             uploaded_at if isinstance(uploaded_at, (int, float)) else None,
         )
+
+    return uploaded
 
 
 def _setup_tdqm(emitter: uploader.EventEmitter) -> None:
