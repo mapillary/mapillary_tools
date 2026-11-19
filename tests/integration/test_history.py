@@ -62,8 +62,7 @@ def test_check_upload_history_is_read_only_and_matches_upload(
         sequence for sequence in image_descs_by_sequence.values() if 1 < len(sequence)
     )
 
-    # A smaller current sequence has a different sequence checksum, but each
-    # image is still identifiable in the stored descriptions of the old upload.
+    # Each image of a smaller current sequence is found by its fingerprint.
     subset_descs = uploaded_sequence[:1]
     subset_desc_path = setup_data.join("uploaded-subset-description.json")
     subset_desc_path.write(json.dumps(subset_descs))
@@ -75,9 +74,6 @@ def test_check_upload_history_is_read_only_and_matches_upload(
         ]
     )
     assert len(subset_results) == 1
-    assert subset_results[0]["sequence_md5sum"] not in {
-        result["sequence_md5sum"] for result in results
-    }
     assert subset_results[0]["already_uploaded_filenames"] == [
         desc["filename"] for desc in subset_descs
     ]

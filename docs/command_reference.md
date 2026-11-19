@@ -366,13 +366,16 @@ Gotchas:
 
 - With no profile yet, it asks you to log in. With several profiles, it asks which one, unless you give
   `--user_name`. When it cannot prompt (no terminal, or `MAPILLARY_TOOLS_PROMPT_DISABLED=YES`), it fails instead.
-- Image sequences, videos and zip files already uploaded from this computer are skipped. Each is compared as a
-  whole, by a checksum: a sequence with one image added or removed counts as new and is uploaded again, and a
-  video is recognized by its file alone, even if its track changed. The upload history is kept on this computer
-  only. `--dry_run` neither reads nor writes it.
-- To look files up in the history, `upload` reads each one in full to compute its checksum, with a progress bar.
-  The checksums are cached in the upload history folder by file path, size and modification time, so the next
-  run skips uploaded files without reading them.
+- Image sequences, videos and zip files already uploaded from this computer are skipped. Files are looked up one
+  by one: a sequence is skipped when all its images were uploaded, also as part of a larger sequence, and a
+  sequence with one image added is uploaded whole again. A video or zip file is recognized by its file alone, even
+  if a video's track changed or the file was renamed. The upload history is kept on this computer only.
+  `--dry_run` neither reads nor writes it.
+- To look a file up, `upload` compares its size with the sizes of the files uploaded before. Only when one
+  matches does it read the file's fingerprint: 64 KiB from its start, middle and end. Files uploaded with earlier
+  versions were recorded by checksum instead, so they are not found, and are uploaded once more.
+- A file of the same size as an uploaded file that differs from it only outside these three blocks is taken as
+  uploaded. Captures from cameras don't differ that way; `--reupload` uploads such a file anyway.
 - An interrupted upload resumes where it stopped the next time you upload the same files.
 - `--organization_key` takes a numeric ID. Organization names are 2 to 32 letters, digits, `-` and `_`, starting
   with a letter, and are case-sensitive. Saving a name again with another ID replaces it.
@@ -502,9 +505,10 @@ mapillary_tools check_upload_history IMPORT_PATH [IMPORT_PATH ...] [--desc_path 
 
 Tells whether the processed image sequences, videos and zip files were uploaded from this computer before. Takes
 the same import paths and description file as `upload`, and prints a JSON array with one entry per sequence,
-video or zip file: its file type, sequence UUID, checksum, file names, `already_uploaded_filenames`, and
-`already_uploaded`, which is true only when all its files are in the history. Images are looked up one by one,
-also in sequences uploaded before, so it can report as uploaded a sequence that `upload` would upload again.
+video or zip file: its file type, sequence UUID, an empty `sequence_md5sum` (no checksum is computed; kept for
+compatibility), file names, `already_uploaded_filenames`, and `already_uploaded`, which is true only when all its
+files are in the history. Files are looked up as `upload` looks them up, so `upload` skips the entries reported
+as uploaded. A file is read only when a file of the same size was uploaded, and then only for its fingerprint.
 
 It reads only the local upload history: it needs no login, makes no network requests, and changes nothing.
 Uploads from another computer, or with `--dry_run`, are not in it.

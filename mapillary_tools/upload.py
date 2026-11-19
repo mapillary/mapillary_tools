@@ -23,6 +23,7 @@ from . import (
     config,
     constants,
     exceptions,
+    fingerprint,
     history,
     http,
     ipc,
@@ -73,11 +74,15 @@ def upload(
 
     config.UserItemSchemaValidator.validate(user_items)
 
+    # The files to upload: the processed files found in the import paths. The
+    # upload history records these, not every file of the description file
+    candidates = _find_upload_candidates(
+        metadatas, import_paths, skip_subfolders=skip_subfolders
+    )
+
     # Setup the emitter -- the order matters here
 
     emitter = uploader.EventEmitter()
-
-    checksum_cache: history.PersistentCache | None = None
 
     # Check duplications first
     if not _is_history_disabled(dry_run):
@@ -90,12 +95,11 @@ def upload(
             "run_at": time.time(),
         }
         _setup_history(
-            emitter, upload_run_params, metadatas, reupload=reupload, nofinish=nofinish
-        )
-        # Cache the checksums that the history is looked up by, so that files
-        # already uploaded are not read again to be skipped
-        checksum_cache = uploader.create_checksum_cache(
-            Path(constants.MAPILLARY_UPLOAD_HISTORY_PATH).joinpath("checksum_cache")
+            emitter,
+            upload_run_params,
+            candidates.image_metadatas,
+            reupload=reupload,
+            nofinish=nofinish,
         )
 
     # Set up tdqm
@@ -120,9 +124,7 @@ def upload(
 
     mly_uploader = uploader.Uploader(upload_options, emitter=emitter)
 
-    results = _gen_upload_everything(
-        mly_uploader, metadatas, import_paths, skip_subfolders, checksum_cache
-    )
+    results = _gen_upload_everything(mly_uploader, candidates)
 
     upload_successes = 0
     upload_errors: list[Exception] = []
@@ -177,105 +179,68 @@ def _history_check_result(
     }
 
 
-def _has_upload_history_record(md5sum: str) -> bool:
-    try:
-        record = history.read_history_record(md5sum)
-    except (OSError, UnicodeError) as ex:
-        LOG.warning("Failed to read upload history %s: %s", md5sum, ex)
-        return False
-    return isinstance(record, dict)
-
-
 def check_upload_history(
     import_path: Path | T.Sequence[Path],
     desc_path: str | None = None,
     skip_subfolders: bool = False,
     _metadatas_from_process: T.Sequence[types.MetadataOrError] | None = None,
 ) -> list[UploadHistoryCheckResult]:
-    """Return upload-history matches without uploading or changing history."""
+    """
+    Return upload-history matches without uploading or changing history.
+
+    Files are looked up as upload looks them up: a file was uploaded if an
+    uploaded file had the same size and fingerprint (see fingerprint.py). A
+    file is read only when an uploaded file had its size, and then only for
+    its fingerprint. No checksum is computed: sequence_md5sum is empty, and
+    kept for the callers that expect it.
+    """
     import_paths = _normalize_import_paths(import_path)
     metadatas = _load_descs(_metadatas_from_process, import_paths, desc_path)
     candidates = _find_upload_candidates(
         metadatas, import_paths, skip_subfolders=skip_subfolders
     )
+    uploaded = history.read_uploaded_files()
+    fingerprints: dict[Path, str] = {}
+
+    def find_uploaded(filenames: T.Sequence[Path]) -> list[Path]:
+        if uploaded is None:
+            return []
+        return [
+            filename
+            for filename in filenames
+            if uploaded.find(filename, fingerprints) is not None
+        ]
 
     results: list[UploadHistoryCheckResult] = []
-    image_results_to_check: list[
-        tuple[UploadHistoryCheckResult, list[types.ImageMetadata]]
-    ] = []
-    image_md5sums_to_check: set[str] = set()
 
     for sequence_uuid, sequence in types.group_and_sort_images(
         candidates.image_metadatas
     ).items():
-        sequence_md5sum = types.update_sequence_md5sum(sequence)
         filenames = [metadata.filename for metadata in sequence]
-        sequence_already_uploaded = _has_upload_history_record(sequence_md5sum)
-        if sequence_already_uploaded:
-            already_uploaded_filenames = filenames
-        else:
-            already_uploaded_filenames = []
-            for metadata in sequence:
-                assert isinstance(metadata.md5sum, str), "md5sum should be calculated"
-                image_md5sums_to_check.add(metadata.md5sum)
-
-        result = _history_check_result(
-            types.FileType.IMAGE,
-            sequence_uuid,
-            sequence_md5sum,
-            filenames,
-            already_uploaded_filenames,
-        )
-        results.append(result)
-
-        if not sequence_already_uploaded:
-            image_results_to_check.append((result, sequence))
-
-    uploaded_image_md5sums = history.find_uploaded_image_md5s(image_md5sums_to_check)
-    for result, sequence in image_results_to_check:
-        already_uploaded_filename_strings: list[str] = []
-        for metadata in sequence:
-            assert isinstance(metadata.md5sum, str), "md5sum should be calculated"
-            if metadata.md5sum.lower() in uploaded_image_md5sums:
-                already_uploaded_filename_strings.append(str(metadata.filename))
-        result["already_uploaded_filenames"] = already_uploaded_filename_strings
-        result["already_uploaded"] = len(already_uploaded_filename_strings) == len(
-            result["filenames"]
+        results.append(
+            _history_check_result(
+                types.FileType.IMAGE,
+                sequence_uuid,
+                "",
+                filenames,
+                find_uploaded(filenames),
+            )
         )
 
     for video_metadata in sorted(
         candidates.video_metadatas, key=lambda metadata: metadata.filename
     ):
-        video_metadata.update_md5sum()
-        assert isinstance(video_metadata.md5sum, str), "md5sum should be calculated"
         filenames = [video_metadata.filename]
-        already_uploaded_filenames = (
-            filenames if _has_upload_history_record(video_metadata.md5sum) else []
-        )
         results.append(
             _history_check_result(
-                video_metadata.filetype,
-                None,
-                video_metadata.md5sum,
-                filenames,
-                already_uploaded_filenames,
+                video_metadata.filetype, None, "", filenames, find_uploaded(filenames)
             )
         )
 
     for zip_path in sorted(candidates.zip_paths):
-        with zip_path.open("rb") as zip_fp:
-            sequence_md5sum = uploader.ZipUploader._extract_sequence_md5sum(zip_fp)
-        filenames = [zip_path]
-        already_uploaded_filenames = (
-            filenames if _has_upload_history_record(sequence_md5sum) else []
-        )
         results.append(
             _history_check_result(
-                types.FileType.ZIP,
-                None,
-                sequence_md5sum,
-                filenames,
-                already_uploaded_filenames,
+                types.FileType.ZIP, None, "", [zip_path], find_uploaded([zip_path])
             )
         )
 
@@ -342,65 +307,97 @@ def _is_history_disabled(dry_run: bool) -> bool:
 def _setup_history(
     emitter: uploader.EventEmitter,
     upload_run_params: JSONDict,
-    metadatas: list[types.Metadata],
+    image_metadatas: T.Sequence[types.ImageMetadata],
     reupload: bool,
     nofinish: bool,
 ) -> None:
+    """
+    Skip the image sequences, videos and zip files found in the upload
+    history, and record the uploaded ones. A sequence is found when each of
+    its images is: an uploaded file had the same size and fingerprint (see
+    fingerprint.py), so that a file whose size no uploaded file had is not read.
+    """
+    uploaded = history.read_uploaded_files() or history.UploadedFiles()
+    # Computed to look the files up, and reused to record them
+    fingerprints: dict[Path, str] = {}
+    # The images that upload uploads, by sequence, as it groups them
+    sequences = types.group_and_sort_images(image_metadatas)
+
+    def uploaded_filenames(payload: uploader.Progress) -> list[Path]:
+        """The images of the sequence, or the video or zip file"""
+        sequence_uuid = payload.get("sequence_uuid")
+        if sequence_uuid is not None:
+            return [metadata.filename for metadata in sequences.get(sequence_uuid, [])]
+        import_path = payload.get("import_path")
+        assert import_path is not None, f"import_path has to be set for {payload}"
+        return [Path(import_path)]
+
+    def skip_or_reupload(payload: uploader.Progress, uploaded_at: float | None) -> None:
+        upload_name = uploader.Uploader._upload_name(payload)
+        if uploaded_at is not None:
+            ago = f"{humanize.naturaldelta(time.time() - uploaded_at)} ago ({time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(uploaded_at))})"
+            if reupload:
+                LOG.info(f"Reuploading {upload_name}, despite being uploaded {ago}")
+            else:
+                raise UploadedAlready(f"Skipping {upload_name}, already uploaded {ago}")
+        elif reupload:
+            LOG.info(f"Reuploading {upload_name}, despite already being uploaded")
+        else:
+            raise UploadedAlready(f"Skipping {upload_name}, already uploaded")
+
     @emitter.on("upload_start")
     def check_duplication(payload: uploader.Progress):
-        md5sum = payload.get("sequence_md5sum")
-        assert md5sum is not None, f"md5sum has to be set for {payload}"
+        found: list[str] = []
+        for filename in uploaded_filenames(payload):
+            try:
+                file_fingerprint = uploaded.find(filename, fingerprints)
+            except OSError as ex:
+                LOG.warning("Failed to look %s up in upload history: %s", filename, ex)
+                return
+            if file_fingerprint is None:
+                return
+            found.append(file_fingerprint)
 
-        record = history.read_history_record(md5sum)
-
-        if record is not None:
-            history_desc_path = history.history_desc_path(md5sum)
-            uploaded_at = record.get("summary", {}).get("upload_end_time", None)
-
-            upload_name = uploader.Uploader._upload_name(payload)
-
-            if reupload:
-                if uploaded_at is not None:
-                    LOG.info(
-                        f"Reuploading {upload_name}, despite being uploaded {humanize.naturaldelta(time.time() - uploaded_at)} ago ({time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(uploaded_at))})"
-                    )
-                else:
-                    LOG.info(
-                        f"Reuploading {upload_name}, despite already being uploaded (see {history_desc_path})"
-                    )
-            else:
-                if uploaded_at is not None:
-                    msg = f"Skipping {upload_name}, already uploaded {humanize.naturaldelta(time.time() - uploaded_at)} ago ({time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(uploaded_at))})"
-                else:
-                    msg = f"Skipping {upload_name}, already uploaded (see {history_desc_path})"
-                raise UploadedAlready(msg)
+        if found:
+            uploaded_ats = [
+                uploaded_at
+                for file_fingerprint in found
+                if (uploaded_at := uploaded.uploaded_at.get(file_fingerprint))
+                is not None
+            ]
+            skip_or_reupload(payload, max(uploaded_ats, default=None))
 
     @emitter.on("upload_finished")
     def write_history(payload: uploader.Progress):
         if nofinish:
             return
 
-        sequence_uuid = payload.get("sequence_uuid")
-        md5sum = payload.get("sequence_md5sum")
-        assert md5sum is not None, f"md5sum has to be set for {payload}"
-
-        if sequence_uuid is None:
-            sequence = None
-        else:
-            sequence = [
-                metadata
-                for metadata in metadatas
-                if isinstance(metadata, types.ImageMetadata)
-                and metadata.MAPSequenceUUID == sequence_uuid
-            ]
-            sequence.sort(key=lambda metadata: metadata.sort_key())
-
         try:
-            history.write_history(
-                md5sum, upload_run_params, T.cast(JSONDict, payload), sequence
+            files = [
+                history.UploadedFile(
+                    filename,
+                    utils.get_file_size(filename),
+                    fingerprints.get(filename)
+                    or fingerprint.fingerprint_file(filename),
+                )
+                for filename in uploaded_filenames(payload)
+            ]
+            history.write_uploaded_files(
+                files, upload_run_params, T.cast(JSONDict, payload)
             )
         except OSError:
-            LOG.warning("Error writing upload history %s", md5sum, exc_info=True)
+            LOG.warning(
+                "Error writing upload history for %s",
+                uploader.Uploader._upload_name(payload),
+                exc_info=True,
+            )
+            return
+
+        uploaded_at = payload.get("upload_end_time")
+        uploaded.add(
+            files,
+            uploaded_at if isinstance(uploaded_at, (int, float)) else None,
+        )
 
 
 def _setup_tdqm(emitter: uploader.EventEmitter) -> None:
@@ -754,27 +751,17 @@ def _find_upload_candidates(
 
 
 def _gen_upload_everything(
-    mly_uploader: uploader.Uploader,
-    metadatas: T.Sequence[types.Metadata],
-    import_paths: T.Sequence[Path],
-    skip_subfolders: bool,
-    checksum_cache: history.PersistentCache | None = None,
+    mly_uploader: uploader.Uploader, candidates: _UploadCandidates
 ):
-    candidates = _find_upload_candidates(
-        metadatas, import_paths, skip_subfolders=skip_subfolders
-    )
-
     # Upload images
     image_uploader = uploader.ImageSequenceUploader(
-        mly_uploader.upload_options,
-        emitter=mly_uploader.emitter,
-        checksum_cache=checksum_cache,
+        mly_uploader.upload_options, emitter=mly_uploader.emitter
     )
     yield from image_uploader.upload_images(candidates.image_metadatas)
 
     # Upload videos
     yield from uploader.VideoUploader.upload_videos(
-        mly_uploader, candidates.video_metadatas, checksum_cache=checksum_cache
+        mly_uploader, candidates.video_metadatas
     )
 
     # Upload zip files

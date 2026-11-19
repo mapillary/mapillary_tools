@@ -79,7 +79,7 @@ def _history_organization_keys() -> list:
     history_path = Path(os.environ["MAPILLARY_UPLOAD_HISTORY_PATH"])
     return [
         json.loads(p.read_text())["params"]["organization_key"]
-        for p in history_path.glob("*/*.json")
+        for p in history_path.glob("**/*.json")
     ]
 
 
