@@ -138,6 +138,35 @@ class TestUploadedFiles:
         for name in list(records)[:-1]:
             assert name.split("/")[1] in caplog.text
 
+    @pytest.mark.parametrize(
+        "upload_end_time",
+        ["yesterday", True, -1, 10**30, 10**400, float("inf"), float("nan")],
+    )
+    def test_upload_times_out_of_range_are_not_known(
+        self, tmp_path, monkeypatch, upload_end_time
+    ):
+        history_path = tmp_path / "history"
+        monkeypatch.setattr(
+            history.constants, "MAPILLARY_UPLOAD_HISTORY_PATH", str(history_path)
+        )
+        record = history_path / history.UPLOADED_FILES_DIR / "00" / "record.json"
+        record.parent.mkdir(parents=True)
+        record.write_text(
+            json.dumps(
+                {
+                    "summary": {"upload_end_time": upload_end_time},
+                    "files": [
+                        {"filename": "a.jpg", "filesize": 7, "fingerprint": "a" * 32}
+                    ],
+                }
+            )
+        )
+
+        uploaded = history.read_uploaded_files()
+
+        assert uploaded is not None
+        assert uploaded.uploaded_at == {"a" * 32: None}
+
     def test_no_history(self, tmp_path, monkeypatch):
         monkeypatch.setattr(history.constants, "MAPILLARY_UPLOAD_HISTORY_PATH", "")
         monkeypatch.chdir(tmp_path)

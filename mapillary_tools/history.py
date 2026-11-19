@@ -28,6 +28,10 @@ LOG = logging.getLogger(__name__)
 # history. Records written by earlier versions, by checksum, are not read
 UPLOADED_FILES_DIR = "fingerprints_v1"
 
+# Later upload times are not taken: 3000-01-01, which every platform shows as
+# a local time
+_MAX_UPLOADED_AT = 32503680000
+
 
 @dataclasses.dataclass(frozen=True)
 class UploadedFile:
@@ -136,7 +140,12 @@ def _add_uploaded_files_record(uploaded: UploadedFiles, record: T.Any) -> bool:
 
     summary = record.get("summary")
     uploaded_at = summary.get("upload_end_time") if isinstance(summary, dict) else None
-    if isinstance(uploaded_at, bool) or not isinstance(uploaded_at, (int, float)):
+    if (
+        isinstance(uploaded_at, bool)
+        or not isinstance(uploaded_at, (int, float))
+        # Also not NaN
+        or not 0 <= uploaded_at <= _MAX_UPLOADED_AT
+    ):
         uploaded_at = None
 
     files: list[UploadedFile] = []
