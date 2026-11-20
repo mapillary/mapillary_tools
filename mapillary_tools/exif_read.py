@@ -406,6 +406,10 @@ class ExifReadABC(abc.ABC):
         raise NotImplementedError
 
     @abc.abstractmethod
+    def extract_exif_datetime(self) -> datetime.datetime | None:
+        raise NotImplementedError
+
+    @abc.abstractmethod
     def extract_lon_lat(self) -> tuple[float, float] | None:
         raise NotImplementedError
 

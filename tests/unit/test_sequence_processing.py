@@ -319,6 +319,43 @@ def test_sequences_sorted(tmpdir: py.path.local):
         assert abs(x - y) < 0.00001, (x, y)
 
 
+def test_sequences_sorted_by_exif_time_within_same_time(tmpdir: py.path.local):
+    # GPS times have no subseconds, so images taken within the same second
+    # share the capture time; OpenCamera names the second one "... (1).jpg",
+    # which sorts before the first one by filename
+    curdir = tmpdir.mkdir("hello_exif").mkdir("world_exif")
+    sequence: T.List[types.ImageMetadata] = [
+        _make_image_metadata(
+            Path(curdir) / Path("IMG_170430.jpg"), 1, 1.00000, 30, exif_time=30.2
+        ),
+        _make_image_metadata(
+            Path(curdir) / Path("IMG_170431 (1).jpg"), 1, 1.00006, 31, exif_time=31.6
+        ),
+        _make_image_metadata(
+            Path(curdir) / Path("IMG_170431.jpg"), 1, 1.00003, 31, exif_time=31.1
+        ),
+        _make_image_metadata(
+            Path(curdir) / Path("IMG_170432.jpg"), 1, 1.00009, 32, exif_time=32.3
+        ),
+    ]
+    metadatas = psp.process_sequence_properties(
+        sequence,
+        cutoff_distance=100,
+        cutoff_time=10,
+        interpolate_directions=False,
+        duplicate_distance=0,
+        duplicate_angle=0,
+    )
+    image_metadatas = [d for d in metadatas if isinstance(d, types.ImageMetadata)]
+    assert [
+        "IMG_170430.jpg",
+        "IMG_170431.jpg",
+        "IMG_170431 (1).jpg",
+        "IMG_170432.jpg",
+    ] == [d.filename.name for d in image_metadatas]
+    assert [30, 31, 31.5, 32] == [d.time for d in image_metadatas]
+
+
 def test_cut_sequences(tmpdir: py.path.local):
     curdir = tmpdir.mkdir("hello11").mkdir("world22")
     sequence: T.List[types.ImageMetadata] = [
