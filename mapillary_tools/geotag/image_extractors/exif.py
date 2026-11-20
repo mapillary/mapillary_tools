@@ -81,10 +81,19 @@ class ImageEXIFExtractor(BaseImageExtractor):
                 )
             unix_time = _capture_unix_time(capture_time)
 
+            exif_time: float | None = None
+            exif_datetime = exif.extract_exif_datetime()
+            if exif_datetime is not None:
+                try:
+                    exif_time = _capture_unix_time(exif_datetime)
+                except exceptions.MapillaryGeoTaggingError:
+                    pass
+
             image_metadata = types.ImageMetadata(
                 filename=self.image_path,
                 filesize=utils.get_file_size(self.image_path),
                 time=unix_time,
+                exif_time=exif_time,
                 lat=lat,
                 lon=lon,
                 alt=exif.extract_altitude(),

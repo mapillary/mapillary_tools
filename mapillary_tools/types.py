@@ -9,6 +9,7 @@ import abc
 import dataclasses
 import enum
 import hashlib
+import math
 import typing as T
 import uuid
 from pathlib import Path
@@ -42,6 +43,11 @@ class ImageMetadata(geo.Point):
     width: int | None = None
     height: int | None = None
     filesize: int | None = None
+    # The EXIF capture time (with subseconds) in Unix time, if the image has
+    # one. It is not written anywhere: the capture time may come from GPS,
+    # which usually has no subseconds, so this keeps images taken within the
+    # same second in order when sorting (see sort_key())
+    exif_time: float | None = None
 
     # Fields starting with MAP* will be written to the image EXIF
     MAPSequenceUUID: str | None = None
@@ -64,7 +70,8 @@ class ImageMetadata(geo.Point):
         """
         For sorting images in a sequence
         """
-        return (self.time, self.filename.name)
+        exif_time = self.exif_time if self.exif_time is not None else math.inf
+        return (self.time, exif_time, self.filename.name)
 
 
 @dataclasses.dataclass
