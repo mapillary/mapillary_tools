@@ -155,37 +155,53 @@ _bytes_type_sizes = {b"F": 4, b"G": 16, b"U": 16}
 _klv_header = struct.Struct(">4scBH")
 
 
+# Real cameras nest KLVs two levels deep (DEVC > STRM)
+_MAX_NESTING = 16
+
+
 class _UnusualKLVError(Exception):
     pass
 
 
-def _parse_klvs(data: bytes, offset: int, end: int) -> list[KLVDict]:
+def _parse_klvs(data: bytes, offset: int, end: int, depth: int = 0) -> list[KLVDict]:
     klvs: list[KLVDict] = []
 
     while offset + _klv_header.size <= end:
         key, klv_type, structure_size, repeat = _klv_header.unpack_from(data, offset)
         offset += _klv_header.size
+
+        # Leave a structure size that is not a positive multiple of the type's
+        # size to GPMFSampleData, which reads such KLVs even when they are cut
+        # short
+        fmt = _struct_formats.get(klv_type)
+        if fmt is not None:
+            item_size = struct.calcsize(fmt)
+            if structure_size < item_size or structure_size % item_size:
+                raise _UnusualKLVError()
+        elif klv_type in _bytes_type_sizes:
+            item_size = _bytes_type_sizes[klv_type]
+            if structure_size == 0 or structure_size % item_size:
+                raise _UnusualKLVError()
+
         size = structure_size * repeat
         if end < offset + size + (-size % 4):
             # GPMFSampleData drops a KLV that is cut short, and stops
             break
 
         value: list[T.Any]
-        fmt = _struct_formats.get(klv_type)
         if fmt is not None:
-            item_size = struct.calcsize(fmt)
             count = structure_size // item_size
-            if count == 0 or structure_size % item_size:
-                # GPMFSampleData reads fewer bytes than the KLV holds
-                raise _UnusualKLVError()
             values = struct.unpack_from(f">{count * repeat}{fmt}", data, offset)
             value = [list(values[i : i + count]) for i in range(0, len(values), count)]
         elif klv_type == b"\x00":
-            value = T.cast(T.List[T.Any], _parse_klvs(data, offset, offset + size))
-        elif klv_type in _bytes_type_sizes:
-            item_size = _bytes_type_sizes[klv_type]
-            if structure_size == 0 or structure_size % item_size:
+            if depth == _MAX_NESTING:
+                # Leave deep nesting to GPMFSampleData, which keeps what it reads
+                # before it runs out of stack
                 raise _UnusualKLVError()
+            value = T.cast(
+                T.List[T.Any], _parse_klvs(data, offset, offset + size, depth + 1)
+            )
+        elif klv_type in _bytes_type_sizes:
             value = [
                 [
                     data[i : i + item_size]

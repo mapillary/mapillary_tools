@@ -1196,9 +1196,18 @@ def _klv_bytes(
     return data
 
 
+def _nested_klv_bytes(levels: int) -> bytes:
+    data = _klv_bytes(b"DVID", b"L", 4, 1, struct.pack(">I", 1))
+    for _ in range(levels):
+        data = _klv_bytes(b"DEVC", b"\x00", 1, len(data), data)
+    return data
+
+
 def _assert_same_as_construct(data: bytes) -> None:
     expected = _to_plain(gpmf_parser.GPMFSampleData.parse(data))
-    assert gpmf_parser.parse_gpmf_sample_data(data) == expected
+    # Plain values on both sides: comparing nested construct Containers takes
+    # time exponential in the nesting
+    assert _to_plain(gpmf_parser.parse_gpmf_sample_data(data)) == expected
 
 
 class TestParseGPMFSampleData:
@@ -1255,7 +1264,32 @@ class TestParseGPMFSampleData:
             _klv_bytes(b"ODD3", b"F", 6, 1, b"abcdef"),
             _klv_bytes(b"ODD4", b"l", 0, 2, b""),
             _klv_bytes(b"ODD5", b"G", 0, 2, b""),
+            # the same, in KLVs that claim more bytes than the sample holds,
+            # with KLVs after them
+            _klv_bytes(b"ODD6", b"L", 2, 100, b"", pad=False)
+            + _klv_bytes(b"NEXT", b"c", 1, 4, b"next"),
+            _klv_bytes(b"ODD7", b"S", 3, 50, b"\x01" * 100, pad=False)
+            + _klv_bytes(b"NEXT", b"c", 1, 4, b"next"),
+            _klv_bytes(b"ODD8", b"F", 6, 10, b"abcd" * 10, pad=False)
+            + _klv_bytes(b"NEXT", b"c", 1, 4, b"next"),
+            # nested up to the limit, and past it
+            _nested_klv_bytes(16),
+            _nested_klv_bytes(20) + _klv_bytes(b"NEXT", b"c", 1, 4, b"next"),
         ],
     )
     def test_same_as_construct(self, data):
         _assert_same_as_construct(data)
+
+    def test_nesting_limit(self):
+        data = _nested_klv_bytes(gpmf_parser._MAX_NESTING)
+        assert gpmf_parser._parse_klvs(data, 0, len(data))
+        data = _nested_klv_bytes(gpmf_parser._MAX_NESTING + 1)
+        with pytest.raises(gpmf_parser._UnusualKLVError):
+            gpmf_parser._parse_klvs(data, 0, len(data))
+
+    def test_very_deep_nesting(self):
+        # Left to construct, which keeps what it reads before it runs out of
+        # stack, and goes on
+        data = _nested_klv_bytes(1000) + _klv_bytes(b"NEXT", b"c", 1, 4, b"next")
+        klvs = gpmf_parser.parse_gpmf_sample_data(data)
+        assert [klv["key"] for klv in klvs] == [b"DEVC", b"NEXT"]
