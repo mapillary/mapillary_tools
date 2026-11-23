@@ -7,17 +7,21 @@ from __future__ import annotations
 
 import collections
 import dataclasses
+import datetime
 import hashlib
 import io
 import logging
 import multiprocessing
 import os
+import re
 import typing as T
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
 import gpxpy
+import gpxpy.gpx
 import gpxpy.gpxfield
+import gpxpy.parser
 
 from .. import exceptions, exiftool_read, geo, telemetry, utils
 
@@ -231,7 +235,37 @@ class _ParsedGPX:
 
 
 def _parse_gpx_file(f: T.TextIO) -> _ParsedGPX:
-    gpx = gpxpy.parse(f)
+    content = _TextFile(f.read())
+    try:
+        return _parse_gpx_fast(content.text)
+    except Exception as ex:
+        # What the fast reader does not read, gpxpy reads (or rejects) as before
+        LOG.debug(f"Reading the GPX file with gpxpy: {ex!r}")
+    return _parse_gpx_with_gpxpy(content)
+
+
+class _TextFile:
+    """
+    A text file of a string, which it no longer keeps once read: gpxpy reads
+    a whole file into a string itself, beside which a string of the content
+    passed to it would stay alive while it parses
+
+    >>> f = _TextFile("abc")
+    >>> f.read(), f.read(), f.text
+    ('abc', '', '')
+    """
+
+    def __init__(self, text: str) -> None:
+        self.text = text
+
+    def read(self) -> str:
+        text, self.text = self.text, ""
+        return text
+
+
+def _parse_gpx_with_gpxpy(xml_or_file: str | _TextFile) -> _ParsedGPX:
+    # Read as gpxpy reads a file (or a string), whatever its annotations say
+    gpx = gpxpy.parse(T.cast(T.Any, xml_or_file))
 
     tracks: list[Track] = []
     num_points = 0
@@ -257,6 +291,249 @@ def _parse_gpx_file(f: T.TextIO) -> _ParsedGPX:
         num_points=num_points,
         has_routes_or_waypoints=bool(gpx.routes or gpx.waypoints),
     )
+
+
+# gpxpy.parse() decodes every field of every track point into an object, which
+# takes seconds for a GPX file with hundreds of thousands of points. The fast
+# reader below reads only time, lat, lon and ele from the track points, but
+# checks their other fields as gpxpy does, and lets gpxpy read everything else,
+# so that a file it reads gives the same result as _parse_gpx_with_gpxpy().
+# Anything else (an invalid file, lxml installed, gpxpy fields it does not
+# know) is read by _parse_gpx_with_gpxpy().
+#
+# Like gpxpy, drop the first default namespace declaration so that GPX elements
+# have plain tags (see gpxpy.parser.GPXParser.parse). gpxpy also registers the
+# declared namespace prefixes with ElementTree; that only affects how
+# ElementTree serializes XML, which mapillary_tools does not do.
+_GPXPY_DEFAULT_NAMESPACE = re.compile(r"""\sxmlns=(['"])[^'"]+\1""")
+
+# The text is fed to the XML parser in pieces of this many characters, rather
+# than copied whole without the namespace declaration
+_FEED_SIZE = 1024 * 1024
+
+# The usual GPX time format (UTC, at most microseconds), whose Unix time is
+# computed directly; other formats go through gpxpy's time parser
+_UTC_TIME = re.compile(
+    r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]{1,6})?Z"
+)
+_UNIX_EPOCH_ORDINAL = datetime.date(1970, 1, 1).toordinal()
+
+# How gpxpy checks the text of a track point child element (or a set of the
+# values it allows)
+_ELE = "ele"
+_TIME = "time"
+_FLOAT = "float"
+_INT = "int"
+_Check = T.Union[str, T.FrozenSet[str]]
+
+
+class _IrregularGPXError(Exception):
+    pass
+
+
+def _track_point_checks(fields: T.Sequence[T.Any]) -> dict[str, _Check] | None:
+    """
+    Map the tags of track point child elements to how gpxpy converts or checks
+    their text, or return None if gpxpy reads track points in a way the fast
+    reader does not know.
+    """
+    checks: dict[str, _Check] = {}
+    attributes: list[str] = []
+    depth = 0
+    for field in fields:
+        if isinstance(field, str):
+            # Container elements such as 'link:@link' ... '/link'
+            depth += -1 if field.startswith("/") else 1
+            continue
+        if isinstance(field, gpxpy.gpxfield.GPXExtensionsField):
+            # Copies the extension elements, never fails
+            continue
+        if type(field) is not gpxpy.gpxfield.GPXField:
+            return None
+        converter = field.type_converter
+        if converter is None and not field.possible and not field.mandatory:
+            # Plain text, never fails
+            continue
+        if depth:
+            return None
+        if field.attribute is not None:
+            if not (field.mandatory and converter is gpxpy.gpxfield.FLOAT_TYPE):
+                return None
+            attributes.append(f"{field.name}={field.attribute}")
+            continue
+        tag = field.tag
+        if tag is None or field.mandatory:
+            return None
+        if converter is None:
+            if not field.possible:
+                return None
+            checks[tag] = frozenset(field.possible)
+        elif field.possible:
+            return None
+        elif converter is gpxpy.gpxfield.FLOAT_TYPE:
+            checks[tag] = _ELE if field.name == "elevation" else _FLOAT
+        elif converter is gpxpy.gpxfield.INT_TYPE:
+            checks[tag] = _INT
+        elif converter is gpxpy.gpxfield.TIME_TYPE and field.name == "time":
+            checks[tag] = _TIME
+        else:
+            return None
+
+    if sorted(attributes) != ["latitude=lat", "longitude=lon"]:
+        return None
+    if checks.get("ele") != _ELE or checks.get("time") != _TIME:
+        return None
+    return checks
+
+
+_TRACK_POINT_CHECKS_10 = _track_point_checks(gpxpy.gpx.GPXTrackPoint.gpx_10_fields)
+_TRACK_POINT_CHECKS_11 = _track_point_checks(gpxpy.gpx.GPXTrackPoint.gpx_11_fields)
+
+
+def _parse_gpx_fast(text: str) -> _ParsedGPX:
+    if gpxpy.parser.library() != "STDLIB":
+        raise _IrregularGPXError("gpxpy parses with lxml")
+
+    root = _parse_xml_as_gpxpy(text)
+
+    version = root.get("version")
+    checks = _TRACK_POINT_CHECKS_11 if version == "1.1" else _TRACK_POINT_CHECKS_10
+    if checks is None:
+        raise _IrregularGPXError("Unexpected gpxpy track point fields")
+
+    # Take the track points out of the tree, where gpxpy looks for them
+    segments: list[list[ET.Element]] = []
+    for trk in root:
+        if trk.tag == "trk":
+            for trkseg in trk:
+                if trkseg.tag == "trkseg":
+                    segments.append([e for e in trkseg if e.tag == "trkpt"])
+                    trkseg[:] = [e for e in trkseg if e.tag != "trkpt"]
+
+    # Let gpxpy read (and check) everything else, as gpxpy.parse() does (which
+    # passes it an element and a version that may be None, whatever its
+    # annotations say)
+    gpx = gpxpy.gpxfield.gpx_fields_from_xml(
+        gpxpy.gpx.GPX(), T.cast(T.Any, root), T.cast(T.Any, version)
+    )
+
+    seconds_by_minute: dict[str, int | None] = {}
+    return _ParsedGPX(
+        tracks=[
+            _read_track_points(trkpts, checks, seconds_by_minute) for trkpts in segments
+        ],
+        num_points=sum(len(trkpts) for trkpts in segments),
+        has_routes_or_waypoints=bool(gpx.routes or gpx.waypoints),
+    )
+
+
+def _parse_xml_as_gpxpy(text: str) -> ET.Element:
+    """
+    The XML element of the text without its first default namespace
+    declaration, as gpxpy parses it
+    """
+    match = _GPXPY_DEFAULT_NAMESPACE.search(text)
+    if match is None:
+        spans = [(0, len(text))]
+    else:
+        spans = [(0, match.start()), (match.end(), len(text))]
+
+    # As ET.XML() parses a string
+    parser = ET.XMLParser(target=ET.TreeBuilder())
+    for start, end in spans:
+        for piece_start in range(start, end, _FEED_SIZE):
+            parser.feed(text[piece_start : min(piece_start + _FEED_SIZE, end)])
+    return parser.close()
+
+
+def _read_track_points(
+    trkpts: list[ET.Element],
+    checks: dict[str, _Check],
+    seconds_by_minute: dict[str, int | None],
+) -> Track:
+    track: Track = []
+
+    for trkpt in trkpts:
+        lat_text, lon_text = trkpt.get("lat"), trkpt.get("lon")
+        if lat_text is None or lon_text is None:
+            raise _IrregularGPXError("Track point without lat or lon")
+        # Converted like gpxpy.gpxfield.FLOAT_TYPE does
+        lat, lon = float(lat_text.strip()), float(lon_text.strip())
+
+        ele: float | None = None
+        time_text: str | None = None
+        # gpxpy reads the first child element with each tag
+        seen: set[str] = set()
+        for child in trkpt:
+            tag = child.tag
+            check = checks.get(tag)
+            if check is None or tag in seen:
+                continue
+            seen.add(tag)
+            child_text = child.text
+            if child_text is None:
+                continue
+            if check is _ELE:
+                ele = float(child_text.strip())
+            elif check is _TIME:
+                time_text = child_text
+            elif check is _FLOAT:
+                float(child_text.strip())
+            elif check is _INT:
+                int(child_text.strip())
+            elif child_text not in check:
+                raise _IrregularGPXError(f"Invalid <{tag}> value {child_text!r}")
+
+        if time_text is not None:
+            unix_time = _unix_time_from_gpx_time(time_text, seconds_by_minute)
+            if unix_time is not None:
+                track.append(track_point(unix_time, lat=lat, lon=lon, alt=ele))
+
+    return track
+
+
+def _unix_time_from_gpx_time(
+    text: str, seconds_by_minute: dict[str, int | None]
+) -> float | None:
+    """
+    Return geo.as_unix_time() of the time gpxpy reads from the text, or None
+    if gpxpy reads no time.
+    """
+    if _UTC_TIME.fullmatch(text) is not None:
+        # YYYY-MM-DDTHH:MM:SS[.ffffff]Z
+        minute_text = text[:16]
+        if minute_text in seconds_by_minute:
+            minute_seconds = seconds_by_minute[minute_text]
+        else:
+            minute_seconds = seconds_by_minute[minute_text] = _unix_seconds_of_minute(
+                minute_text
+            )
+        second = int(text[17:19])
+        if minute_seconds is not None and second < 60:
+            fraction = text[20:-1]
+            microseconds = int(fraction.ljust(6, "0")) if fraction else 0
+            # The same correctly rounded division as datetime.timestamp()
+            return ((minute_seconds + second) * 1_000_000 + microseconds) / 1_000_000
+
+    time = gpxpy.gpxfield.TIME_TYPE.from_string(text)
+    if time is None:
+        return None
+    return geo.as_unix_time(time)
+
+
+def _unix_seconds_of_minute(minute_text: str) -> int | None:
+    # YYYY-MM-DDTHH:MM
+    hour, minute = int(minute_text[11:13]), int(minute_text[14:16])
+    if hour >= 24 or minute >= 60:
+        return None
+    try:
+        date = datetime.date(
+            int(minute_text[:4]), int(minute_text[5:7]), int(minute_text[8:10])
+        )
+    except ValueError:
+        return None
+    days = date.toordinal() - _UNIX_EPOCH_ORDINAL
+    return days * 86400 + hour * 3600 + minute * 60
 
 
 def _check_track_points(gpx_file: Path, parsed: _ParsedGPX) -> list[Track]:

@@ -17,7 +17,6 @@ import logging
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
-import gpxpy
 import pytest
 from mapillary_tools import exceptions, geo, types
 from mapillary_tools.geotag import geotag_videos_from_gpx, utils
@@ -204,13 +203,13 @@ class TestNoTrackPointWithATime:
     def test_the_error_is_kept_as_the_tracks_are(self, gpx: Path, monkeypatch):
         gpx.write_text(_track(*_times(2, "{}.000.000Z")))
         parses = []
-        parse = gpxpy.parse
+        parse = utils._parse_gpx_file
 
         def counting_parse(*args, **kwargs):
             parses.append(1)
             return parse(*args, **kwargs)
 
-        monkeypatch.setattr(gpxpy, "parse", counting_parse)
+        monkeypatch.setattr(utils, "_parse_gpx_file", counting_parse)
 
         assert _error(gpx) == _error(gpx)
         assert len(parses) == 1

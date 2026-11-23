@@ -14,6 +14,7 @@ import io
 import logging
 import multiprocessing
 import types
+import xml.etree.ElementTree as ET
 from pathlib import Path
 
 import gpxpy
@@ -61,13 +62,13 @@ def parses(monkeypatch) -> list[int]:
     if hasattr(utils, "_WARNED"):
         monkeypatch.setattr(utils, "_WARNED", set())
     parsed: list[int] = []
-    parse = gpxpy.parse
+    parse = utils._parse_gpx_file
 
     def counting_parse(*args, **kwargs):
         parsed.append(1)
         return parse(*args, **kwargs)
 
-    monkeypatch.setattr(gpxpy, "parse", counting_parse)
+    monkeypatch.setattr(utils, "_parse_gpx_file", counting_parse)
     return parsed
 
 
@@ -101,18 +102,53 @@ def test_gpxpy_reads_the_file_itself(tmp_path: Path, parses: list[int], monkeypa
     passed to it stayed alive beside that while it parsed
     """
     arguments = []
+    texts_kept = []
     parse = gpxpy.parse
 
     def recording_parse(xml_or_file, *args, **kwargs):
         arguments.append(xml_or_file)
-        return parse(xml_or_file, *args, **kwargs)
+        try:
+            return parse(xml_or_file, *args, **kwargs)
+        finally:
+            texts_kept.append(xml_or_file.read())
+
+    def failing_parse(text: str):
+        raise RuntimeError("Not read by the fast reader")
 
     monkeypatch.setattr(gpxpy, "parse", recording_parse)
+    monkeypatch.setattr(utils, "_parse_gpx_fast", failing_parse)
     gpx = tmp_path / "track.gpx"
     gpx.write_bytes(ONE_TRACK)
 
     assert len(utils.parse_gpx(gpx)) == 1
     assert [hasattr(argument, "read") for argument in arguments] == [True]
+    assert texts_kept == [""]
+
+
+def test_the_fast_reader_parses_the_file_in_pieces(
+    tmp_path: Path, parses: list[int], monkeypatch
+):
+    """
+    Rather than a copy of its whole content without the namespace, which
+    would stay alive beside the content while it parsed
+    """
+    pieces: list[str] = []
+
+    class RecordingParser(ET.XMLParser):
+        def feed(self, data):
+            pieces.append(data)
+            super().feed(data)
+
+    monkeypatch.setattr(utils, "_FEED_SIZE", 16)
+    monkeypatch.setattr(ET, "XMLParser", RecordingParser)
+    gpx = tmp_path / "track.gpx"
+    gpx.write_bytes(TWO_TRACKS)
+
+    assert len(utils.parse_gpx(gpx)) == 2
+    assert max(len(piece) for piece in pieces) == 16
+    assert "".join(pieces) == TWO_TRACKS.decode("utf-8").replace(
+        ' xmlns="http://www.topografix.com/GPX/1/1"', ""
+    )
 
 
 def test_a_gpx_file_larger_than_a_chunk_changed_is_parsed_again(
@@ -139,18 +175,18 @@ def test_a_gpx_file_is_kept_by_the_content_parsed(
     """A file changed between looking it up and parsing it is kept as parsed"""
     gpx = tmp_path / "track.gpx"
     gpx.write_bytes(ONE_TRACK)
-    parse = gpxpy.parse
+    parse = utils._parse_gpx_file
 
-    def changing_parse(xml_or_file, *args, **kwargs):
+    def changing_parse(f):
         # Changed after it was looked up, before it is read
         gpx.write_bytes(TWO_TRACKS)
-        return parse(xml_or_file, *args, **kwargs)
+        return parse(f)
 
-    monkeypatch.setattr(gpxpy, "parse", changing_parse)
+    monkeypatch.setattr(utils, "_parse_gpx_file", changing_parse)
     assert len(utils.read_gpx_tracks(gpx)) == 2
 
     # Changed back: what was parsed is not served for it
-    monkeypatch.setattr(gpxpy, "parse", parse)
+    monkeypatch.setattr(utils, "_parse_gpx_file", parse)
     gpx.write_bytes(ONE_TRACK)
     assert len(utils.read_gpx_tracks(gpx)) == 1
 
