@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import datetime
+import struct
 import typing as T
 from pathlib import Path
 
@@ -165,9 +166,127 @@ STBLBoxlistConstruct = cparser.Box64ConstructBuilder(
 ).BoxList
 
 
-def extract_raw_samples_from_stbl_data(
-    stbl: bytes,
-) -> tuple[list[dict], T.Generator[RawSample, None, None]]:
+class _SampleTables(T.NamedTuple):
+    descriptions: list[dict]
+    sizes: list[int]
+    chunk_offsets: list[int]
+    chunk_entries: list[dict]
+    timedeltas: list[int]
+    composition_offsets: list[int] | None
+    syncs: set[int] | None
+
+
+class _IrregularBoxError(Exception):
+    pass
+
+
+_BOX_HEADER = struct.Struct(">I4s")
+_FULL_BOX_HEADER_SIZE = 4  # version (8 bits) and flags (24 bits)
+
+
+def _unpack_table(
+    data: bytes, offset: int, fmt: str, fields_per_entry: int
+) -> tuple[T.Any, ...]:
+    """Unpack the entry count at offset and the entries after it"""
+    if len(data) < offset + 4:
+        raise _IrregularBoxError()
+    (count,) = struct.unpack_from(">I", data, offset)
+    offset += 4
+    item_size = struct.calcsize(f">{fmt}")
+    if len(data) < offset + count * fields_per_entry * item_size:
+        raise _IrregularBoxError()
+    return struct.unpack_from(f">{count * fields_per_entry}{fmt}", data, offset)
+
+
+def _parse_sample_tables(stbl: bytes) -> _SampleTables:
+    """
+    Read the sample tables as _parse_sample_tables_with_construct() does, but
+    with struct, which is much faster for tracks of many samples, such as the
+    CAMM tracks of IMU data, or video tracks. Raise _IrregularBoxError for
+    anything that it might read differently.
+    """
+    descriptions: list[dict] = []
+    sizes: list[int] = []
+    chunk_offsets: list[int] = []
+    chunk_entries: list[dict] = []
+    timedeltas: list[int] = []
+    composition_offsets: list[int] | None = None
+    syncs: set[int] | None = None
+
+    offset = 0
+    while offset < len(stbl):
+        if len(stbl) < offset + _BOX_HEADER.size:
+            raise _IrregularBoxError()
+        box_size, box_type = _BOX_HEADER.unpack_from(stbl, offset)
+        if box_size < _BOX_HEADER.size or len(stbl) < offset + box_size:
+            # 64-bit sizes (1), sizes to the end (0), or boxes cut short
+            raise _IrregularBoxError()
+        data = stbl[offset + _BOX_HEADER.size : offset + box_size]
+        offset += box_size
+
+        if box_type == b"stsd":
+            try:
+                stsd = cparser.SampleDescriptionBox.parse(data)
+            except Exception as ex:
+                raise _IrregularBoxError() from ex
+            descriptions = list(stsd["entries"])
+        elif box_type == b"stsz":
+            if len(data) < _FULL_BOX_HEADER_SIZE + 8:
+                raise _IrregularBoxError()
+            sample_size, sample_count = struct.unpack_from(
+                ">II", data, _FULL_BOX_HEADER_SIZE
+            )
+            if sample_size == 0:
+                end = _FULL_BOX_HEADER_SIZE + 8 + sample_count * 4
+                if len(data) < end:
+                    raise _IrregularBoxError()
+                sizes = list(
+                    struct.unpack_from(
+                        f">{sample_count}I", data, _FULL_BOX_HEADER_SIZE + 8
+                    )
+                )
+            else:
+                sizes = [sample_size] * sample_count
+        elif box_type == b"stco":
+            chunk_offsets = list(_unpack_table(data, _FULL_BOX_HEADER_SIZE, "I", 1))
+        elif box_type == b"co64":
+            chunk_offsets = list(_unpack_table(data, _FULL_BOX_HEADER_SIZE, "Q", 1))
+        elif box_type == b"stsc":
+            values = _unpack_table(data, _FULL_BOX_HEADER_SIZE, "I", 3)
+            chunk_entries = [
+                {
+                    "first_chunk": values[i],
+                    "samples_per_chunk": values[i + 1],
+                    "sample_description_index": values[i + 2],
+                }
+                for i in range(0, len(values), 3)
+            ]
+        elif box_type == b"stts":
+            values = _unpack_table(data, _FULL_BOX_HEADER_SIZE, "I", 2)
+            timedeltas = []
+            for i in range(0, len(values), 2):
+                timedeltas.extend([values[i + 1]] * values[i])
+        elif box_type == b"ctts":
+            # Read the offsets as signed, see _parse_sample_tables_with_construct()
+            values = _unpack_table(data, _FULL_BOX_HEADER_SIZE, "i", 2)
+            composition_offsets = []
+            for i in range(0, len(values), 2):
+                composition_offsets.extend([values[i + 1]] * (values[i] & 0xFFFFFFFF))
+        elif box_type == b"stss":
+            syncs = set(_unpack_table(data, _FULL_BOX_HEADER_SIZE, "I", 1))
+
+    return _SampleTables(
+        descriptions=descriptions,
+        sizes=sizes,
+        chunk_offsets=chunk_offsets,
+        chunk_entries=chunk_entries,
+        timedeltas=timedeltas,
+        composition_offsets=composition_offsets,
+        syncs=syncs,
+    )
+
+
+def _parse_sample_tables_with_construct(stbl: bytes) -> _SampleTables:
     descriptions: list[dict] = []
     sizes: list[int] = []
     chunk_offsets: list[int] = []
@@ -215,6 +334,29 @@ def extract_raw_samples_from_stbl_data(
         elif box["type"] == b"stss":
             syncs = set(data["entries"])
 
+    return _SampleTables(
+        descriptions=descriptions,
+        sizes=sizes,
+        chunk_offsets=chunk_offsets,
+        chunk_entries=chunk_entries,
+        timedeltas=timedeltas,
+        composition_offsets=composition_offsets,
+        syncs=syncs,
+    )
+
+
+def extract_raw_samples_from_stbl_data(
+    stbl: bytes,
+) -> tuple[list[dict], T.Generator[RawSample, None, None]]:
+    try:
+        tables = _parse_sample_tables(stbl)
+    except _IrregularBoxError:
+        tables = _parse_sample_tables_with_construct(stbl)
+
+    sizes = tables.sizes
+    timedeltas = tables.timedeltas
+    composition_offsets = tables.composition_offsets
+
     # some stbl have less timedeltas than the sample count i.e. len(sizes),
     # in this case append 0's to timedeltas
     while len(timedeltas) < len(sizes):
@@ -224,9 +366,14 @@ def extract_raw_samples_from_stbl_data(
             composition_offsets.append(0)
 
     raw_samples = _extract_raw_samples(
-        sizes, chunk_entries, chunk_offsets, timedeltas, composition_offsets, syncs
+        sizes,
+        tables.chunk_entries,
+        tables.chunk_offsets,
+        timedeltas,
+        composition_offsets,
+        tables.syncs,
     )
-    return descriptions, raw_samples
+    return tables.descriptions, raw_samples
 
 
 _STSDBoxListConstruct = cparser.Box64ConstructBuilder(
