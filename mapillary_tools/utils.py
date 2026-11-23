@@ -9,6 +9,7 @@ import concurrent.futures
 import hashlib
 import logging
 import os
+import time
 import typing as T
 from pathlib import Path
 
@@ -340,6 +341,16 @@ TMapIn = T.TypeVar("TMapIn")
 TMapOut = T.TypeVar("TMapOut")
 
 
+# Worker processes take about half a second to start where they are spawned
+# (macOS and Windows), as each one imports the package again, while most files
+# take milliseconds to read. So the work starts in this process, and moves to
+# worker processes only when what is left of it would take longer than this
+_MP_MIN_REMAINING_SECONDS = 2.0
+# The work done in this process before estimating what is left. The first
+# items are slower (e.g. modules loaded on first use)
+_MP_MIN_ESTIMATE_SECONDS = 0.2
+
+
 def mp_map_maybe(
     func: T.Callable[[TMapIn], TMapOut],
     iterable: T.Iterable[TMapIn],
@@ -354,14 +365,30 @@ def mp_map_maybe(
 
     if disable_multiprocessing:
         yield from map(func, iterable)
-    else:
+        return
+
+    items = list(iterable)
+    done = 0
+    busy_seconds = 0.0
+    while done < len(items):
+        start = time.perf_counter()
+        result = func(items[done])
+        busy_seconds += time.perf_counter() - start
+        done += 1
+        yield result
+        if _MP_MIN_ESTIMATE_SECONDS <= busy_seconds:
+            remaining_seconds = busy_seconds / done * (len(items) - done)
+            if _MP_MIN_REMAINING_SECONDS < remaining_seconds:
+                break
+
+    if done < len(items):
         app_logger = logging.getLogger(get_app_name())
         with concurrent.futures.ProcessPoolExecutor(
             max_workers=max_workers,
             initializer=configure_logger,
             initargs=(None, app_logger.getEffectiveLevel()),
         ) as executor:
-            yield from executor.map(func, iterable)
+            yield from executor.map(func, items[done:])
 
 
 def configure_logger(

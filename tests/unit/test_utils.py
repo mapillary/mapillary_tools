@@ -252,6 +252,41 @@ def test_filter_all(tmpdir: py.path.local):
         )
 
 
+def _pid_and_square(value: int) -> tuple[int, int]:
+    return os.getpid(), value * value
+
+
+class TestMPMapMaybe:
+    @pytest.mark.parametrize("num_processes", [None, 0, 1, 2])
+    def test_results_in_order(self, num_processes):
+        results = list(
+            utils.mp_map_maybe(_pid_and_square, range(5), num_processes=num_processes)
+        )
+        assert [square for _, square in results] == [0, 1, 4, 9, 16]
+
+    def test_quick_work_stays_in_this_process(self):
+        results = list(utils.mp_map_maybe(_pid_and_square, range(50)))
+        assert {pid for pid, _ in results} == {os.getpid()}
+
+    def test_long_work_moves_to_worker_processes(self, monkeypatch):
+        monkeypatch.setattr(utils, "_MP_MIN_ESTIMATE_SECONDS", 0)
+        monkeypatch.setattr(utils, "_MP_MIN_REMAINING_SECONDS", 0)
+        results = list(utils.mp_map_maybe(_pid_and_square, range(5), num_processes=2))
+        assert [square for _, square in results] == [0, 1, 4, 9, 16]
+        # The first item tells how long the work is
+        assert results[0][0] == os.getpid()
+        assert os.getpid() not in {pid for pid, _ in results[1:]}
+
+    def test_no_worker_processes_if_disabled(self, monkeypatch):
+        monkeypatch.setattr(utils, "_MP_MIN_ESTIMATE_SECONDS", 0)
+        monkeypatch.setattr(utils, "_MP_MIN_REMAINING_SECONDS", 0)
+        results = list(utils.mp_map_maybe(_pid_and_square, range(5), num_processes=0))
+        assert {pid for pid, _ in results} == {os.getpid()}
+
+    def test_empty(self):
+        assert list(utils.mp_map_maybe(_pid_and_square, [])) == []
+
+
 class TestConfigureLogger:
     def test_adds_one_handler(self):
         logger = logging.getLogger("mapillary_tools_test_configure_logger")
@@ -288,7 +323,10 @@ class TestConfigureLogger:
                 if __name__ == "__main__":
                     multiprocessing.set_start_method("fork")
                     utils.configure_logger(logging.getLogger(utils.get_app_name()))
-                    list(utils.mp_map_maybe(work, [1], num_processes=1))
+                    # Hand all but the first item to worker processes
+                    utils._MP_MIN_ESTIMATE_SECONDS = 0
+                    utils._MP_MIN_REMAINING_SECONDS = 0
+                    list(utils.mp_map_maybe(work, [0, 1], num_processes=1))
                 """
             )
         )
