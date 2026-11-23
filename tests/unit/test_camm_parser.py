@@ -4,13 +4,16 @@
 # LICENSE file in the root directory of this source tree.
 
 import dataclasses
+import datetime
 import io
 import typing as T
 from pathlib import Path
 
+import piexif
 import pytest
 from mapillary_tools import geo, telemetry, types, uploader
 from mapillary_tools.camm import camm_builder, camm_parser
+from mapillary_tools.geotag.video_extractors.native import CAMMVideoExtractor
 from mapillary_tools.mp4 import (
     construct_mp4_parser as cparser,
     mp4_sample_parser as sample_parser,
@@ -885,3 +888,188 @@ def test_sample_duration_overflow():
                 [_point(0), _point(simple_mp4_builder.UINT32_MAX + 1)], 1
             )
         )
+
+
+# 2022-08-27T05:09:23Z
+_RMKN_GPS_TIME = datetime.datetime(
+    2022, 8, 27, 5, 9, 23, tzinfo=datetime.timezone.utc
+).timestamp()
+
+# 43.7749 N, 11.25495 E, as EXIF writes them
+_RMKN_GPS_POSITION = {
+    piexif.GPSIFD.GPSLatitudeRef: b"N",
+    piexif.GPSIFD.GPSLatitude: ((43, 1), (46, 1), (2964, 100)),
+    piexif.GPSIFD.GPSLongitudeRef: b"E",
+    piexif.GPSIFD.GPSLongitude: ((11, 1), (15, 1), (1782, 100)),
+}
+
+
+def _rmkn(gps: T.Optional[dict] = None) -> bytes:
+    """An RMKN box payload: an EXIF block (TIFF, without the Exif header)"""
+    if gps is None:
+        gps = {
+            piexif.GPSIFD.GPSDateStamp: b"2022:08:27",
+            piexif.GPSIFD.GPSTimeStamp: ((5, 1), (9, 1), (23, 1)),
+            piexif.GPSIFD.GPSStatus: b"A",
+            **_RMKN_GPS_POSITION,
+        }
+    exif = piexif.dump({"0th": {piexif.ImageIFD.Make: b"RICOH"}, "GPS": gps})
+    assert exif.startswith(b"Exif\x00\x00")
+    return exif[len(b"Exif\x00\x00") :]
+
+
+def _udta(*boxes: T.Tuple[bytes, bytes]) -> list:
+    """The udta children of a video, as MovieBoxParser.extract_udta_boxdata reads them"""
+    data = b"".join(
+        cparser.Box32ConstructBuilder({}).Box.build({"type": t, "data": d})
+        for t, d in boxes
+    )
+    return cparser.Box64ConstructBuilder({}).parse_boxlist(data)
+
+
+def test_extract_rmkn_gps_fix():
+    udta = _udta((b"@mak", b"RICOH"), (b"RMKN", _rmkn()))
+    fix = camm_parser._extract_rmkn_gps_fix(udta)
+    assert fix is not None
+    assert fix.unix_time == _RMKN_GPS_TIME
+    assert fix.lat == pytest.approx(43.7749)
+    assert fix.lon == pytest.approx(11.25495)
+
+
+def test_extract_rmkn_gps_fix_without_fix():
+    void = {
+        piexif.GPSIFD.GPSDateStamp: b"2022:08:27",
+        piexif.GPSIFD.GPSTimeStamp: ((5, 1), (9, 1), (23, 1)),
+        piexif.GPSIFD.GPSStatus: b"V",
+        **_RMKN_GPS_POSITION,
+    }
+    assert camm_parser._extract_rmkn_gps_fix(_udta((b"RMKN", _rmkn(void)))) is None
+    # A camera without a fix when the recording starts writes no GPS time
+    assert camm_parser._extract_rmkn_gps_fix(_udta((b"RMKN", _rmkn({})))) is None
+    no_position = {
+        piexif.GPSIFD.GPSDateStamp: b"2022:08:27",
+        piexif.GPSIFD.GPSTimeStamp: ((5, 1), (9, 1), (23, 1)),
+    }
+    assert (
+        camm_parser._extract_rmkn_gps_fix(_udta((b"RMKN", _rmkn(no_position)))) is None
+    )
+
+
+def test_extract_rmkn_gps_fix_without_rmkn():
+    assert camm_parser._extract_rmkn_gps_fix(_udta((b"@mak", b"RICOH"))) is None
+    assert camm_parser._extract_rmkn_gps_fix(_udta((b"RMKN", b"not exif"))) is None
+
+
+def _write_camm_mp4(
+    path: Path, points: T.Sequence[geo.Point], udta: T.Sequence[T.Tuple[bytes, bytes]]
+) -> None:
+    """Write a CAMM mp4 of points whose moov holds a udta box of the given children"""
+    movie_timescale = 1_000_000
+    mvhd: cparser.BoxDict = {
+        "type": b"mvhd",
+        "data": {
+            "creation_time": 1,
+            "modification_time": 2,
+            "timescale": movie_timescale,
+            "duration": int(36000 * movie_timescale),
+        },
+    }
+    empty_mp4: T.List[cparser.BoxDict] = [
+        {"type": b"ftyp", "data": b"test"},
+        {"type": b"moov", "data": [mvhd]},
+    ]
+    src = cparser.MP4WithoutSTBLBuilderConstruct.build_boxlist(empty_mp4)
+    metadata = types.VideoMetadata(
+        Path(""), filetype=types.FileType.CAMM, points=list(points)
+    )
+    camm_generator = camm_builder.camm_sample_generator2(
+        uploader.VideoUploader.prepare_camm_info(metadata)
+    )
+
+    # transform_mp4 keeps only mvhd and the video tracks of the source moov, so
+    # add the udta next to the CAMM track, as the sample generator adds that
+    def _generator(fp, moov_children):
+        yield from camm_generator(fp, moov_children)
+        moov_children.append(
+            {"type": b"udta", "data": [{"type": t, "data": d} for t, d in udta]}
+        )
+
+    target_fp = simple_mp4_builder.transform_mp4(io.BytesIO(src), _generator)
+    path.write_bytes(target_fp.read())
+
+
+# The first sample is the fix in _rmkn()
+_MINI_GPS = [
+    geo.Point(time=0.863, lat=43.7749, lon=11.25495, alt=57.9, angle=None),
+    geo.Point(time=1.865, lat=43.7749028, lon=11.2549611, alt=58.6, angle=None),
+    geo.Point(time=2.867, lat=43.7749167, lon=11.2549694, alt=None, angle=None),
+]
+
+
+def test_camm_extractor_stamps_mini_gps_by_rmkn(tmp_path: Path):
+    video = tmp_path / "theta.mp4"
+    _write_camm_mp4(video, _MINI_GPS, [(b"RMKN", _rmkn())])
+
+    points = CAMMVideoExtractor(video).extract().points
+
+    assert [type(p) for p in points] == [telemetry.CAMMGPSPoint] * 3
+    for point, mini in zip(points, _MINI_GPS):
+        # The fix dates the first sample, not the start of the video
+        assert point.get_unix_time() == pytest.approx(
+            _RMKN_GPS_TIME + mini.time - _MINI_GPS[0].time, abs=1e-3
+        )
+        assert point.time == pytest.approx(mini.time, abs=1e-3)
+        assert point.lat == pytest.approx(mini.lat)
+        assert point.lon == pytest.approx(mini.lon)
+
+
+def test_camm_extractor_keeps_mini_gps_if_rmkn_fix_is_elsewhere(tmp_path: Path):
+    video = tmp_path / "theta.mp4"
+    # The first sample is 22 m north of the fix
+    elsewhere = [dataclasses.replace(p, lat=p.lat + 0.0002) for p in _MINI_GPS[1:]]
+    _write_camm_mp4(video, elsewhere, [(b"RMKN", _rmkn())])
+
+    points = CAMMVideoExtractor(video).extract().points
+
+    assert [type(p) for p in points] == [geo.Point] * 2
+    assert all(p.get_unix_time() is None for p in points)
+
+
+def test_camm_extractor_keeps_mini_gps_without_rmkn(tmp_path: Path):
+    video = tmp_path / "theta.mp4"
+    _write_camm_mp4(video, _MINI_GPS, [(b"@mak", b"RICOH")])
+
+    points = CAMMVideoExtractor(video).extract().points
+
+    assert [type(p) for p in points] == [geo.Point] * 3
+    assert all(p.get_unix_time() is None for p in points)
+
+
+def test_camm_extractor_prefers_type_6_timestamps_to_rmkn(tmp_path: Path):
+    video = tmp_path / "camm.mp4"
+    epoch_time = _RMKN_GPS_TIME + 3600
+    gps = [
+        telemetry.CAMMGPSPoint(
+            time=float(i),
+            lat=43.7749,
+            lon=11.25495,
+            alt=57.9,
+            angle=None,
+            epoch_time=epoch_time + i,
+            gps_fix_type=3,
+            horizontal_accuracy=0.0,
+            vertical_accuracy=0.0,
+            velocity_east=0.0,
+            velocity_north=0.0,
+            velocity_up=0.0,
+            speed_accuracy=0.0,
+        )
+        for i in range(3)
+    ]
+    _write_camm_mp4(video, gps, [(b"RMKN", _rmkn())])
+
+    points = CAMMVideoExtractor(video).extract().points
+
+    assert [p.get_unix_time() for p in points] == pytest.approx(
+        [epoch_time, epoch_time + 1, epoch_time + 2], abs=1e-3
+    )

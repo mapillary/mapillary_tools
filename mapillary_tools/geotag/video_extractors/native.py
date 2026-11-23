@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import logging
 import sys
 import typing as T
 from pathlib import Path
@@ -27,6 +28,13 @@ from ...camm import camm_parser
 from ...gpmf import gpmf_gps_filter, gpmf_parser
 from ...mp4 import construct_mp4_parser, simple_mp4_parser
 from .base import BaseVideoExtractor
+
+LOG = logging.getLogger(__name__)
+
+# How far the first type 5 sample can be from the GPS fix in the RMKN box and
+# still be that fix: the EXIF block rounds the position to 0.01 arc seconds,
+# about 0.3 m
+_MAX_RMKN_FIX_DISTANCE_METERS = 1.0
 
 
 class GoProVideoExtractor(BaseVideoExtractor):
@@ -86,12 +94,23 @@ class CAMMVideoExtractor(BaseVideoExtractor):
         if not camm_info.gps and not camm_info.mini_gps:
             raise exceptions.MapillaryGPXEmptyError("Empty GPS data found")
 
+        mini_gps = camm_info.mini_gps or []
+        if not camm_info.gps and camm_info.rmkn_gps_fix is not None:
+            timestamped = self._timestamp_mini_gps(mini_gps, camm_info.rmkn_gps_fix)
+            if timestamped is None:
+                LOG.debug(
+                    "The GPS fix in the RMKN box of %s is not its first GPS sample, so it does not date the track",
+                    self.video_path.name,
+                )
+            else:
+                mini_gps = timestamped
+
         # A track may mix type 6 and type 5 samples, so use both. No camera is
         # known to interleave them, and it would cost the absolute timestamps
         # of sampled frames: interpolating between the two types returns a
         # plain geo.Point (see CAMMGPSPoint.interpolate_with), so sample_video
         # falls back to the container start time.
-        points: list[geo.Point] = [*(camm_info.gps or []), *(camm_info.mini_gps or [])]
+        points: list[geo.Point] = [*(camm_info.gps or []), *mini_gps]
         points.sort(key=lambda p: p.time)
 
         return types.VideoMetadata(
@@ -102,6 +121,58 @@ class CAMMVideoExtractor(BaseVideoExtractor):
             make=camm_info.make,
             model=camm_info.model,
         )
+
+    @staticmethod
+    def _timestamp_mini_gps(
+        mini_gps: T.Sequence[geo.Point], rmkn_gps_fix: camm_parser.RMKNGPSFix
+    ) -> list[geo.Point] | None:
+        """
+        Stamp type 5 samples, which have no timestamps, by the GPS fix in the
+        RMKN box, which is the first of them: the time of the fix, plus each
+        sample's time in the video after the first sample. None if the first
+        sample is elsewhere than the fix, as then it is not that fix.
+
+        The points are built as the description file decodes timestamped
+        points, so that a video reads the same from either
+
+        >>> fix = camm_parser.RMKNGPSFix(unix_time=1661576963.0, lat=1, lon=2)
+        >>> first = geo.Point(time=0.875, lat=1, lon=2, alt=3, angle=None)
+        >>> second = geo.Point(time=1.875, lat=1.00001, lon=2, alt=None, angle=None)
+        >>> [p.epoch_time for p in CAMMVideoExtractor._timestamp_mini_gps([first, second], fix)]
+        [1661576963.0, 1661576964.0]
+        >>> CAMMVideoExtractor._timestamp_mini_gps([second], fix) is None
+        True
+        """
+        if not mini_gps:
+            return []
+
+        first = min(mini_gps, key=lambda p: p.time)
+        if (
+            geo.gps_distance(
+                (first.lat, first.lon), (rmkn_gps_fix.lat, rmkn_gps_fix.lon)
+            )
+            > _MAX_RMKN_FIX_DISTANCE_METERS
+        ):
+            return None
+
+        return [
+            telemetry.CAMMGPSPoint(
+                time=p.time,
+                lat=p.lat,
+                lon=p.lon,
+                alt=p.alt,
+                angle=p.angle,
+                epoch_time=rmkn_gps_fix.unix_time + (p.time - first.time),
+                gps_fix_type=3 if p.alt is not None else 2,
+                horizontal_accuracy=0.0,
+                vertical_accuracy=0.0,
+                velocity_east=0.0,
+                velocity_north=0.0,
+                velocity_up=0.0,
+                speed_accuracy=0.0,
+            )
+            for p in mini_gps
+        ]
 
 
 class BlackVueVideoExtractor(BaseVideoExtractor):

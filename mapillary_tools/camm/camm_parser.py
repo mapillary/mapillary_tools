@@ -17,7 +17,7 @@ from enum import Enum
 import construct as C
 from typing_extensions import TypeIs
 
-from .. import geo, telemetry
+from .. import exif_read, geo, telemetry
 from ..mp4.mp4_sample_parser import MovieBoxParser, Sample, TrackBoxParser
 
 
@@ -48,6 +48,15 @@ class CAMMType(Enum):
 TTelemetry = T.TypeVar("TTelemetry", bound=TelemetryMeasurement)
 
 
+@dataclasses.dataclass(frozen=True)
+class RMKNGPSFix:
+    """The GPS fix in the RMKN box, the EXIF block that Ricoh Theta cameras write into udta"""
+
+    unix_time: float
+    lat: float
+    lon: float
+
+
 @dataclasses.dataclass
 class CAMMInfo:
     # None indicates the data has been extracted,
@@ -59,16 +68,22 @@ class CAMMInfo:
     magn: list[telemetry.MagnetometerData] | None = None
     make: str = ""
     model: str = ""
+    # The GPS fix in the RMKN box of Ricoh Theta videos, or None if there is
+    # none. The type 5 samples those cameras write have no timestamps of their
+    # own, and this fix is the first of them
+    rmkn_gps_fix: RMKNGPSFix | None = None
 
 
 def extract_camm_info(fp: T.BinaryIO, telemetry_only: bool = False) -> CAMMInfo | None:
     moov = MovieBoxParser.parse_stream(fp)
 
     make, model = "", ""
+    rmkn_gps_fix: RMKNGPSFix | None = None
     if not telemetry_only:
         udta_boxdata = moov.extract_udta_boxdata()
         if udta_boxdata is not None:
             make, model = _extract_camera_make_and_model_from_utda_boxdata(udta_boxdata)
+            rmkn_gps_fix = _extract_rmkn_gps_fix(udta_boxdata)
 
     gps_only_construct = _construct_with_selected_camm_types(
         [CAMMType.MIN_GPS, CAMMType.GPS]
@@ -126,7 +141,13 @@ def extract_camm_info(fp: T.BinaryIO, telemetry_only: bool = False) -> CAMMInfo 
 
                 _normalize_gps_epochs(gps, make, moov)
 
-                return CAMMInfo(mini_gps=mini_gps, gps=gps, make=make, model=model)
+                return CAMMInfo(
+                    mini_gps=mini_gps,
+                    gps=gps,
+                    make=make,
+                    model=model,
+                    rmkn_gps_fix=rmkn_gps_fix,
+                )
 
     return None
 
@@ -697,3 +718,38 @@ def _extract_camera_make_and_model_from_utda_boxdata(
         model = model.strip()
 
     return make, model
+
+
+def _extract_rmkn_gps_fix(utda_boxdata: dict) -> RMKNGPSFix | None:
+    """
+    Return the GPS fix in the RMKN box, the EXIF block that Ricoh Theta
+    cameras write into udta, or None if it has none.
+
+    On a Theta X, the fix is the first type 5 sample of the video: it has the
+    same position. A camera without a fix when the recording starts writes no
+    GPS time, and its track begins later in the video.
+    """
+    for box in utda_boxdata:
+        if box.type != b"RMKN":
+            continue
+
+        exif = exif_read.ExifReadFromEXIF(io.BytesIO(box.data))
+
+        # V (void) means that the receiver had no fix, so the time is stale
+        status = exif.tags.get("GPS GPSStatus")
+        if status is not None and str(status.values).strip().upper() == "V":
+            return None
+
+        gps_datetime = exif.extract_gps_datetime()
+        if gps_datetime is None or not exif_read.is_valid_capture_time(gps_datetime):
+            return None
+
+        lonlat = exif.extract_lon_lat()
+        if lonlat is None:
+            return None
+
+        return RMKNGPSFix(
+            unix_time=gps_datetime.timestamp(), lat=lonlat[1], lon=lonlat[0]
+        )
+
+    return None
