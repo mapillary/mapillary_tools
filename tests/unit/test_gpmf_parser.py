@@ -1148,3 +1148,114 @@ class TestFlatten:
 
     def test_empty(self):
         assert gpmf_parser._flatten([]) == []
+
+
+# ---------------------------------------------------------------------------
+# 19. parse_gpmf_sample_data reads what GPMFSampleData.parse reads
+# ---------------------------------------------------------------------------
+GOPRO_DATA_DIR = Path(__file__).parent.parent / "data" / "gopro_data"
+
+
+def _to_plain(value):
+    # construct returns Containers with private keys (e.g. "_io")
+    if isinstance(value, dict):
+        return {
+            k: _to_plain(v)
+            for k, v in value.items()
+            if not (isinstance(k, str) and k.startswith("_"))
+        }
+    if isinstance(value, list):
+        return [_to_plain(v) for v in value]
+    return value
+
+
+def _read_gpmf_samples(path: Path) -> list[bytes]:
+    with path.open("rb") as fp:
+        moov = gpmf_parser.MovieBoxParser.parse_stream(fp)
+        for track in moov.extract_tracks():
+            if gpmf_parser._contains_gpmd_description(track):
+                samples = gpmf_parser._filter_gpmd_samples(track)
+                return [
+                    data
+                    for _, data in gpmf_parser._iterate_read_sample_data(fp, samples)
+                ]
+    return []
+
+
+def _klv_bytes(
+    key: bytes,
+    type_char: bytes,
+    structure_size: int,
+    repeat: int,
+    payload: bytes,
+    pad: bool = True,
+) -> bytes:
+    data = key + type_char + struct.pack(">BH", structure_size, repeat) + payload
+    if pad:
+        data += b"\x00" * (-len(payload) % 4)
+    return data
+
+
+def _assert_same_as_construct(data: bytes) -> None:
+    expected = _to_plain(gpmf_parser.GPMFSampleData.parse(data))
+    assert gpmf_parser.parse_gpmf_sample_data(data) == expected
+
+
+class TestParseGPMFSampleData:
+    @pytest.mark.parametrize("name", ["hero8.mp4", "max-360mode.mp4"])
+    def test_same_as_construct_on_videos(self, name):
+        samples = _read_gpmf_samples(GOPRO_DATA_DIR / name)
+        assert samples
+        for data in samples:
+            _assert_same_as_construct(data)
+
+    @pytest.mark.parametrize("name", ["hero8.mp4", "max-360mode.mp4"])
+    def test_same_as_construct_on_cut_samples(self, name):
+        data = _read_gpmf_samples(GOPRO_DATA_DIR / name)[0]
+        # Cut inside the headers, the values, and the padding of KLVs,
+        # nested and not
+        for size in [0, 3, 8, 9, 15, 16, 17, 100, 255, 256, 1000, len(data) - 1]:
+            _assert_same_as_construct(data[:size])
+
+    @pytest.mark.parametrize(
+        "data",
+        [
+            # numeric types, one value and several per structure
+            _klv_bytes(b"SCAL", b"l", 4, 3, struct.pack(">3i", 1, -2, 3)),
+            _klv_bytes(b"ACCL", b"s", 6, 2, struct.pack(">6h", 1, -2, 3, 4, 5, -6)),
+            _klv_bytes(b"TMPC", b"f", 4, 1, struct.pack(">f", 36.5)),
+            _klv_bytes(b"DVID", b"L", 4, 1, struct.pack(">I", 1)),
+            _klv_bytes(b"STMP", b"J", 8, 1, struct.pack(">Q", 2**40)),
+            _klv_bytes(b"QNUM", b"q", 4, 1, struct.pack(">I", 2**31 + 1)),
+            _klv_bytes(b"BYTE", b"b", 1, 3, struct.pack(">3b", -1, 2, -3)),
+            # strings and byte types
+            _klv_bytes(b"DVNM", b"c", 1, 11, b"Hero8 Black"),
+            _klv_bytes(b"UNIT", b"c", 3, 2, b"degm/s"),
+            _klv_bytes(b"GPSU", b"U", 16, 1, b"220731002523.200"),
+            _klv_bytes(b"ORIN", b"F", 4, 2, b"ZXYzxy\x00\x00"),
+            _klv_bytes(b"TYPE", b"?", 2, 1, b"lL"),
+            # empty values
+            _klv_bytes(b"EMPT", b"c", 0, 3, b""),
+            _klv_bytes(b"EMPT", b"L", 4, 0, b""),
+            # nested, with a nested KLV cut short
+            _klv_bytes(
+                b"DEVC",
+                b"\x00",
+                1,
+                16,
+                _klv_bytes(b"DVID", b"L", 4, 1, struct.pack(">I", 7))
+                + _klv_bytes(b"STRM", b"\x00", 1, 4, b"ab"),
+            ),
+            # several KLVs, the last one without its padding
+            _klv_bytes(b"DEM1", b"\x01", 1, 1, b"\xff")
+            + _klv_bytes(b"DEM2", b"c", 1, 3, b"abc", pad=False),
+            # a structure size that the type does not divide
+            _klv_bytes(b"ODD1", b"S", 3, 2, b"abcdef"),
+            _klv_bytes(b"ODD2", b"L", 2, 2, b"abcd"),
+            _klv_bytes(b"ODD3", b"F", 6, 1, b"abcdef"),
+            _klv_bytes(b"ODD4", b"l", 0, 2, b""),
+            _klv_bytes(b"ODD5", b"G", 0, 2, b""),
+        ],
+    )
+    def test_same_as_construct(self, data):
+        _assert_same_as_construct(data)
