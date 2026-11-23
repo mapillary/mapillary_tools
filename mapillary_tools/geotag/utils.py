@@ -238,6 +238,9 @@ def _parse_gpx_file(f: T.TextIO) -> _ParsedGPX:
     content = _TextFile(f.read())
     try:
         return _parse_gpx_fast(content.text)
+    except gpxpy.gpx.GPXXMLSyntaxException:
+        # Invalid XML, which gpxpy would fail to parse in the same way
+        raise
     except Exception as ex:
         # What the fast reader does not read, gpxpy reads (or rejects) as before
         LOG.debug(f"Reading the GPX file with gpxpy: {ex!r}")
@@ -394,7 +397,11 @@ def _parse_gpx_fast(text: str) -> _ParsedGPX:
     if gpxpy.parser.library() != "STDLIB":
         raise _IrregularGPXError("gpxpy parses with lxml")
 
-    root = _parse_xml_as_gpxpy(text)
+    try:
+        root = _parse_xml_as_gpxpy(text)
+    except ET.ParseError as ex:
+        # What gpxpy raises when it parses the same text, without parsing it again
+        raise gpxpy.gpx.GPXXMLSyntaxException(f"Error parsing XML: {ex}", ex) from ex
 
     version = root.get("version")
     checks = _TRACK_POINT_CHECKS_11 if version == "1.1" else _TRACK_POINT_CHECKS_10

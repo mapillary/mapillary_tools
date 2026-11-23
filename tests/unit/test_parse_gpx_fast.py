@@ -5,7 +5,7 @@
 
 """
 The fast GPX reader must read whatever gpxpy reads as gpxpy reads it, and
-leave whatever gpxpy rejects to gpxpy
+reject whatever gpxpy rejects with the error that gpxpy raises
 """
 
 from __future__ import annotations
@@ -15,6 +15,7 @@ import random
 from pathlib import Path
 
 import gpxpy
+import gpxpy.gpx
 import gpxpy.gpxfield
 import gpxpy.parser
 import pytest
@@ -60,7 +61,7 @@ def _assert_rejected_as_gpxpy_rejects(text: str) -> None:
         geotag_utils._parse_gpx_with_gpxpy(text)
     with pytest.raises(Exception):
         geotag_utils._parse_gpx_fast(text)
-    # gpxpy reads it after the fast reader, and raises what it raised
+    # The fast reader raises what gpxpy raised, or leaves the file to gpxpy
     with pytest.raises(gpxpy_error.type) as error:
         geotag_utils._parse_gpx_file(io.StringIO(text))
     assert str(error.value) == str(gpxpy_error.value)
@@ -264,6 +265,11 @@ TIMES = [
             ),
             id="other namespaces, comments and CDATA",
         ),
+        pytest.param(
+            _gpx(_trk(_trkpt())).replace("<gpx", "<track").replace("</gpx", "</track"),
+            # gpxpy 1.6 reads it; should a later gpxpy reject it, this fails
+            id="root element other than gpx",
+        ),
     ],
 )
 def test_read_as_gpxpy_reads(text: str):
@@ -385,6 +391,55 @@ def test_read_in_pieces(text: str, feed_size: int, monkeypatch):
     expected = geotag_utils._parse_gpx_with_gpxpy(text)
     monkeypatch.setattr(geotag_utils, "_FEED_SIZE", feed_size)
     assert geotag_utils._parse_gpx_fast(text) == expected
+
+
+@pytest.mark.parametrize("feed_size", [1, 7, 64, geotag_utils._FEED_SIZE])
+@pytest.mark.parametrize(
+    "text",
+    [
+        pytest.param(_gpx(_trk(_trkpt()))[:-20], id="cut XML"),
+        pytest.param("", id="empty"),
+        pytest.param("\n \n", id="blank"),
+        pytest.param(_gpx(_trk(_trkpt()) + "</trk>"), id="mismatched tag"),
+        pytest.param(_gpx(_trk(_trkpt(attributes="lat=1 lon=2"))), id="bad token"),
+        pytest.param(
+            _gpx(_trk(_trkpt(attributes='lat="1" lat="2" lon="3"'))),
+            id="duplicate attribute",
+        ),
+        pytest.param(
+            _gpx("<name>&nbsp;</name>" + _trk(_trkpt())), id="undefined entity"
+        ),
+        pytest.param(_gpx(_trk(_trkpt())) + "<gpx/>", id="junk after the root"),
+        pytest.param(_gpx("<name><![CDATA[x</name>"), id="CDATA cut short"),
+        pytest.param(
+            _gpx("<metadata><name>Ünïcødé ☃ 雪</name></metadata>\n<trk>☃</gpx>"),
+            id="not ASCII before the error",
+        ),
+        pytest.param(
+            '<gpx version="1.1" xmlns="http://www.topografix.com/GPX/1/1"><trk></gpx>',
+            id="error after the default namespace on the same line",
+        ),
+        pytest.param("\ufeff" + _gpx("<trk>"), id="BOM"),
+        pytest.param(" " + _gpx(_trk(_trkpt())), id="text before the declaration"),
+        pytest.param(_gpx("<trk>\x00</trk>"), id="NUL"),
+    ],
+)
+def test_invalid_xml_rejected_as_gpxpy_rejects(text: str, feed_size: int, monkeypatch):
+    with pytest.raises(gpxpy.gpx.GPXXMLSyntaxException) as gpxpy_error:
+        geotag_utils._parse_gpx_with_gpxpy(text)
+    monkeypatch.setattr(geotag_utils, "_FEED_SIZE", feed_size)
+
+    # Without gpxpy parsing it again
+    def fail(xml_or_file):
+        raise AssertionError("parsed again")
+
+    monkeypatch.setattr(geotag_utils, "_parse_gpx_with_gpxpy", fail)
+    with pytest.raises(gpxpy.gpx.GPXXMLSyntaxException) as error:
+        geotag_utils._parse_gpx_file(io.StringIO(text))
+    assert type(error.value) is gpxpy.gpx.GPXXMLSyntaxException
+    assert str(error.value) == str(gpxpy_error.value)
+    assert type(error.value.__cause__) is type(gpxpy_error.value.__cause__)
+    assert str(error.value.__cause__) == str(gpxpy_error.value.__cause__)
 
 
 def test_read_by_gpxpy_if_the_fast_reader_fails(monkeypatch):
