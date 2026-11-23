@@ -269,8 +269,9 @@ class TestMPMapMaybe:
         assert {pid for pid, _ in results} == {os.getpid()}
 
     def test_long_work_moves_to_worker_processes(self, monkeypatch):
+        # Any work counts as long, even if the timer reads no time passed
         monkeypatch.setattr(utils, "_MP_MIN_ESTIMATE_SECONDS", 0)
-        monkeypatch.setattr(utils, "_MP_MIN_REMAINING_SECONDS", 0)
+        monkeypatch.setattr(utils, "_MP_MIN_REMAINING_SECONDS", -1)
         results = list(utils.mp_map_maybe(_pid_and_square, range(5), num_processes=2))
         assert [square for _, square in results] == [0, 1, 4, 9, 16]
         # The first item tells how long the work is
@@ -279,7 +280,7 @@ class TestMPMapMaybe:
 
     def test_no_worker_processes_if_disabled(self, monkeypatch):
         monkeypatch.setattr(utils, "_MP_MIN_ESTIMATE_SECONDS", 0)
-        monkeypatch.setattr(utils, "_MP_MIN_REMAINING_SECONDS", 0)
+        monkeypatch.setattr(utils, "_MP_MIN_REMAINING_SECONDS", -1)
         results = list(utils.mp_map_maybe(_pid_and_square, range(5), num_processes=0))
         assert {pid for pid, _ in results} == {os.getpid()}
 
@@ -323,9 +324,10 @@ class TestConfigureLogger:
                 if __name__ == "__main__":
                     multiprocessing.set_start_method("fork")
                     utils.configure_logger(logging.getLogger(utils.get_app_name()))
-                    # Hand all but the first item to worker processes
+                    # Hand all but the first item to worker processes, however
+                    # quick the work is
                     utils._MP_MIN_ESTIMATE_SECONDS = 0
-                    utils._MP_MIN_REMAINING_SECONDS = 0
+                    utils._MP_MIN_REMAINING_SECONDS = -1
                     list(utils.mp_map_maybe(work, [0, 1], num_processes=1))
                 """
             )
