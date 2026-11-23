@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import datetime
+import itertools
 import struct
 import typing as T
 from pathlib import Path
@@ -265,13 +266,15 @@ def _parse_sample_tables(stbl: bytes) -> _SampleTables:
             values = _unpack_table(data, _FULL_BOX_HEADER_SIZE, "I", 2)
             timedeltas = []
             for i in range(0, len(values), 2):
-                timedeltas.extend([values[i + 1]] * values[i])
+                timedeltas.extend(itertools.repeat(values[i + 1], values[i]))
         elif box_type == b"ctts":
             # Read the offsets as signed, see _parse_sample_tables_with_construct()
             values = _unpack_table(data, _FULL_BOX_HEADER_SIZE, "i", 2)
             composition_offsets = []
             for i in range(0, len(values), 2):
-                composition_offsets.extend([values[i + 1]] * (values[i] & 0xFFFFFFFF))
+                composition_offsets.extend(
+                    itertools.repeat(values[i + 1], values[i] & 0xFFFFFFFF)
+                )
         elif box_type == b"stss":
             syncs = set(_unpack_table(data, _FULL_BOX_HEADER_SIZE, "I", 1))
 

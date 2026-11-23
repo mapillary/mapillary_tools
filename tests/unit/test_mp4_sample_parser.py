@@ -173,12 +173,33 @@ def test_parse_sample_tables(stbl):
         # a box with a size too small, and a size of 0 (to the end)
         _STSD + struct.pack(">I4s", 4, b"free") + _STSZ,
         _STSD + _STSZ + struct.pack(">I4s", 0, b"free") + b"\x00" * 8,
+        _STSD
+        + _STSZ
+        + _STCO
+        + _STSC
+        + _STTS
+        + struct.pack(">I4s", 0, b"free")
+        + b"\x00" * 8,
         # sample descriptions that construct can not read
         _box(b"stsd", b"\x00\x00\x00\x00\x00\x00\x00\x05") + _STSZ,
     ],
 )
-def test_parse_irregular_sample_tables(stbl):
-    # Left to construct, which drops the box that it fails to read and the
-    # boxes after it
+def test_parse_irregular_sample_tables(stbl, monkeypatch):
     with pytest.raises(mp4_sample_parser._IrregularBoxError):
         mp4_sample_parser._parse_sample_tables(stbl)
+
+    def extract(stbl: bytes) -> tuple[list[dict], list]:
+        descriptions, raw_samples = (
+            mp4_sample_parser.extract_raw_samples_from_stbl_data(stbl)
+        )
+        return descriptions, list(raw_samples)
+
+    # Left to construct, which drops the box that it fails to read and the
+    # boxes after it: the samples are those that construct alone reads
+    samples = extract(stbl)
+
+    def irregular(stbl: bytes):
+        raise mp4_sample_parser._IrregularBoxError()
+
+    monkeypatch.setattr(mp4_sample_parser, "_parse_sample_tables", irregular)
+    assert samples == extract(stbl)
