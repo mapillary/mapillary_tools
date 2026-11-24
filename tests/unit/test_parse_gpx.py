@@ -5,7 +5,6 @@
 
 from __future__ import annotations
 
-import tempfile
 from pathlib import Path
 
 from mapillary_tools import geo, telemetry
@@ -37,7 +36,7 @@ def test_parse_gpx_creates_camm_gps_points():
         assert point.alt is not None
 
 
-def test_parse_gpx_without_elevation():
+def test_parse_gpx_without_elevation(tmp_path: Path):
     gpx_content = """\
 <?xml version="1.0" encoding="UTF-8"?>
 <gpx version="1.1" xmlns="http://www.topografix.com/GPX/1/1">
@@ -53,10 +52,9 @@ def test_parse_gpx_without_elevation():
   </trk>
 </gpx>
 """
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".gpx", delete=False) as f:
-        f.write(gpx_content)
-        f.flush()
-        tracks = parse_gpx(Path(f.name))
+    gpx_path = tmp_path / "track.gpx"
+    gpx_path.write_text(gpx_content)
+    tracks = parse_gpx(gpx_path)
 
     assert len(tracks) == 1
     for point in tracks[0]:
@@ -65,7 +63,7 @@ def test_parse_gpx_without_elevation():
         assert point.alt is None
 
 
-def test_parse_gpx_skips_points_without_time():
+def test_parse_gpx_skips_points_without_time(tmp_path: Path):
     gpx_content = """\
 <?xml version="1.0" encoding="UTF-8"?>
 <gpx version="1.1" xmlns="http://www.topografix.com/GPX/1/1">
@@ -83,17 +81,16 @@ def test_parse_gpx_skips_points_without_time():
   </trk>
 </gpx>
 """
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".gpx", delete=False) as f:
-        f.write(gpx_content)
-        f.flush()
-        tracks = parse_gpx(Path(f.name))
+    gpx_path = tmp_path / "track.gpx"
+    gpx_path.write_text(gpx_content)
+    tracks = parse_gpx(gpx_path)
 
     assert len(tracks) == 1
     # The point without <time> should be skipped
     assert len(tracks[0]) == 2
 
 
-def test_parse_gpx_multiple_segments():
+def test_parse_gpx_multiple_segments(tmp_path: Path):
     gpx_content = """\
 <?xml version="1.0" encoding="UTF-8"?>
 <gpx version="1.1" xmlns="http://www.topografix.com/GPX/1/1">
@@ -114,10 +111,9 @@ def test_parse_gpx_multiple_segments():
   </trk>
 </gpx>
 """
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".gpx", delete=False) as f:
-        f.write(gpx_content)
-        f.flush()
-        tracks = parse_gpx(Path(f.name))
+    gpx_path = tmp_path / "track.gpx"
+    gpx_path.write_text(gpx_content)
+    tracks = parse_gpx(gpx_path)
 
     assert len(tracks) == 2
     assert len(tracks[0]) == 1

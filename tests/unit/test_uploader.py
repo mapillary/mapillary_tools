@@ -393,6 +393,11 @@ def test_upload_zip_with_emitter(
 class TestImageSequenceUploader:
     """Test suite for ImageSequenceUploader with focus on multithreading scenarios and caching."""
 
+    @pytest.fixture(autouse=True)
+    def upload_to_tmp_path(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+        # Dry runs upload to the system temporary directory unless told otherwise
+        monkeypatch.setenv("MAPILLARY_UPLOAD_ENDPOINT", str(tmp_path / "uploads"))
+
     def test_image_sequence_uploader_basic(self, setup_unittest_data: py.path.local):
         """Test basic functionality of ImageSequenceUploader."""
         upload_options = uploader.UploadOptions(

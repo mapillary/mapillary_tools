@@ -10,7 +10,6 @@ import os
 import shlex
 import shutil
 import subprocess
-import sys
 import tempfile
 import zipfile
 from pathlib import Path
@@ -398,39 +397,22 @@ def run_command(params: list[str], command: str, **kwargs):
 
 
 def run_process_for_descs(params: list[str], command: str = "process", **kwargs):
-    # Make windows happy with delete=False
-    # https://github.com/mapillary/mapillary_tools/issues/503
-    if sys.platform in ["win32"]:
-        delete = False
-    else:
-        delete = True
-    with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as desc_file:
-        try:
-            run_command(
-                [
-                    "--skip_process_errors",
-                    *["--desc_path", str(desc_file.name)],
-                    *params,
-                ],
-                command,
-                **kwargs,
-            )
+    # Not a NamedTemporaryFile: on Windows the command can't open one while it
+    # is open here (https://github.com/mapillary/mapillary_tools/issues/503)
+    with tempfile.TemporaryDirectory() as desc_dir:
+        desc_path = os.path.join(desc_dir, "descs.json")
+        run_command(
+            [
+                "--skip_process_errors",
+                *["--desc_path", desc_path],
+                *params,
+            ],
+            command,
+            **kwargs,
+        )
 
-            with open(desc_file.name, "r") as fp:
-                fp.seek(0)
-                descs = json.load(fp)
-
-            if not delete:
-                desc_file.close()
-
-        finally:
-            if not delete:
-                try:
-                    os.remove(desc_file.name)
-                except FileNotFoundError:
-                    pass
-
-    return descs
+        with open(desc_path, "r") as fp:
+            return json.load(fp)
 
 
 def run_process_and_upload_for_descs(
