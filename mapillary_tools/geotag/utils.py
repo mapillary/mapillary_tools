@@ -404,55 +404,53 @@ def _parse_gpx_fast(text: str) -> _ParsedGPX:
     # Read each track point when the parser reaches its end, and take it out of
     # the tree then, so that the tree never holds the track points: only what
     # gpxpy is left to read
-    parser: ET.XMLPullParser[ET.Element] = ET.XMLPullParser(events=("start", "end"))
-    open_elements: list[ET.Element] = []
     root: ET.Element | None = None
     version: str | None = None
     checks: dict[str, _Check] | None = None
     tracks: list[Track] = []
-    segment: Track | None = None
     num_points = 0
     seconds_by_minute: dict[str, int | None] = {}
+    # How many elements are open around the one that starts or ends
+    depth = 0
+    # Whether the open child of the root is a <trk>
+    in_trk = False
+    # The open <trkseg> of a <trk>, and the track of its points
+    trkseg: ET.Element | None = None
+    segment: Track = []
     try:
-        for piece in _xml_pieces_as_gpxpy(text):
-            parser.feed(piece)
-            # Only start and end events, which each come with an element
-            events = T.cast(T.Iterator[T.Tuple[str, ET.Element]], parser.read_events())
-            for event, elem in events:
-                if event == "start":
-                    if root is None:
-                        root = elem
-                        version = elem.get("version")
-                        checks = (
-                            _TRACK_POINT_CHECKS_11
-                            if version == "1.1"
-                            else _TRACK_POINT_CHECKS_10
-                        )
-                        if checks is None:
-                            raise _IrregularGPXError(
-                                "Unexpected gpxpy track point fields"
-                            )
-                    elif (
-                        len(open_elements) == 2
-                        and elem.tag == "trkseg"
-                        and open_elements[1].tag == "trk"
-                    ):
-                        segment = []
-                        tracks.append(segment)
-                    open_elements.append(elem)
-                else:
-                    open_elements.pop()
-                    if segment is not None and len(open_elements) == 3:
-                        if elem.tag == "trkpt":
-                            assert checks is not None
-                            point = _read_track_point(elem, checks, seconds_by_minute)
-                            if point is not None:
-                                segment.append(point)
-                            num_points += 1
-                            open_elements[2].remove(elem)
-                    elif len(open_elements) == 2 and elem.tag == "trkseg":
-                        segment = None
-        parser.close()
+        for event, elem in _xml_events_as_gpxpy(text):
+            if event == "start":
+                if depth == 0:
+                    root = elem
+                    version = elem.get("version")
+                    checks = (
+                        _TRACK_POINT_CHECKS_11
+                        if version == "1.1"
+                        else _TRACK_POINT_CHECKS_10
+                    )
+                    if checks is None:
+                        raise _IrregularGPXError("Unexpected gpxpy track point fields")
+                elif depth == 1:
+                    in_trk = elem.tag == "trk"
+                elif depth == 2 and in_trk and elem.tag == "trkseg":
+                    trkseg = elem
+                    segment = []
+                    tracks.append(segment)
+                depth += 1
+            else:
+                depth -= 1
+                if depth == 3 and trkseg is not None:
+                    if elem.tag == "trkpt":
+                        assert checks is not None
+                        point = _read_track_point(elem, checks, seconds_by_minute)
+                        if point is not None:
+                            segment.append(point)
+                        num_points += 1
+                        trkseg.remove(elem)
+                elif depth == 2:
+                    # What ended is a child of a child of the root: the open
+                    # <trkseg>, if any
+                    trkseg = None
     except ET.ParseError as ex:
         # What gpxpy raises when it parses the same text, without parsing it again
         raise gpxpy.gpx.GPXXMLSyntaxException(f"Error parsing XML: {ex}", ex) from ex
@@ -472,19 +470,32 @@ def _parse_gpx_fast(text: str) -> _ParsedGPX:
     )
 
 
-def _xml_pieces_as_gpxpy(text: str) -> T.Iterator[str]:
+def _xml_events_as_gpxpy(text: str) -> T.Iterator[tuple[str, ET.Element]]:
     """
-    The text without its first default namespace declaration, as gpxpy parses
-    it, in pieces of _FEED_SIZE characters
+    The start and end events of the elements of the text without its first
+    default namespace declaration, as gpxpy parses it. The text is fed to the
+    parser in pieces of _FEED_SIZE characters
     """
     match = _GPXPY_DEFAULT_NAMESPACE.search(text)
     if match is None:
         spans = [(0, len(text))]
     else:
         spans = [(0, match.start()), (match.end(), len(text))]
+
+    parser: ET.XMLPullParser[ET.Element] = ET.XMLPullParser(events=("start", "end"))
+    # Only start and end events, which each come with an element
+    events = T.cast(
+        T.Callable[[], T.Iterator[T.Tuple[str, ET.Element]]], parser.read_events
+    )
     for start, end in spans:
         for piece_start in range(start, end, _FEED_SIZE):
-            yield text[piece_start : min(piece_start + _FEED_SIZE, end)]
+            parser.feed(text[piece_start : min(piece_start + _FEED_SIZE, end)])
+            yield from events()
+    parser.close()
+    # Expat holds back what follows a long token, such as a comment or an
+    # attribute value longer than a piece, until more text comes: here until
+    # the parser is closed
+    yield from events()
 
 
 def _read_track_point(

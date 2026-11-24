@@ -385,6 +385,29 @@ def test_rejected_as_gpxpy_rejects(text: str):
             ),
             id="default namespace declared in a track",
         ),
+        # Expat holds back what follows a token much longer than a piece
+        pytest.param(
+            _gpx(_trk(_trkpt(), f"<!--{'x' * 10_000}-->", _trkpt(), _trkpt())),
+            id="long comment between track points",
+        ),
+        pytest.param(
+            _gpx(
+                _trk(
+                    _trkpt(),
+                    _trkpt(f"<!--{'x' * 10_000}--><time>2025-01-01T00:00:01Z</time>"),
+                )
+            ),
+            id="long comment in the last track point",
+        ),
+        pytest.param(
+            _gpx(
+                _trk(
+                    _trkpt(),
+                    _trkpt(attributes=f'lat="1" lon="2" name="{"x" * 10_000}"'),
+                )
+            ),
+            id="long attribute in the last track point",
+        ),
     ],
 )
 def test_read_in_pieces(text: str, feed_size: int, monkeypatch):
@@ -589,7 +612,10 @@ def test_reading_makes_no_reference_cycles():
     gc.collect()
     gc.disable()
     try:
-        parsed = geotag_utils._parse_gpx_file(io.StringIO(text))
+        # By the fast reader itself, which raises rather than give the file to
+        # gpxpy
+        parsed = geotag_utils._parse_gpx_fast(text)
+        assert parsed.num_points == 60
         del parsed
         assert gc.collect() == 0
     finally:
