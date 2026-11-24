@@ -447,3 +447,26 @@ def test_path_resolver_in_a_folder_that_cannot_be_searched(tmp_path: Path):
         assert utils.PathResolver().resolve(image) == image.resolve()
     finally:
         folder.chmod(0o700)
+
+
+def test_gc_paused_restores_the_collector():
+    import gc
+
+    assert gc.isenabled()
+    with utils.gc_paused():
+        assert not gc.isenabled()
+    assert gc.isenabled()
+
+    with pytest.raises(RuntimeError):
+        with utils.gc_paused():
+            raise RuntimeError("parse failed")
+    assert gc.isenabled()
+
+    # Left paused if it was paused before
+    gc.disable()
+    try:
+        with utils.gc_paused():
+            pass
+        assert not gc.isenabled()
+    finally:
+        gc.enable()

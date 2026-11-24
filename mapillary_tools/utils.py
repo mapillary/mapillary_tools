@@ -6,6 +6,8 @@
 from __future__ import annotations
 
 import concurrent.futures
+import contextlib
+import gc
 import hashlib
 import logging
 import os
@@ -349,6 +351,33 @@ _MP_MIN_REMAINING_SECONDS = 2.0
 # The work done in this process before estimating what is left. The first
 # items are slower (e.g. modules loaded on first use)
 _MP_MIN_ESTIMATE_SECONDS = 0.2
+
+
+@contextlib.contextmanager
+def gc_paused() -> T.Generator[None, None, None]:
+    """
+    Pause the cyclic garbage collector while building many objects that hold
+    no reference cycles: as they pile up, it would scan them all again each
+    time it runs, and find nothing to free. Reference counting still frees
+    whatever is dropped meanwhile. The collector runs again afterwards if it
+    did before. It is paused for the whole process, so this is not for
+    several threads at once: the first in would turn it back on when it
+    leaves, while the others still need it paused
+
+    >>> import gc
+    >>> with gc_paused():
+    ...     gc.isenabled()
+    False
+    >>> gc.isenabled()
+    True
+    """
+    enabled = gc.isenabled()
+    gc.disable()
+    try:
+        yield
+    finally:
+        if enabled:
+            gc.enable()
 
 
 def mp_map_maybe(
