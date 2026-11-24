@@ -198,8 +198,6 @@ def test_parse_irregular_sample_tables(stbl, monkeypatch):
     # boxes after it: the samples are those that construct alone reads
     samples = extract(stbl)
 
-    def irregular(stbl: bytes):
-        raise mp4_sample_parser._IrregularBoxError()
-
-    monkeypatch.setattr(mp4_sample_parser, "_parse_sample_tables", irregular)
+    tables = mp4_sample_parser._parse_sample_tables_with_construct(stbl)
+    monkeypatch.setattr(mp4_sample_parser, "_parse_sample_tables", lambda _: tables)
     assert samples == extract(stbl)
