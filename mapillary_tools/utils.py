@@ -360,7 +360,9 @@ def gc_paused() -> T.Generator[None, None, None]:
     no reference cycles: as they pile up, it would scan them all again each
     time it runs, and find nothing to free. Reference counting still frees
     whatever is dropped meanwhile. The collector runs again afterwards if it
-    did before
+    did before. It is paused for the whole process, so this is not for
+    several threads at once: the first in would turn it back on when it
+    leaves, while the others still need it paused
 
     >>> import gc
     >>> with gc_paused():

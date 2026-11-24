@@ -315,8 +315,10 @@ def _parse_gpx_with_gpxpy(xml_or_file: str | _TextFile) -> _ParsedGPX:
 _GPXPY_DEFAULT_NAMESPACE = re.compile(r"""\sxmlns=(['"])[^'"]+\1""")
 
 # The text is fed to the XML parser in pieces of this many characters, rather
-# than copied whole without the namespace declaration
-_FEED_SIZE = 1024 * 1024
+# than copied whole without the namespace declaration. The track points of a
+# piece are all in the tree before the first of them is read and taken out,
+# each shifting the others, so a piece holds a few hundred of them at most
+_FEED_SIZE = 64 * 1024
 
 # The usual GPX time format (UTC, at most microseconds), whose Unix time is
 # computed directly; other formats go through gpxpy's time parser
@@ -402,8 +404,8 @@ def _parse_gpx_fast(text: str) -> _ParsedGPX:
         raise _IrregularGPXError("gpxpy parses with lxml")
 
     # Read each track point when the parser reaches its end, and take it out of
-    # the tree then, so that the tree never holds the track points: only what
-    # gpxpy is left to read
+    # the tree then, so that besides what gpxpy is left to read, the tree only
+    # holds the track points of the piece of text being read (see _FEED_SIZE)
     root: ET.Element | None = None
     version: str | None = None
     checks: dict[str, _Check] | None = None
@@ -452,6 +454,11 @@ def _parse_gpx_fast(text: str) -> _ParsedGPX:
                     # <trkseg>, if any
                     trkseg = None
     except ET.ParseError as ex:
+        # Its traceback holds the frame of XMLPullParser.read_events() that
+        # raised it, which holds the error: a reference cycle that would keep
+        # the text and the track points read alive until the garbage collector,
+        # paused while a GPX file is read, runs
+        ex.__traceback__ = None
         # What gpxpy raises when it parses the same text, without parsing it again
         raise gpxpy.gpx.GPXXMLSyntaxException(f"Error parsing XML: {ex}", ex) from ex
     assert root is not None

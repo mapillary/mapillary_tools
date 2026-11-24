@@ -567,56 +567,92 @@ def test_unix_time_from_random_gpx_times():
 def test_track_points_are_freed_once_read(monkeypatch):
     """
     Each track point is taken out of the tree once read, rather than kept
-    there until the whole file is parsed
+    there until the whole file is parsed, also when a piece of the text holds
+    hundreds of them
     """
     import weakref
 
+    num_points = 2_500
     text = _gpx(
-        _trk(*(_trkpt(f"<time>2025-01-01T00:00:{i:02d}Z</time>") for i in range(50)))
+        _trk(
+            *(
+                _trkpt(f"<time>2025-01-01T00:{i // 60:02d}:{i % 60:02d}Z</time>")
+                for i in range(num_points)
+            )
+        )
     )
+    # Read in several pieces
+    assert 2 * geotag_utils._FEED_SIZE < len(text)
     read: list[weakref.ref] = []
     read_track_point = geotag_utils._read_track_point
 
     def recording_read_track_point(trkpt, checks, seconds_by_minute):
-        # The points read before the one before this one are freed
-        assert all(ref() is None for ref in read[:-1])
+        # The point read before the one before this one is freed, as were all
+        # the points before it when it was read
+        if 2 <= len(read):
+            assert read[-2]() is None
         read.append(weakref.ref(trkpt))
         return read_track_point(trkpt, checks, seconds_by_minute)
 
     monkeypatch.setattr(geotag_utils, "_read_track_point", recording_read_track_point)
-    monkeypatch.setattr(geotag_utils, "_FEED_SIZE", 64)
-    assert len(read) == 0
     assert geotag_utils._parse_gpx_fast(text) == geotag_utils._parse_gpx_with_gpxpy(
         text
     )
-    assert len(read) == 50
+    assert len(read) == num_points
 
 
-def test_reading_makes_no_reference_cycles():
+_TRACK_OF_60_POINTS = _trk(
+    *(
+        _trkpt(f"<ele>{i}</ele><time>2025-01-01T00:00:{i:02d}Z</time>")
+        for i in range(60)
+    )
+)
+
+
+@pytest.mark.parametrize(
+    "text, valid",
+    [
+        pytest.param(
+            _gpx(
+                "<metadata><name>track</name></metadata>"
+                + _TRACK_OF_60_POINTS
+                + "<wpt lat='1' lon='2'><name>w</name></wpt>"
+            ),
+            True,
+            id="valid",
+        ),
+        pytest.param(
+            _gpx(_TRACK_OF_60_POINTS + "<name>a & b</name>"),
+            False,
+            id="invalid XML after the track points",
+        ),
+    ],
+)
+def test_reading_makes_no_reference_cycles(text: str, valid: bool):
     """
     Which the garbage collector, paused while a GPX file is read, would have
     to free (see utils.gc_paused())
     """
     import gc
 
-    text = _gpx(
-        "<metadata><name>track</name></metadata>"
-        + _trk(
-            *(
-                _trkpt(f"<ele>{i}</ele><time>2025-01-01T00:00:{i:02d}Z</time>")
-                for i in range(60)
-            )
-        )
-        + "<wpt lat='1' lon='2'><name>w</name></wpt>"
-    )
     gc.collect()
+    enabled = gc.isenabled()
     gc.disable()
     try:
         # By the fast reader itself, which raises rather than give the file to
         # gpxpy
-        parsed = geotag_utils._parse_gpx_fast(text)
-        assert parsed.num_points == 60
-        del parsed
+        if valid:
+            parsed = geotag_utils._parse_gpx_fast(text)
+            assert parsed.num_points == 60
+            del parsed
+        else:
+            try:
+                geotag_utils._parse_gpx_fast(text)
+            except gpxpy.gpx.GPXXMLSyntaxException:
+                pass
+            else:
+                raise AssertionError("invalid XML read")
         assert gc.collect() == 0
     finally:
-        gc.enable()
+        if enabled:
+            gc.enable()
