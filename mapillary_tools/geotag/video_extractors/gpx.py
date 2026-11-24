@@ -336,13 +336,15 @@ class GPXVideoExtractor(BaseVideoExtractor):
             self._warn_of_tracks(gpx_tracks)
 
         # Copies, which are moved to the video: the tracks may be shared with
-        # other readers of the file
-        gpx_points = [
-            dataclasses.replace(p)
-            for track in gpx_tracks
-            for p in track
-            if _GPS_EPOCH <= p.time
-        ]
+        # other readers of the file. With the garbage collector paused, as
+        # there are as many as the file has points (see utils.gc_paused())
+        with utils.gc_paused():
+            gpx_points = [
+                dataclasses.replace(p)
+                for track in gpx_tracks
+                for p in track
+                if _GPS_EPOCH <= p.time
+            ]
 
         # The tracks need not be in time order, and interpolation needs the
         # merged points to be

@@ -91,16 +91,20 @@ def read_gpx_tracks(gpx_file: Path) -> list[Track]:
                 # are, on every platform rather than in the encoding of the
                 # locale: a byte that is not UTF-8 only turns a letter of a
                 # name into U+FFFD, as for NMEA
-                parsed = _check_track_points(
-                    gpx_file,
-                    _parse_gpx_file(
-                        io.TextIOWrapper(
-                            io.BufferedReader(reader),
-                            encoding="utf-8",
-                            errors="replace",
-                        )
-                    ),
-                )
+                # With the garbage collector paused, as the track points
+                # make hundreds of thousands of objects for a large file
+                # (see utils.gc_paused())
+                with utils.gc_paused():
+                    parsed = _check_track_points(
+                        gpx_file,
+                        _parse_gpx_file(
+                            io.TextIOWrapper(
+                                io.BufferedReader(reader),
+                                encoding="utf-8",
+                                errors="replace",
+                            )
+                        ),
+                    )
             except (
                 gpxpy.gpx.GPXException,
                 UnicodeError,
@@ -397,25 +401,62 @@ def _parse_gpx_fast(text: str) -> _ParsedGPX:
     if gpxpy.parser.library() != "STDLIB":
         raise _IrregularGPXError("gpxpy parses with lxml")
 
+    # Read each track point when the parser reaches its end, and take it out of
+    # the tree then, so that the tree never holds the track points: only what
+    # gpxpy is left to read
+    parser: ET.XMLPullParser[ET.Element] = ET.XMLPullParser(events=("start", "end"))
+    open_elements: list[ET.Element] = []
+    root: ET.Element | None = None
+    version: str | None = None
+    checks: dict[str, _Check] | None = None
+    tracks: list[Track] = []
+    segment: Track | None = None
+    num_points = 0
+    seconds_by_minute: dict[str, int | None] = {}
     try:
-        root = _parse_xml_as_gpxpy(text)
+        for piece in _xml_pieces_as_gpxpy(text):
+            parser.feed(piece)
+            # Only start and end events, which each come with an element
+            events = T.cast(T.Iterator[T.Tuple[str, ET.Element]], parser.read_events())
+            for event, elem in events:
+                if event == "start":
+                    if root is None:
+                        root = elem
+                        version = elem.get("version")
+                        checks = (
+                            _TRACK_POINT_CHECKS_11
+                            if version == "1.1"
+                            else _TRACK_POINT_CHECKS_10
+                        )
+                        if checks is None:
+                            raise _IrregularGPXError(
+                                "Unexpected gpxpy track point fields"
+                            )
+                    elif (
+                        len(open_elements) == 2
+                        and elem.tag == "trkseg"
+                        and open_elements[1].tag == "trk"
+                    ):
+                        segment = []
+                        tracks.append(segment)
+                    open_elements.append(elem)
+                else:
+                    open_elements.pop()
+                    if segment is not None and len(open_elements) == 3:
+                        if elem.tag == "trkpt":
+                            assert checks is not None
+                            point = _read_track_point(elem, checks, seconds_by_minute)
+                            if point is not None:
+                                segment.append(point)
+                            num_points += 1
+                            open_elements[2].remove(elem)
+                    elif len(open_elements) == 2 and elem.tag == "trkseg":
+                        segment = None
+        parser.close()
     except ET.ParseError as ex:
         # What gpxpy raises when it parses the same text, without parsing it again
         raise gpxpy.gpx.GPXXMLSyntaxException(f"Error parsing XML: {ex}", ex) from ex
-
-    version = root.get("version")
-    checks = _TRACK_POINT_CHECKS_11 if version == "1.1" else _TRACK_POINT_CHECKS_10
-    if checks is None:
-        raise _IrregularGPXError("Unexpected gpxpy track point fields")
-
-    # Take the track points out of the tree, where gpxpy looks for them
-    segments: list[list[ET.Element]] = []
-    for trk in root:
-        if trk.tag == "trk":
-            for trkseg in trk:
-                if trkseg.tag == "trkseg":
-                    segments.append([e for e in trkseg if e.tag == "trkpt"])
-                    trkseg[:] = [e for e in trkseg if e.tag != "trkpt"]
+    assert root is not None
 
     # Let gpxpy read (and check) everything else, as gpxpy.parse() does (which
     # passes it an element and a version that may be None, whatever its
@@ -424,79 +465,69 @@ def _parse_gpx_fast(text: str) -> _ParsedGPX:
         gpxpy.gpx.GPX(), T.cast(T.Any, root), T.cast(T.Any, version)
     )
 
-    seconds_by_minute: dict[str, int | None] = {}
     return _ParsedGPX(
-        tracks=[
-            _read_track_points(trkpts, checks, seconds_by_minute) for trkpts in segments
-        ],
-        num_points=sum(len(trkpts) for trkpts in segments),
+        tracks=tracks,
+        num_points=num_points,
         has_routes_or_waypoints=bool(gpx.routes or gpx.waypoints),
     )
 
 
-def _parse_xml_as_gpxpy(text: str) -> ET.Element:
+def _xml_pieces_as_gpxpy(text: str) -> T.Iterator[str]:
     """
-    The XML element of the text without its first default namespace
-    declaration, as gpxpy parses it
+    The text without its first default namespace declaration, as gpxpy parses
+    it, in pieces of _FEED_SIZE characters
     """
     match = _GPXPY_DEFAULT_NAMESPACE.search(text)
     if match is None:
         spans = [(0, len(text))]
     else:
         spans = [(0, match.start()), (match.end(), len(text))]
-
-    # As ET.XML() parses a string
-    parser = ET.XMLParser(target=ET.TreeBuilder())
     for start, end in spans:
         for piece_start in range(start, end, _FEED_SIZE):
-            parser.feed(text[piece_start : min(piece_start + _FEED_SIZE, end)])
-    return parser.close()
+            yield text[piece_start : min(piece_start + _FEED_SIZE, end)]
 
 
-def _read_track_points(
-    trkpts: list[ET.Element],
+def _read_track_point(
+    trkpt: ET.Element,
     checks: dict[str, _Check],
     seconds_by_minute: dict[str, int | None],
-) -> Track:
-    track: Track = []
+) -> telemetry.CAMMGPSPoint | None:
+    lat_text, lon_text = trkpt.get("lat"), trkpt.get("lon")
+    if lat_text is None or lon_text is None:
+        raise _IrregularGPXError("Track point without lat or lon")
+    # Converted like gpxpy.gpxfield.FLOAT_TYPE does
+    lat, lon = float(lat_text.strip()), float(lon_text.strip())
 
-    for trkpt in trkpts:
-        lat_text, lon_text = trkpt.get("lat"), trkpt.get("lon")
-        if lat_text is None or lon_text is None:
-            raise _IrregularGPXError("Track point without lat or lon")
-        # Converted like gpxpy.gpxfield.FLOAT_TYPE does
-        lat, lon = float(lat_text.strip()), float(lon_text.strip())
+    ele: float | None = None
+    time_text: str | None = None
+    # gpxpy reads the first child element with each tag
+    seen: set[str] = set()
+    for child in trkpt:
+        tag = child.tag
+        check = checks.get(tag)
+        if check is None or tag in seen:
+            continue
+        seen.add(tag)
+        child_text = child.text
+        if child_text is None:
+            continue
+        if check is _ELE:
+            ele = float(child_text.strip())
+        elif check is _TIME:
+            time_text = child_text
+        elif check is _FLOAT:
+            float(child_text.strip())
+        elif check is _INT:
+            int(child_text.strip())
+        elif child_text not in check:
+            raise _IrregularGPXError(f"Invalid <{tag}> value {child_text!r}")
 
-        ele: float | None = None
-        time_text: str | None = None
-        # gpxpy reads the first child element with each tag
-        seen: set[str] = set()
-        for child in trkpt:
-            tag = child.tag
-            check = checks.get(tag)
-            if check is None or tag in seen:
-                continue
-            seen.add(tag)
-            child_text = child.text
-            if child_text is None:
-                continue
-            if check is _ELE:
-                ele = float(child_text.strip())
-            elif check is _TIME:
-                time_text = child_text
-            elif check is _FLOAT:
-                float(child_text.strip())
-            elif check is _INT:
-                int(child_text.strip())
-            elif child_text not in check:
-                raise _IrregularGPXError(f"Invalid <{tag}> value {child_text!r}")
-
-        if time_text is not None:
-            unix_time = _unix_time_from_gpx_time(time_text, seconds_by_minute)
-            if unix_time is not None:
-                track.append(track_point(unix_time, lat=lat, lon=lon, alt=ele))
-
-    return track
+    if time_text is None:
+        return None
+    unix_time = _unix_time_from_gpx_time(time_text, seconds_by_minute)
+    if unix_time is None:
+        return None
+    return track_point(unix_time, lat=lat, lon=lon, alt=ele)
 
 
 def _unix_time_from_gpx_time(
