@@ -172,6 +172,78 @@ def test_build_stbl_happy():
     _build_and_parse_stbl(descriptions, [])
 
 
+def _samples_with_composition_offsets(
+    offsets: T.List[int],
+) -> T.List[sample_parser.RawSample]:
+    return [
+        sample_parser.RawSample(
+            description_idx=1,
+            offset=idx,
+            size=1,
+            timedelta=20,
+            composition_offset=offset,
+            is_sync=idx == 0,
+        )
+        for idx, offset in enumerate(offsets)
+    ]
+
+
+def _find_ctts(boxes: T.List[cparser.BoxDict]) -> cparser.BoxDict:
+    (ctts,) = [box for box in boxes if box["type"] == b"ctts"]
+    return ctts
+
+
+def test_build_stbl_negative_composition_offsets():
+    descriptions = [{"format": b"hvc1", "data": b""}]
+    samples = _samples_with_composition_offsets([0, 60, 0, -40, -20, -20, 20])
+    _build_and_parse_stbl(descriptions, samples)
+
+    ctts = _find_ctts(builder.build_stbl_from_raw_samples(descriptions, samples))
+    # Negative offsets are signed, which only version 1 allows
+    assert ctts["data"]["version"] == 1
+    assert [
+        (entry["sample_count"], entry["sample_offset"])
+        for entry in ctts["data"]["entries"]
+    ] == [
+        (1, 0),
+        (1, 60),
+        (1, 0),
+        (1, 2**32 - 40),
+        (2, 2**32 - 20),
+        (1, 20),
+    ]
+
+
+def test_build_stbl_positive_composition_offsets():
+    descriptions = [{"format": b"avc1", "data": b""}]
+    samples = _samples_with_composition_offsets([0, 40, 0, 20, 20])
+    _build_and_parse_stbl(descriptions, samples)
+
+    ctts = _find_ctts(builder.build_stbl_from_raw_samples(descriptions, samples))
+    assert ctts["data"].get("version", 0) == 0
+
+
+def test_transform_mp4_negative_composition_offsets():
+    # The H.265 video track of this video has negative composition offsets
+    path = "tests/data/videos/sample-5s_h265.mp4"
+    with open(path, "rb") as fp:
+        source = sample_parser.MovieBoxParser.parse_stream(fp)
+        source_samples = list(source.extract_track_at(0).extract_raw_samples())
+        assert any(s.composition_offset < 0 for s in source_samples)
+
+        target_fp = builder.transform_mp4(fp)
+        target = sample_parser.MovieBoxParser.parse_stream(
+            T.cast(T.BinaryIO, target_fp)
+        )
+
+    target_samples = list(target.extract_track_at(0).extract_raw_samples())
+    assert [
+        (s.size, s.timedelta, s.composition_offset, s.is_sync) for s in target_samples
+    ] == [
+        (s.size, s.timedelta, s.composition_offset, s.is_sync) for s in source_samples
+    ]
+
+
 def test_parse_raw_samples_from_stbl():
     # building a stbl with 4 samples
     # chunk 1

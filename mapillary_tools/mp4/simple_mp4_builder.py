@@ -154,7 +154,14 @@ class _CompressedSampleCompositionOffset:
 def _build_ctts(sample_composition_offsets: T.Iterable[int]) -> BoxDict:
     # compress offsets
     compressed: list[_CompressedSampleCompositionOffset] = []
+    has_negative_offsets = False
     for offset in sample_composition_offsets:
+        if offset < 0:
+            has_negative_offsets = True
+            # The parser reads the offsets as signed (H.264 and H.265 have
+            # negative ones), but CompositionTimeToSampleBox writes them
+            # unsigned, so write the same 32 bits as unsigned
+            offset &= 0xFFFFFFFF
         if compressed and offset == compressed[-1].sample_offset:
             compressed[-1].sample_count += 1
         else:
@@ -163,6 +170,8 @@ def _build_ctts(sample_composition_offsets: T.Iterable[int]) -> BoxDict:
     return {
         "type": b"ctts",
         "data": {
+            # Only version 1 has signed offsets
+            "version": 1 if has_negative_offsets else 0,
             "entries": [dataclasses.asdict(td) for td in compressed],
         },
     }
