@@ -9,6 +9,7 @@ import dataclasses
 import datetime
 import io
 import itertools
+import struct
 import typing as T
 
 import construct as C
@@ -132,6 +133,117 @@ KLV = C.Struct(
 
 
 GPMFSampleData = C.GreedyRange(KLV)
+
+
+# struct format characters of the numeric types in _type_mapping
+_struct_formats = {
+    b"b": "b",
+    b"B": "B",
+    b"d": "d",
+    b"f": "f",
+    b"j": "q",
+    b"J": "Q",
+    b"l": "i",
+    b"L": "I",
+    b"q": "I",
+    b"Q": "Q",
+    b"s": "h",
+    b"S": "H",
+}
+# types read as lists of fixed-size byte strings
+_bytes_type_sizes = {b"F": 4, b"G": 16, b"U": 16}
+_klv_header = struct.Struct(">4scBH")
+
+
+# Real cameras nest KLVs two levels deep (DEVC > STRM)
+_MAX_NESTING = 16
+
+
+class _UnusualKLVError(Exception):
+    pass
+
+
+def _parse_klvs(data: bytes, offset: int, end: int, depth: int = 0) -> list[KLVDict]:
+    klvs: list[KLVDict] = []
+
+    while offset + _klv_header.size <= end:
+        key, klv_type, structure_size, repeat = _klv_header.unpack_from(data, offset)
+        offset += _klv_header.size
+
+        # Leave a structure size that is not a positive multiple of the type's
+        # size to GPMFSampleData, which reads such KLVs even when they are cut
+        # short
+        fmt = _struct_formats.get(klv_type)
+        if fmt is not None:
+            item_size = struct.calcsize(fmt)
+            if structure_size < item_size or structure_size % item_size:
+                raise _UnusualKLVError()
+        elif klv_type in _bytes_type_sizes:
+            item_size = _bytes_type_sizes[klv_type]
+            if structure_size == 0 or structure_size % item_size:
+                raise _UnusualKLVError()
+
+        size = structure_size * repeat
+        if end < offset + size + (-size % 4):
+            # GPMFSampleData drops a KLV that is cut short, and stops
+            break
+
+        value: list[T.Any]
+        if fmt is not None:
+            count = structure_size // item_size
+            values = struct.unpack_from(f">{count * repeat}{fmt}", data, offset)
+            value = [list(values[i : i + count]) for i in range(0, len(values), count)]
+        elif klv_type == b"\x00":
+            if depth == _MAX_NESTING:
+                # Leave deep nesting to GPMFSampleData, which keeps what it reads
+                # before it runs out of stack
+                raise _UnusualKLVError()
+            value = T.cast(
+                T.List[T.Any], _parse_klvs(data, offset, offset + size, depth + 1)
+            )
+        elif klv_type in _bytes_type_sizes:
+            value = [
+                [
+                    data[i : i + item_size]
+                    for i in range(j, j + structure_size, item_size)
+                ]
+                for j in range(offset, offset + size, structure_size)
+            ]
+        elif structure_size == 0:
+            value = [b""] * repeat
+        else:
+            # b"c", and the types not in _type_mapping, e.g. complex (b"?")
+            value = [
+                data[i : i + structure_size]
+                for i in range(offset, offset + size, structure_size)
+            ]
+
+        klvs.append(
+            {
+                "key": key,
+                "type": klv_type,
+                "structure_size": structure_size,
+                "repeat": repeat,
+                "data": value,
+            }
+        )
+        offset += size + (-size % 4)
+
+    return klvs
+
+
+def parse_gpmf_sample_data(data: bytes) -> list[KLVDict]:
+    """
+    Parse a GPMF sample as GPMFSampleData.parse() does, but much faster.
+
+    Reading the values with struct instead of construct makes a difference for
+    the IMU streams (ACCL, GYRO, CORI, ...), which carry hundreds of values per
+    sample.
+    """
+    try:
+        return _parse_klvs(data, 0, len(data))
+    except _UnusualKLVError:
+        return T.cast(T.List[KLVDict], GPMFSampleData.parse(data))
 
 
 @dataclasses.dataclass
@@ -628,7 +740,7 @@ def _load_telemetry_from_samples(
 
     for sample, sample_data in _iterate_read_sample_data(fp, samples):
         try:
-            gpmf_sample_data = T.cast(T.Dict, GPMFSampleData.parse(sample_data))
+            gpmf_sample_data = parse_gpmf_sample_data(sample_data)
         except C.ConstructError:
             continue
 
