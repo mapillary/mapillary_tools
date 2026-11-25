@@ -16,6 +16,7 @@ else:
 
 from ... import (
     blackvue_parser,
+    cam70mai_parser,
     exceptions,
     geo,
     novatek_parser,
@@ -149,6 +150,24 @@ class NovatekVideoExtractor(BaseVideoExtractor):
             points=T.cast(T.List[geo.Point], points),
         )
 
+class Cam70MaiVideoExtractor(BaseVideoExtractor):
+    @override
+    def extract(self) -> types.VideoMetadata:
+        with self.video_path.open("rb") as fp:
+            points = cam70mai_parser.extract_points(fp)
+
+        if not points:
+            raise exceptions.MapillaryVideoGPSNotFoundError(
+                "No 70mai GPS data found"
+            )
+
+        return types.VideoMetadata(
+            filename=self.video_path,
+            filesize=utils.get_file_size(self.video_path),
+            filetype=types.FileType.VIDEO,
+            points=T.cast(T.List[geo.Point], points),
+            make="70mai",
+        )
 
 class NativeVideoExtractor(BaseVideoExtractor):
     def __init__(
@@ -215,6 +234,13 @@ class NativeVideoExtractor(BaseVideoExtractor):
 
         if ft is None or types.FileType.VIDEO in ft:
             extractor = NovatekVideoExtractor(self.video_path)
+            try:
+                return extractor.extract()
+            except exceptions.MapillaryVideoGPSNotFoundError:
+                pass
+
+        if ft is None or types.FileType.VIDEO in ft:
+            extractor = Cam70MaiVideoExtractor(self.video_path)
             try:
                 return extractor.extract()
             except exceptions.MapillaryVideoGPSNotFoundError:
