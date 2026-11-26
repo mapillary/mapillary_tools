@@ -157,7 +157,9 @@ def upload(
         assert upload_successes == len(stats), (
             f"Expect {upload_successes} success but got {stats}"
         )
-        _show_upload_summary(stats, upload_errors)
+        _show_upload_summary(
+            stats, upload_errors, missing_import_paths=candidates.missing_import_paths
+        )
 
 
 def _history_check_result(
@@ -624,8 +626,18 @@ def _summarize(stats: T.Sequence[_APIStats]) -> dict:
     return upload_summary
 
 
-def _show_upload_summary(stats: T.Sequence[_APIStats], errors: T.Sequence[Exception]):
+def _show_upload_summary(
+    stats: T.Sequence[_APIStats],
+    errors: T.Sequence[Exception],
+    missing_import_paths: T.Sequence[Path] = (),
+):
     LOG.info("==> Upload summary")
+
+    if missing_import_paths:
+        count = len(missing_import_paths)
+        LOG.info(
+            f"Skipped {count} import {'path' if count == 1 else 'paths'} not found"
+        )
 
     errors_by_type: dict[type[Exception], list[Exception]] = {}
     for error in errors:
@@ -705,6 +717,8 @@ class _UploadCandidates(T.NamedTuple):
     image_metadatas: list[types.ImageMetadata]
     video_metadatas: list[types.VideoMetadata]
     zip_paths: list[Path]
+    # The import paths skipped because they were not found
+    missing_import_paths: tuple[Path, ...] = ()
 
 
 def _iterate_import_files(
@@ -728,6 +742,17 @@ def _find_upload_candidates(
     # Resolved path to the path found, in the order found
     found_zip_paths: dict[Path, Path] = {}
 
+    # Skip the import paths that are gone, such as files deleted or moved since
+    # they were processed, and upload the files of the others
+    existing_import_paths: list[Path] = []
+    missing_import_paths: list[Path] = []
+    for import_path in import_paths:
+        if _import_path_exists(import_path):
+            existing_import_paths.append(import_path)
+        else:
+            LOG.error("Skipping %s: import file or directory not found", import_path)
+            missing_import_paths.append(import_path)
+
     # Look through the import paths once for all file types, and show the
     # progress, as it takes long for many files or on network drives
     with tqdm(
@@ -735,7 +760,7 @@ def _find_upload_candidates(
         unit=" files",
         disable=LOG.isEnabledFor(logging.DEBUG),
     ) as pbar:
-        for path in _iterate_import_files(import_paths, skip_subfolders):
+        for path in _iterate_import_files(existing_import_paths, skip_subfolders):
             if utils.is_image_file(path):
                 found_image_paths.add(resolver.resolve(path))
             elif utils.is_video_file(path):
@@ -765,7 +790,9 @@ def _find_upload_candidates(
             )
             continue
         zip_paths.append(zip_path)
-    return _UploadCandidates(image_metadatas, video_metadatas, zip_paths)
+    return _UploadCandidates(
+        image_metadatas, video_metadatas, zip_paths, tuple(missing_import_paths)
+    )
 
 
 def _gen_upload_everything(
@@ -797,14 +824,26 @@ def _normalize_import_paths(import_path: Path | T.Sequence[Path]) -> list[Path]:
 
     import_paths = list(utils.deduplicate_paths(import_paths))
 
-    # Check and fail early
-    for path in import_paths:
-        if not path.is_file() and not path.is_dir():
+    # Fail early when none is found. One that is gone while others are found,
+    # such as a file deleted since it was processed, is skipped when finding
+    # the files to upload
+    if import_paths and not any(_import_path_exists(path) for path in import_paths):
+        if len(import_paths) == 1:
             raise exceptions.MapillaryFileNotFoundError(
-                f"Import file or directory not found: {path}"
+                f"Import file or directory not found: {import_paths[0]}"
             )
+        raise exceptions.MapillaryFileNotFoundError(
+            f"None of the {len(import_paths)} import files or directories was found: "
+            + ", ".join(str(path) for path in import_paths)
+        )
 
     return import_paths
+
+
+def _import_path_exists(path: Path) -> bool:
+    # Unlike Path.is_file() before Python 3.14, os.path.isfile() does not raise
+    # for a path it cannot look at, such as in a folder that cannot be searched
+    return os.path.isfile(path) or os.path.isdir(path)
 
 
 def _continue_or_fail(ex: Exception) -> Exception:

@@ -5,6 +5,7 @@
 
 import io
 import json
+import logging
 import os
 import sys
 import typing as T
@@ -199,6 +200,123 @@ def test_find_upload_candidates_in_a_folder_that_cannot_be_searched(
         capture_tree / "b.JPG",
         capture_tree / "a.jpg",
     ]
+
+
+def test_find_upload_candidates_skips_import_paths_not_found(
+    capture_tree: Path, caplog: pytest.LogCaptureFixture
+):
+    metadatas = _capture_metadatas(capture_tree)
+    # Processed, then deleted
+    (capture_tree / "b.JPG").unlink()
+    (capture_tree / "sub" / "f.mov").unlink()
+    import_paths = [
+        capture_tree / "a.jpg",
+        capture_tree / "b.JPG",
+        capture_tree / "c.mp4",
+        capture_tree / "sub" / "f.mov",
+        capture_tree / "deleted_folder",
+        capture_tree / "d.zip",
+    ]
+
+    candidates = upload._find_upload_candidates(
+        metadatas, import_paths, skip_subfolders=False
+    )
+
+    missing_paths = (
+        capture_tree / "b.JPG",
+        capture_tree / "sub" / "f.mov",
+        capture_tree / "deleted_folder",
+    )
+    assert candidates == upload._UploadCandidates(
+        [metadatas[3]], [metadatas[4]], [capture_tree / "d.zip"], missing_paths
+    )
+    found_paths = [p for p in import_paths if p.exists()]
+    assert candidates._replace(
+        missing_import_paths=()
+    ) == _find_upload_candidates_by_file_type(
+        metadatas, found_paths, skip_subfolders=False
+    )
+    errors = [r.getMessage() for r in caplog.records if r.levelname == "ERROR"]
+    assert errors == [
+        f"Skipping {path}: import file or directory not found" for path in missing_paths
+    ]
+
+
+@pytest.mark.skipif(
+    sys.platform.startswith("win") or (hasattr(os, "geteuid") and os.geteuid() == 0),
+    reason="Folder permissions do not apply on Windows or to root",
+)
+def test_find_upload_candidates_skips_import_files_that_cannot_be_looked_at(
+    capture_tree: Path,
+):
+    metadatas = _capture_metadatas(capture_tree)
+    folder = capture_tree / "sub"
+    import_paths = [capture_tree / "a.jpg", folder / "e.jpg", folder / "f.mov"]
+    # Listed, but its files cannot be looked at
+    folder.chmod(0o600)
+    try:
+        normalized_paths = upload._normalize_import_paths(import_paths)
+        candidates = upload._find_upload_candidates(
+            metadatas, normalized_paths, skip_subfolders=False
+        )
+    finally:
+        folder.chmod(0o700)
+
+    assert normalized_paths == import_paths
+    assert candidates == upload._UploadCandidates(
+        [metadatas[3]], [], [], (folder / "e.jpg", folder / "f.mov")
+    )
+
+
+def test_normalize_import_paths_found_or_not(tmp_path: Path):
+    found = tmp_path / "found.jpg"
+    found.touch()
+    folder = tmp_path / "folder"
+    folder.mkdir()
+    deleted = tmp_path / "deleted.jpg"
+
+    # Kept to look for the files to upload, which skips those not found
+    assert upload._normalize_import_paths([deleted, found, folder, found]) == [
+        deleted,
+        found,
+        folder,
+    ]
+
+    # Nothing to upload: the error names every import path
+    with pytest.raises(exceptions.MapillaryFileNotFoundError) as ex:
+        upload._normalize_import_paths([deleted, tmp_path / "deleted_folder"])
+    assert str(ex.value) == (
+        "None of the 2 import files or directories was found: "
+        f"{deleted}, {tmp_path / 'deleted_folder'}"
+    )
+    with pytest.raises(exceptions.MapillaryFileNotFoundError) as ex:
+        upload._normalize_import_paths(deleted)
+    assert str(ex.value) == f"Import file or directory not found: {deleted}"
+
+
+@pytest.mark.parametrize(
+    "missing_count, expected",
+    [
+        (0, None),
+        (1, "Skipped 1 import path not found"),
+        (2, "Skipped 2 import paths not found"),
+    ],
+)
+def test_upload_summary_counts_import_paths_not_found(
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+    missing_count: int,
+    expected: T.Optional[str],
+):
+    missing_paths = [tmp_path / f"deleted_{idx}.jpg" for idx in range(missing_count)]
+
+    with caplog.at_level(logging.INFO):
+        upload._show_upload_summary([], [], missing_import_paths=missing_paths)
+
+    skipped = [
+        r.getMessage() for r in caplog.records if "import path" in r.getMessage()
+    ]
+    assert skipped == ([] if expected is None else [expected])
 
 
 def test_find_upload_candidates_skips_apple_double_zip(capture_tree: Path):

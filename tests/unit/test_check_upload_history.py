@@ -14,6 +14,8 @@ import sys
 import zipfile
 from pathlib import Path
 
+import pytest
+
 from mapillary_tools import (
     constants,
     fingerprint,
@@ -436,6 +438,25 @@ def test_check_upload_history_skips_the_apple_double_file_of_a_zip(
     )
 
 
+def test_check_upload_history_skips_files_deleted_after_process(
+    tmp_path, monkeypatch, caplog
+):
+    monkeypatch.setattr(
+        constants, "MAPILLARY_UPLOAD_HISTORY_PATH", str(tmp_path / "history")
+    )
+    video_path = tmp_path / "video.mp4"
+    video_path.write_bytes(b"video")
+    deleted_path = tmp_path / "deleted.mp4"
+
+    results = upload.check_upload_history(
+        [deleted_path, video_path],
+        _metadatas_from_process=[_video(deleted_path), _video(video_path)],
+    )
+
+    assert results == [_result("camm", None, [video_path], [])]
+    assert f"Skipping {deleted_path}: import file or directory not found" in caplog.text
+
+
 def test_check_upload_history_command_outputs_json_without_authentication(
     tmp_path, monkeypatch, capsys
 ):
@@ -762,12 +783,14 @@ def test_upload_records_only_the_images_that_it_uploads(tmp_path, monkeypatch, c
     assert "UploadedAlready" not in caplog.text
 
 
+@pytest.mark.parametrize("import_files", [False, True])
 def test_upload_records_a_sequence_with_an_image_deleted_after_process(
-    tmp_path, monkeypatch, caplog
+    tmp_path, monkeypatch, caplog, import_files: bool
 ):
     """
     An image of the description file that was deleted is not uploaded, nor
-    recorded: the sequence of the others is, and is skipped the next time
+    recorded: the sequence of the others is, and is skipped the next time.
+    Also when the images are given one by one, the deleted one too
     """
     caplog.set_level(logging.INFO)
     history_path, upload_path = _setup_dry_run_upload(tmp_path, monkeypatch)
@@ -779,7 +802,7 @@ def test_upload_records_a_sequence_with_an_image_deleted_after_process(
 
     def _upload():
         upload.upload(
-            image_dir,
+            list(image_paths) if import_files else image_dir,
             {"user_upload_token": "YOUR_USER_ACCESS_TOKEN"},
             num_upload_workers=1,
             _metadatas_from_process=metadatas,

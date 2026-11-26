@@ -154,3 +154,60 @@ def test_upload_wrong_descs(setup_data: py.path.local, setup_upload: py.path.loc
         )
 
     assert ex.value.returncode == 15, ex.value.stderr
+
+
+@pytest.mark.usefixtures("setup_config")
+def test_upload_skips_files_deleted_after_process(
+    setup_data: py.path.local, setup_upload: py.path.local
+):
+    video = setup_data.join("gopro_data").join("max-360mode.mp4")
+    # No GPS: fails to process
+    video_without_gps = setup_data.join("videos").join("sample-5s.mp4")
+    image = setup_data.join("images").join("DSC00497.JPG")
+    deleted_image = setup_data.join("images").join("DSC00001.JPG")
+    import_paths = [str(p) for p in [video, video_without_gps, image, deleted_image]]
+    descs = run_process_for_descs(import_paths)
+    assert sorted((Path(d["filename"]).name, "error" in d) for d in descs) == [
+        ("DSC00001.JPG", False),
+        ("DSC00497.JPG", False),
+        ("max-360mode.mp4", False),
+        ("sample-5s.mp4", True),
+    ]
+    desc_path = setup_data.join("descs.json")
+    desc_path.write(json.dumps(descs))
+
+    # The video that failed to process and a processed image
+    video_without_gps.remove()
+    deleted_image.remove()
+
+    result = run_upload(
+        [*["--desc_path", str(desc_path)], *import_paths],
+        capture_output=True,
+        text=True,
+    )
+
+    for path in [video_without_gps, deleted_image]:
+        assert f"Skipping {path}: import file or directory not found" in result.stderr
+    assert "Skipped 2 import paths not found" in result.stderr
+    uploads = extract_all_uploaded_descs(Path(setup_upload))
+    assert sorted(
+        desc["MAPFilename"] if desc["filetype"] == "image" else desc["filetype"]
+        for upload in uploads
+        for desc in upload
+    ) == ["DSC00497.JPG", "camm"]
+
+    # Nothing to upload
+    with pytest.raises(subprocess.CalledProcessError) as ex:
+        run_upload(
+            [
+                *["--desc_path", str(desc_path)],
+                str(video_without_gps),
+                str(deleted_image),
+            ],
+            capture_output=True,
+            text=True,
+        )
+    assert ex.value.returncode == 3, ex.value.stderr
+    # The error names both
+    assert str(video_without_gps) in ex.value.stderr
+    assert str(deleted_image) in ex.value.stderr
