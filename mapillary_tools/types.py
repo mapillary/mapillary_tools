@@ -51,6 +51,10 @@ class ImageMetadata(geo.Point):
     MAPCameraUUID: str | None = None
     MAPOrientation: int | None = None
     MAPFilename: str | None = None
+    # What geotagging warned of about the image, for the process report
+    warnings: list[exceptions.MapillaryProcessWarning] = dataclasses.field(
+        default_factory=list, compare=False, repr=False
+    )
 
     def update_md5sum(self, image_data: T.BinaryIO | None = None) -> None:
         if self.md5sum is None:

@@ -4,11 +4,15 @@
 # LICENSE file in the root directory of this source tree.
 
 import json
+import os
 import subprocess
 from pathlib import Path
 
 import py.path
 import pytest
+from PIL import Image
+from PIL.ExifTags import GPS, IFD
+from PIL.TiffImagePlugin import IFDRational
 
 from .fixtures import run_command, setup_data
 
@@ -302,3 +306,39 @@ def test_process_report_has_no_warnings_for_a_video_without_any(
     _, report = _run_process_with_report([video_path], output_dir)
 
     assert report["warnings"] == []
+
+
+def test_process_report_warns_of_an_image_given_its_file_time(
+    tmpdir: py.path.local,
+):
+    """
+    An image with a GPS position but no capture time gets the earlier of its
+    file times as its capture time, and a warning in the report
+    """
+    root = Path(str(tmpdir))
+    image_path = root / "images" / "no_capture_time.jpg"
+    image_path.parent.mkdir()
+    img = Image.new("RGB", (4, 4), (0, 0, 0))
+    exif = img.getexif()
+    gps = exif.get_ifd(IFD.GPSInfo)
+    gps[GPS.GPSLatitudeRef] = "N"
+    gps[GPS.GPSLatitude] = (IFDRational(24), IFDRational(33), IFDRational(3636, 100))
+    gps[GPS.GPSLongitudeRef] = "W"
+    gps[GPS.GPSLongitude] = (IFDRational(81), IFDRational(48), IFDRational(2772, 100))
+    img.save(image_path, format="JPEG", exif=exif)
+    # 2024-05-01T10:00:00Z
+    os.utime(image_path, (1714557600, 1714557600))
+
+    descs, report = _run_process_with_report([image_path.parent], root)
+
+    [desc] = descs
+    assert "error" not in desc
+    assert desc["MAPCaptureTime"] == "2024_05_01_10_00_00_000"
+    assert desc["MAPLatitude"] == pytest.approx(24.5601)
+    [warning] = report["warnings"]
+    assert warning["filename"] == str(image_path.resolve())
+    assert warning["type"] == "MapillaryFileTimeWarning"
+    assert warning["vars"] == {
+        "file_time": "modification",
+        "capture_time": "2024_05_01_10_00_00_000",
+    }

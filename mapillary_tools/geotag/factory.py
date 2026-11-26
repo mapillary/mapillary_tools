@@ -297,6 +297,12 @@ def process(
     # those sources, to report if no other source geotags them or fails to
     unread_videos: dict[Path, list[SourceType]] = {}
 
+    # Images with a GPS position but no capture time, which a source gave a
+    # file time (see _has_file_time), with that source: kept only if no later
+    # source geotags them, as one may read a capture time that this one did not
+    # (ExifTool reads more date tags than the native reader)
+    file_timed: dict[Path, tuple[SourceOption, types.ImageMetadata]] = {}
+
     # Paths let through to any source
     handed_paths: set[Path] = set()
 
@@ -383,10 +389,14 @@ def process(
                     # fallback finding nothing (e.g. "GPX file not found")
                     continue
                 pending_errors[metadata.filename] = metadata
+            elif _has_file_time(metadata):
+                assert isinstance(metadata, types.ImageMetadata)
+                file_timed[metadata.filename] = (option, metadata)
             else:
                 final_metadatas.append(metadata)
                 reprocessable_paths.remove(metadata.filename)
                 pending_errors.pop(metadata.filename, None)
+                file_timed.pop(metadata.filename, None)
                 rejection = gpx_rejections.pop(metadata.filename, None)
                 if not isinstance(metadata, types.ErrorMetadata):
                     if sources is not None:
@@ -399,6 +409,20 @@ def process(
         # Quit if no more paths to process
         if not reprocessable_paths:
             break
+
+    # The images that no source geotagged, but that one gave a file time
+    for path, (file_time_option, metadata) in sorted(file_timed.items()):
+        if path not in reprocessable_paths:
+            continue
+        for warning in metadata.warnings:
+            if isinstance(warning, exceptions.MapillaryFileTimeWarning):
+                LOG.warning(str(warning))
+        final_metadatas.append(metadata)
+        reprocessable_paths.remove(path)
+        pending_errors.pop(path, None)
+        gpx_rejections.pop(path, None)
+        if sources is not None:
+            sources[path] = file_time_option
 
     # Of a file that a GPX track missed, and that no later source geotagged,
     # report the miss: why the track given for it was not used says more than
@@ -758,6 +782,17 @@ def _is_of_other_type(
         )
 
     return False
+
+
+def _has_file_time(metadata: types.MetadataOrError) -> bool:
+    """
+    Whether **metadata** is that of an image with a GPS position but no capture
+    time, to which its file time was given (see ImageEXIFExtractor)
+    """
+    return isinstance(metadata, types.ImageMetadata) and any(
+        isinstance(warning, exceptions.MapillaryFileTimeWarning)
+        for warning in metadata.warnings
+    )
 
 
 def _is_reprocessable(metadata: types.MetadataOrError) -> bool:

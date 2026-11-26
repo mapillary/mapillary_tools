@@ -174,7 +174,7 @@ def build_process_warnings(
     """
     warnings: list[ProcessReportWarning] = []
     for metadata in metadatas:
-        if not isinstance(metadata, types.VideoMetadata):
+        if not isinstance(metadata, (types.ImageMetadata, types.VideoMetadata)):
             continue
         for warning in metadata.warnings:
             warnings.append(
