@@ -41,7 +41,7 @@ class Command:
         )
         group.add_argument(
             "--video_start_time",
-            help="Video start time specified in YYYY_MM_DD_HH_MM_SS_sss in UTC. For example 2020_12_28_12_36_36_508 represents 2020-12-28T12:36:36.508Z.",
+            help="Video start time specified in YYYY_MM_DD_HH_MM_SS_sss in UTC, for videos without a GPS clock of their own. For example 2020_12_28_12_36_36_508 represents 2020-12-28T12:36:36.508Z. The GPS clock of a video, if it has one, wins.",
             default=None,
             required=False,
         )
