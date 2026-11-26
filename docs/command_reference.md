@@ -382,6 +382,8 @@ Gotchas:
 - An image that fails to upload fails its whole sequence. The other sequences, videos and zip files carry on, and
   the command still exits with code 0: check the upload summary. Connection errors, time-outs, authorization
   errors, other HTTP errors and unexpected API responses stop the command (exit codes 12, 13, 14, 16 and 17).
+- An import path that is gone, such as a file deleted or moved since `process`, is skipped with an error, and
+  the files of the others are uploaded. The command stops (exit code 3) only when none of them is found.
 - Uploading a folder of zip files also needs a description file: pass the one of the zipped images with
   `--desc_path`.
 

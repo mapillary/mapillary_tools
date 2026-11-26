@@ -201,6 +201,90 @@ def test_find_upload_candidates_in_a_folder_that_cannot_be_searched(
     ]
 
 
+def test_find_upload_candidates_skips_import_paths_not_found(
+    capture_tree: Path, caplog: pytest.LogCaptureFixture
+):
+    metadatas = _capture_metadatas(capture_tree)
+    # Processed, then deleted
+    (capture_tree / "b.JPG").unlink()
+    (capture_tree / "sub" / "f.mov").unlink()
+    import_paths = [
+        capture_tree / "a.jpg",
+        capture_tree / "b.JPG",
+        capture_tree / "c.mp4",
+        capture_tree / "sub" / "f.mov",
+        capture_tree / "deleted_folder",
+        capture_tree / "d.zip",
+    ]
+
+    candidates = upload._find_upload_candidates(
+        metadatas, import_paths, skip_subfolders=False
+    )
+
+    assert candidates == upload._UploadCandidates(
+        [metadatas[3]], [metadatas[4]], [capture_tree / "d.zip"]
+    )
+    found_paths = [p for p in import_paths if p.exists()]
+    assert candidates == _find_upload_candidates_by_file_type(
+        metadatas, found_paths, skip_subfolders=False
+    )
+    errors = [r.getMessage() for r in caplog.records if r.levelname == "ERROR"]
+    assert errors == [
+        f"Skipping {path}: import file or directory not found"
+        for path in [
+            capture_tree / "b.JPG",
+            capture_tree / "sub" / "f.mov",
+            capture_tree / "deleted_folder",
+        ]
+    ]
+
+
+@pytest.mark.skipif(
+    sys.platform.startswith("win") or (hasattr(os, "geteuid") and os.geteuid() == 0),
+    reason="Folder permissions do not apply on Windows or to root",
+)
+def test_find_upload_candidates_skips_import_files_that_cannot_be_looked_at(
+    capture_tree: Path,
+):
+    metadatas = _capture_metadatas(capture_tree)
+    folder = capture_tree / "sub"
+    import_paths = [capture_tree / "a.jpg", folder / "e.jpg", folder / "f.mov"]
+    # Listed, but its files cannot be looked at
+    folder.chmod(0o600)
+    try:
+        normalized_paths = upload._normalize_import_paths(import_paths)
+        candidates = upload._find_upload_candidates(
+            metadatas, normalized_paths, skip_subfolders=False
+        )
+    finally:
+        folder.chmod(0o700)
+
+    assert normalized_paths == import_paths
+    assert candidates == upload._UploadCandidates([metadatas[3]], [], [])
+
+
+def test_normalize_import_paths_found_or_not(tmp_path: Path):
+    found = tmp_path / "found.jpg"
+    found.touch()
+    folder = tmp_path / "folder"
+    folder.mkdir()
+    deleted = tmp_path / "deleted.jpg"
+
+    # Kept to look for the files to upload, which skips those not found
+    assert upload._normalize_import_paths([deleted, found, folder, found]) == [
+        deleted,
+        found,
+        folder,
+    ]
+
+    # Nothing to upload
+    with pytest.raises(exceptions.MapillaryFileNotFoundError) as ex:
+        upload._normalize_import_paths([deleted, tmp_path / "deleted_folder"])
+    assert str(ex.value) == f"Import file or directory not found: {deleted}"
+    with pytest.raises(exceptions.MapillaryFileNotFoundError):
+        upload._normalize_import_paths(deleted)
+
+
 def test_find_upload_candidates_skips_apple_double_zip(capture_tree: Path):
     apple_double = capture_tree / "._d.zip"
     apple_double.touch()
