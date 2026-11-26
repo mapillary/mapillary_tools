@@ -71,7 +71,7 @@ class Command:
             required=False,
         )
 
-    def add_basic_arguments(self, parser):
+    def add_basic_arguments(self, parser, delete_after_upload: bool = True):
         group = parser.add_argument_group(bold_text("UPLOAD OPTIONS"))
         group.add_argument(
             "--desc_path",
@@ -80,6 +80,14 @@ class Command:
             required=False,
         )
         Command.add_common_upload_options(group)
+        if delete_after_upload:
+            group.add_argument(
+                "--delete_after_upload",
+                help="Delete each image, video and zip file from the disk once Mapillary has confirmed that its upload finished. An image is deleted only when its whole sequence has finished. Kept: files that fail to process or upload, files skipped because the upload history says they were uploaded before, and files that are not uploaded themselves, such as GPX tracks and the description file. Nothing is deleted with --dry_run or --nofinish. WARNING: Files will be automatically deleted after they are uploaded. If something goes wrong, the original files cannot be restored.",
+                action="store_true",
+                default=False,
+                required=False,
+            )
 
     def run(self, vars_args: dict):
         if "user_items" not in vars_args:

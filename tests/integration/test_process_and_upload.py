@@ -409,3 +409,37 @@ def test_upload_skips_the_apple_double_file_of_a_zip(
 
     uploaded = extract_all_uploaded_descs(Path(setup_upload))
     assert len(uploaded) == len(zip_paths)
+
+
+@pytest.mark.usefixtures("setup_config")
+def test_process_and_upload_dry_run_deletes_nothing(
+    setup_data: py.path.local, setup_upload: py.path.local
+):
+    data_path = Path(setup_data)
+    files = sorted(path for path in data_path.rglob("*") if path.is_file())
+
+    result = run_command(
+        [
+            "--dry_run",
+            *["--user_name", USERNAME],
+            "--skip_process_errors",
+            "--delete_after_upload",
+            str(setup_data.join("images")),
+            str(setup_data.join("gopro_data")),
+        ],
+        command="process_and_upload",
+        capture_output=True,
+        text=True,
+    )
+
+    assert (
+        "No files will be deleted, despite --delete_after_upload: nothing is "
+        "uploaded to Mapillary with --dry_run"
+    ) in result.stderr
+    assert "Deleted the uploaded file" not in result.stderr
+    uploaded_descs = sum(extract_all_uploaded_descs(Path(setup_upload)), [])
+    assert_contains_image_descs(
+        uploaded_descs,
+        [*EXPECTED_DESCS["gopro"].values(), *EXPECTED_DESCS["image"].values()],
+    )
+    assert sorted(path for path in data_path.rglob("*") if path.is_file()) == files

@@ -21,7 +21,9 @@ class Command:
 
     def add_basic_arguments(self, parser):
         VideoProcessCommand().add_basic_arguments(parser)
-        UploadCommand().add_basic_arguments(parser)
+        # No --delete_after_upload: the frames sampled from the videos are
+        # uploaded, not the videos, so their upload says nothing about the videos
+        UploadCommand().add_basic_arguments(parser, delete_after_upload=False)
 
     def run(self, vars_args: dict):
         if vars_args.get("desc_path") is None:

@@ -352,6 +352,7 @@ Uploads the images (as sequences), videos and zip files under the import paths, 
 | `--dry_run`                  |               | Write the uploads to a local folder instead of Mapillary (for testing). Also `--dryrun`.          |
 | `--noresume`                 |               | Start interrupted uploads from the beginning.                                                     |
 | `--nofinish`                 |               | Upload without finishing: nothing appears on Mapillary (for testing).                             |
+| `--delete_after_upload`      |               | Delete the uploaded files once their uploads finished. **Deleted files cannot be restored** (see below). |
 
 ```sh
 mapillary_tools process MY_CAPTURE_DIR
@@ -384,6 +385,12 @@ Gotchas:
   errors, other HTTP errors and unexpected API responses stop the command (exit codes 12, 13, 14, 16 and 17).
 - Uploading a folder of zip files also needs a description file: pass the one of the zipped images with
   `--desc_path`.
+- `--delete_after_upload` deletes each image, video and zip file once Mapillary has confirmed that its upload
+  finished: an image when its whole sequence has. **Files will be automatically deleted after they are uploaded.
+  If something goes wrong, the original files cannot be restored.** It keeps the files that fail to process or
+  upload, the files skipped as uploaded before (as found in the upload history), and the files that are not
+  uploaded themselves, such as GPX tracks and the description file. It deletes nothing with `--dry_run` or
+  `--nofinish`. A file that cannot be deleted is kept with a warning, and does not fail the upload.
 
 ## sample_video
 
@@ -461,6 +468,7 @@ Gotchas:
 
 - If any video fails to sample, nothing is uploaded, unless `--skip_sample_errors` is given.
 - As with `process_and_upload`, it logs in first and writes no description file unless `--desc_path` is given.
+- It does not take `--delete_after_upload`: it uploads the frames, not the videos.
 
 ## authenticate
 
