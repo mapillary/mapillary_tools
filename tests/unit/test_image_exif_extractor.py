@@ -9,13 +9,15 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 
 import pytest
-from mapillary_tools import exceptions
+from mapillary_tools import exceptions, types
 from mapillary_tools.exiftool_read import EXIFTOOL_NAMESPACES
+from mapillary_tools.geotag import factory
 from mapillary_tools.geotag.image_extractors.exif import (
     _capture_unix_time,
     ImageEXIFExtractor,
 )
 from mapillary_tools.geotag.image_extractors.exiftool import ImageExifToolExtractor
+from mapillary_tools.geotag.options import SourceOption, SourcePathOption, SourceType
 from PIL import Image
 from PIL.ExifTags import Base, GPS, IFD
 from PIL.TiffImagePlugin import IFDRational
@@ -292,3 +294,186 @@ class TestCaptureTimeEdgeCases:
         metadata = ImageEXIFExtractor(image).extract()
 
         assert metadata.time == datetime.datetime(2020, 1, 2, 3, 4, 5).timestamp()
+
+
+# 47 deg 75' is no coordinate. ExifTool, run with -n, adds it up to 48.25
+# degrees
+OUT_OF_RANGE_LATITUDE = (47, 75, 0)
+LONGITUDE = (8, 30, 0)
+INVALID_LATITUDE = (
+    "Invalid GPS Latitude 47 deg 75' 0\" in the image: "
+    "minutes and seconds must be between 0 and 60"
+)
+
+
+def _write_gps_image(path: Path, latitude: T.Tuple[float, float, float]) -> Path:
+    img = Image.new("RGB", (4, 4), (0, 0, 0))
+    exif = img.getexif()
+    exif.get_ifd(IFD.Exif)[Base.DateTimeOriginal] = "2024:05:01 10:00:00"
+    exif.get_ifd(IFD.Exif)[Base.OffsetTimeOriginal] = "+00:00"
+    gps = exif.get_ifd(IFD.GPSInfo)
+    gps[GPS.GPSLatitudeRef] = "N"
+    gps[GPS.GPSLatitude] = tuple(IFDRational(v) for v in latitude)
+    gps[GPS.GPSLongitudeRef] = "E"
+    gps[GPS.GPSLongitude] = tuple(IFDRational(v) for v in LONGITUDE)
+    img.save(path, format="JPEG", exif=exif)
+    return path
+
+
+def _exiftool_reading(latitude: T.Tuple[float, float, float]) -> ET.Element:
+    """
+    The XML that ExifTool, run with -n, writes for _write_gps_image(): the
+    degrees that it adds the minutes and seconds up to
+    """
+
+    def degrees(dms: T.Tuple[float, float, float]) -> str:
+        return str(dms[0] + dms[1] / 60 + dms[2] / 3600)
+
+    return _exiftool_element(
+        {
+            "GPS:GPSLatitude": degrees(latitude),
+            "GPS:GPSLatitudeRef": "N",
+            "GPS:GPSLongitude": degrees(LONGITUDE),
+            "GPS:GPSLongitudeRef": "E",
+            "ExifIFD:DateTimeOriginal": "2024:05:01 10:00:00",
+            "ExifIFD:OffsetTimeOriginal": "+00:00",
+        }
+    )
+
+
+class TestGPSMinutesOutOfRange:
+    """
+    The native reader rejects EXIF GPS minutes or seconds outside [0, 60]. It
+    said that it found no GPS, and ExifTool, which reads only the degrees that
+    they add up to, geotagged the image elsewhere.
+    """
+
+    def test_exif_names_the_invalid_coordinate(self, tmp_path: Path):
+        image = _write_gps_image(tmp_path / "image.jpg", OUT_OF_RANGE_LATITUDE)
+
+        with pytest.raises(exceptions.MapillaryInvalidGPSCoordinateError) as info:
+            ImageEXIFExtractor(image).extract()
+
+        assert str(info.value) == INVALID_LATITUDE
+
+    def test_exif_skips_it_when_told_to_skip_lonlat_errors(self, tmp_path: Path):
+        """As for the capture time that a GPX source reads"""
+        image = _write_gps_image(tmp_path / "image.jpg", OUT_OF_RANGE_LATITUDE)
+
+        metadata = ImageEXIFExtractor(image, skip_lonlat_error=True).extract()
+
+        assert (metadata.lat, metadata.lon) == (0.0, 0.0)
+        assert (
+            metadata.time
+            == datetime.datetime(
+                2024, 5, 1, 10, tzinfo=datetime.timezone.utc
+            ).timestamp()
+        )
+
+    def test_exiftool_rejects_it_too(self, tmp_path: Path):
+        image = _write_gps_image(tmp_path / "image.jpg", OUT_OF_RANGE_LATITUDE)
+
+        with pytest.raises(exceptions.MapillaryInvalidGPSCoordinateError) as info:
+            ImageExifToolExtractor(
+                image, _exiftool_reading(OUT_OF_RANGE_LATITUDE)
+            ).extract()
+
+        assert str(info.value) == INVALID_LATITUDE
+
+    def test_exiftool_reads_valid_minutes(self, tmp_path: Path):
+        latitude = (47, 59, 60)
+        image = _write_gps_image(tmp_path / "image.jpg", latitude)
+
+        metadata = ImageExifToolExtractor(image, _exiftool_reading(latitude)).extract()
+
+        assert metadata.lat == pytest.approx(48.0)
+        assert metadata.lon == pytest.approx(8.5)
+
+    def test_exiftool_without_gps_coordinates_is_not_checked(self, tmp_path: Path):
+        """
+        ExifTool drops EXIF GPS coordinates written at bad offsets, and may
+        read others elsewhere
+        """
+        image = _write_gps_image(tmp_path / "image.jpg", OUT_OF_RANGE_LATITUDE)
+        element = _exiftool_element(
+            {
+                "XMP-exif:GPSLatitude": "47.5",
+                "XMP-exif:GPSLongitude": "8.5",
+                "ExifIFD:DateTimeOriginal": "2024:05:01 10:00:00",
+                "ExifIFD:OffsetTimeOriginal": "+00:00",
+            }
+        )
+
+        metadata = ImageExifToolExtractor(image, element).extract()
+
+        assert (metadata.lat, metadata.lon) == (47.5, 8.5)
+
+
+class TestGPSMinutesOutOfRangeInFactory:
+    """
+    ExifTool, after the native reader (as by default), re-reads the same EXIF
+    GPS, and geotagged the image that the native reader rejected. A GPX track
+    is other data.
+    """
+
+    def test_exiftool_does_not_geotag_it(self, monkeypatch, tmp_path: Path):
+        image = _write_gps_image(tmp_path / "image.jpg", OUT_OF_RANGE_LATITUDE)
+        build_image_geotag = factory._build_image_geotag
+        read_by_exiftool: T.List[Path] = []
+
+        class ExifToolReading:
+            """ExifTool geotagging at the degrees that the minutes add up to"""
+
+            def to_description(self, paths):
+                read_by_exiftool.extend(paths)
+                return [
+                    types.ImageMetadata(
+                        filename=path, time=0, lat=48.25, lon=8.5, alt=None, angle=None
+                    )
+                    for path in paths
+                ]
+
+        def stub(option: SourceOption):
+            if option.source is SourceType.EXIFTOOL_RUNTIME:
+                return ExifToolReading()
+            return build_image_geotag(option)
+
+        monkeypatch.setattr(factory, "_build_image_geotag", stub)
+
+        [result] = factory.process(
+            [image],
+            [
+                SourceOption(SourceType.NATIVE),
+                SourceOption(SourceType.EXIFTOOL_RUNTIME),
+            ],
+        )
+
+        assert read_by_exiftool == []
+        assert isinstance(result, types.ErrorMetadata)
+        assert isinstance(result.error, exceptions.MapillaryInvalidGPSCoordinateError)
+        assert str(result.error) == INVALID_LATITUDE
+
+    def test_a_gpx_track_still_geotags_it(self, tmp_path: Path):
+        image = _write_gps_image(tmp_path / "image.jpg", OUT_OF_RANGE_LATITUDE)
+        gpx = tmp_path / "track.gpx"
+        gpx.write_text(
+            '<?xml version="1.0"?>\n'
+            '<gpx version="1.1" creator="test" xmlns="http://www.topografix.com/GPX/1/1">'
+            "<trk><trkseg>"
+            '<trkpt lat="46.5" lon="7.5"><time>2024-05-01T09:59:00Z</time></trkpt>'
+            '<trkpt lat="46.5" lon="7.5"><time>2024-05-01T10:01:00Z</time></trkpt>'
+            "</trkseg></trk></gpx>\n"
+        )
+
+        [result] = factory.process(
+            [image],
+            [
+                SourceOption(SourceType.NATIVE),
+                SourceOption(
+                    SourceType.GPX, source_path=SourcePathOption(source_path=gpx)
+                ),
+            ],
+        )
+
+        assert isinstance(result, types.ImageMetadata)
+        assert (result.lat, result.lon) == (46.5, 7.5)

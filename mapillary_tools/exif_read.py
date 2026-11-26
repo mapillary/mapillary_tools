@@ -57,6 +57,20 @@ def gps_to_decimal(values: tuple[Ratio, Ratio, Ratio]) -> float | None:
     >>> gps_to_decimal((Ratio(0, 1), Ratio(1, 4), Ratio(381, 5))) is None
     True
     """
+    dms = _gps_dms(values)
+    if dms is None:
+        return None
+    degrees, minutes, seconds = dms
+    if not (0 <= minutes <= 60 and 0 <= seconds <= 60):
+        return None
+    return degrees + minutes / 60 + seconds / 3600
+
+
+def _gps_dms(values: tuple[Ratio, Ratio, Ratio]) -> tuple[float, float, float] | None:
+    """
+    The degrees, minutes and seconds of a GPS coordinate as numbers, or None if
+    they are not three ratios
+    """
     try:
         deg, min, sec, *_ = values
     except (TypeError, ValueError):
@@ -68,14 +82,9 @@ def gps_to_decimal(values: tuple[Ratio, Ratio, Ratio]) -> float | None:
     if not isinstance(sec, Ratio):
         return None
     try:
-        degrees = eval_frac(deg)
-        minutes = eval_frac(min)
-        seconds = eval_frac(sec)
+        return eval_frac(deg), eval_frac(min), eval_frac(sec)
     except ZeroDivisionError:
         return None
-    if not (0 <= minutes <= 60 and 0 <= seconds <= 60):
-        return None
-    return degrees + minutes / 60 + seconds / 3600
 
 
 def _parse_coord_numeric(coord: str, ref: str | None) -> float | None:
@@ -371,6 +380,11 @@ class ExifReadABC(abc.ABC):
     # (see is_valid_capture_time()), which tells why an image has no capture
     # time when no other date tag gives one
     rejected_capture_time: datetime.datetime | None = None
+
+    # The first EXIF GPS coordinate read but rejected for minutes or seconds
+    # outside [0, 60] (see gps_to_decimal()), such as "GPS Latitude 47 deg 75'
+    # 0\"", which tells why an image has no position when nothing else gives one
+    rejected_gps_coordinate: str | None = None
 
     def _accept_capture_time(
         self, dt: datetime.datetime | None
@@ -885,6 +899,7 @@ class ExifReadFromEXIF(ExifReadABC):
         if lat_tag and lon_tag:
             lon = gps_to_decimal(lon_tag.values)
             if lon is None:
+                self._reject_gps_coordinate("GPS Longitude", lon_tag.values)
                 return None
             ref = self._extract_alternative_fields(["GPS GPSLongitudeRef"], str)
             if ref and ref.upper() == "W":
@@ -892,6 +907,7 @@ class ExifReadFromEXIF(ExifReadABC):
 
             lat = gps_to_decimal(lat_tag.values)
             if lat is None:
+                self._reject_gps_coordinate("GPS Latitude", lat_tag.values)
                 return None
             ref = self._extract_alternative_fields(["GPS GPSLatitudeRef"], str)
             if ref and ref.upper() == "S":
@@ -900,6 +916,20 @@ class ExifReadFromEXIF(ExifReadABC):
             return lon, lat
 
         return None
+
+    def _reject_gps_coordinate(
+        self, name: str, values: tuple[Ratio, Ratio, Ratio]
+    ) -> None:
+        dms = _gps_dms(values)
+        # None if gps_to_decimal() rejected the values for not being three
+        # ratios, not for their minutes or seconds
+        if dms is not None and self.rejected_gps_coordinate is None:
+            degrees, minutes, seconds = (
+                f"{value:.6f}".rstrip("0").rstrip(".") for value in dms
+            )
+            self.rejected_gps_coordinate = (
+                f"{name} {degrees} deg {minutes}' {seconds}\""
+            )
 
     def extract_make(self) -> str | None:
         """

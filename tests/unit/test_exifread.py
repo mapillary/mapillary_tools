@@ -427,6 +427,21 @@ class TestExtractLonLatFromEXIF:
         )
         assert reader.extract_lon_lat() is None
 
+    def test_names_the_rejected_coordinate(self):
+        # 47 deg 75' is no coordinate, though it adds up to 48.25 degrees
+        reader = _read_lon_lat_image((47, 75, 0), (8, 30, 0), "N", "E")
+        assert reader.extract_lon_lat() is None
+        assert reader.rejected_gps_coordinate == "GPS Latitude 47 deg 75' 0\""
+
+        reader = _read_lon_lat_image((0, 0.25, 76.2), (0, 0.25, 76.2), "", "")
+        assert reader.extract_lon_lat() is None
+        assert reader.rejected_gps_coordinate == "GPS Longitude 0 deg 0.25' 76.2\""
+
+    def test_names_no_coordinate_of_valid_ones(self):
+        reader = _read_lon_lat_image((56, 54, 60), (24, 25, 60), "N", "E")
+        assert reader.extract_lon_lat() is not None
+        assert reader.rejected_gps_coordinate is None
+
 
 class TestExtractCameraUuidFromEXIF:
     """Test extract_camera_uuid from EXIF tags"""

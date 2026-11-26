@@ -281,11 +281,13 @@ def process(
     # if no later process geotags the path (or none of them handles it)
     pending_errors: dict[Path, types.ErrorMetadata] = {}
 
-    # Videos whose own GPS was found but rejected as empty or noisy. That is a
-    # verdict on the data, not on the reader that reported it, so only a source
-    # outside the video may geotag them now. Another reader of the same
-    # telemetry (e.g. exiftool after native) can only repeat the verdict, or
-    # overturn it by reading the same bad data differently
+    # Videos whose own GPS was found but rejected as empty or noisy, and images
+    # whose EXIF GPS has minutes or seconds outside [0, 60]. That is a verdict
+    # on the data, not on the reader that reported it, so only a source outside
+    # the file may geotag them now. Another reader of the same telemetry (e.g.
+    # exiftool after native, which adds such minutes up to other degrees) can
+    # only repeat the verdict, or overturn it by reading the same bad data
+    # differently
     rejected_gps_paths: set[Path] = set()
 
     # Paths whose GPX track missed them, with the source that rejected them, to
@@ -373,6 +375,7 @@ def process(
                     (
                         exceptions.MapillaryGPXEmptyError,
                         exceptions.MapillaryGPSNoiseError,
+                        exceptions.MapillaryInvalidGPSCoordinateError,
                     ),
                 ):
                     rejected_gps_paths.add(metadata.filename)

@@ -58,6 +58,13 @@ class MapillaryGeoTaggingError(MapillaryDescriptionError):
     pass
 
 
+class MapillaryInvalidGPSCoordinateError(MapillaryGeoTaggingError):
+    """
+    The EXIF GPS latitude or longitude of an image has minutes or seconds
+    outside [0, 60], which no coordinate has
+    """
+
+
 class MapillaryUnsupportedFileError(MapillaryDescriptionError):
     """
     A file named for processing is neither an image nor a video that can be
