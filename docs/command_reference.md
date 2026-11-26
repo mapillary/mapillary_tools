@@ -196,9 +196,9 @@ Gotchas:
   change the capture time that is uploaded: to fix a camera clock against a GPX, use
   `--interpolation_offset_time` alone.
 - The `--overwrite_*` options modify your original images.
-- Images whose only date is a placeholder, or before 1970, fail. `native` also rejects EXIF GPS minutes or
-  seconds above 60, but with ExifTool installed, the default `exiftool_runtime` fallback then geotags such an
-  image at a wrong position, without a warning. Check images that `native` rejects.
+- Images whose only date is a placeholder, or before 1970, fail. So do images whose EXIF GPS latitude or longitude
+  has minutes or seconds above 60 (`MapillaryInvalidGPSCoordinateError`), with `exiftool_runtime` and
+  `exiftool_xml` too (ExifTool reads 47° 75' as 48° 15'), unless a `gpx` or `nmea` source geotags them.
 
 ## Geotag sources
 
@@ -210,7 +210,8 @@ last one that tried, with two exceptions: if a GPX or NMEA track missed the file
 (`MapillaryOutsideGPXTrackError`, which says by how much); and the rejection of a video's own GPS is kept over a
 later "GPX file not found". Other errors end the search:
 a track file that is not valid, or has no time that can be read, fails the files it was to geotag, even if a
-later source could have. A video whose own GPS is rejected as empty or noisy goes on only to `gpx` and `nmea` sources.
+later source could have. A video whose own GPS is rejected as empty or noisy, or an image whose EXIF GPS has minutes
+or seconds above 60, goes on only to `gpx` and `nmea` sources.
 Repeat the option or separate sources with commas. The default is `native`, then `exiftool_runtime`.
 
 | Source                          | Images                                                     | Videos                                                                         |

@@ -26,6 +26,12 @@ def _invalid_capture_time(capture_time: datetime.datetime) -> Exception:
     )
 
 
+def invalid_gps_coordinate(coordinate: str) -> Exception:
+    return exceptions.MapillaryInvalidGPSCoordinateError(
+        f"Invalid {coordinate} in the image: minutes and seconds must be between 0 and 60"
+    )
+
+
 def _capture_unix_time(capture_time: datetime.datetime) -> float:
     """
     The Unix time of the capture time of an image, assuming that a naive one
@@ -65,6 +71,8 @@ class ImageEXIFExtractor(BaseImageExtractor):
             lonlat = exif.extract_lon_lat()
             if lonlat is None:
                 if not self.skip_lonlat_error:
+                    if exif.rejected_gps_coordinate is not None:
+                        raise invalid_gps_coordinate(exif.rejected_gps_coordinate)
                     raise exceptions.MapillaryGeoTaggingError(
                         "Unable to extract GPS Longitude or GPS Latitude from the image"
                     )
