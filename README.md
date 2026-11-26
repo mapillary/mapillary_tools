@@ -286,6 +286,12 @@ Image sequences, videos and zip files that were uploaded from this computer befo
 whole: a sequence with one image added or removed is uploaded again. To upload them again anyway, specify
 `--reupload`.
 
+To delete the files once they are uploaded, specify `--delete_after_upload` (with `upload` or `process_and_upload`).
+**Files will be automatically deleted after they are uploaded. If something goes wrong, the original files cannot be
+restored.** Each image, video and zip file is deleted once Mapillary has confirmed that its upload finished, and an
+image only when its whole sequence has. Files that fail to process or upload, files skipped as uploaded before, and
+files that are not uploaded themselves, such as GPX tracks, are kept. Nothing is deleted with `--dry_run`.
+
 ## Check Upload History
 
 To check whether processed image sequences, videos or zip files were previously uploaded

@@ -66,8 +66,26 @@ def upload(
     nofinish: bool = False,
     noresume: bool = False,
     skip_subfolders: bool = False,
+    delete_after_upload: bool = False,
 ) -> None:
     LOG.info("==> Uploading...")
+
+    # Delete only what Mapillary stores: a dry run or an unfinished upload
+    # stores nothing
+    delete_uploaded = delete_after_upload and not dry_run and not nofinish
+    if delete_uploaded:
+        LOG.warning(
+            "Files will be automatically deleted after they are uploaded "
+            "(--delete_after_upload). If something goes wrong, the original "
+            "files cannot be restored."
+        )
+    elif delete_after_upload:
+        LOG.warning(
+            "No files will be deleted, despite --delete_after_upload: %s",
+            "nothing is uploaded to Mapillary with --dry_run"
+            if dry_run
+            else "the uploads are not finished with --nofinish",
+        )
 
     import_paths = _normalize_import_paths(import_path)
 
@@ -131,16 +149,33 @@ def upload(
 
     upload_successes = 0
     upload_errors: list[Exception] = []
+    # The images that upload uploads, by sequence, as it groups them
+    sequences = (
+        types.group_and_sort_images(candidates.image_metadatas)
+        if delete_uploaded
+        else {}
+    )
+    deleted_count = 0
+    not_deleted_count = 0
 
     # The real uploading happens sequentially here
     try:
-        for _, result in results:
+        for key, result in results:
             if result.error is not None:
                 upload_error = _continue_or_fail(result.error)
                 log_exception(upload_error)
                 upload_errors.append(upload_error)
             else:
                 upload_successes += 1
+                if delete_uploaded:
+                    # Mapillary confirmed the upload with its cluster ID,
+                    # and the upload history (on upload_finished) is done
+                    # with the files
+                    deleted, not_deleted = _delete_uploaded_files(
+                        _uploaded_file_paths(key, sequences)
+                    )
+                    deleted_count += deleted
+                    not_deleted_count += not_deleted
 
     except Exception as ex:
         # Fatal error: log and raise
@@ -158,6 +193,12 @@ def upload(
             f"Expect {upload_successes} success but got {stats}"
         )
         _show_upload_summary(stats, upload_errors)
+        if delete_uploaded:
+            LOG.info(f"{deleted_count} uploaded files deleted")
+            if not_deleted_count:
+                LOG.warning(
+                    f"{not_deleted_count} uploaded files could not be deleted (see the warnings above)"
+                )
 
 
 def _history_check_result(
@@ -784,6 +825,42 @@ def _gen_upload_everything(
 
     # Upload zip files
     yield from uploader.ZipUploader.upload_zipfiles(mly_uploader, candidates.zip_paths)
+
+
+def _uploaded_file_paths(
+    key: str | types.VideoMetadata | Path,
+    sequences: dict[str, list[types.ImageMetadata]],
+) -> list[Path]:
+    """
+    The files of an upload, from its key in _gen_upload_everything: all the
+    images of a sequence (by its UUID), or a video or zip file
+    """
+    if isinstance(key, types.VideoMetadata):
+        return [key.filename]
+    elif isinstance(key, Path):
+        return [key]
+    else:
+        return [metadata.filename for metadata in sequences.get(key, [])]
+
+
+def _delete_uploaded_files(paths: T.Sequence[Path]) -> tuple[int, int]:
+    """
+    Delete the files of a finished upload. A file that cannot be deleted does
+    not fail the upload: it is kept with a warning. Return how many files
+    were deleted, and how many not
+    """
+    deleted = 0
+    not_deleted = 0
+    for path in paths:
+        try:
+            os.remove(path)
+        except OSError as ex:
+            not_deleted += 1
+            LOG.warning("Failed to delete the uploaded file %s: %s", path, ex)
+        else:
+            deleted += 1
+            LOG.info("Deleted the uploaded file %s", path)
+    return deleted, not_deleted
 
 
 def _normalize_import_paths(import_path: Path | T.Sequence[Path]) -> list[Path]:
