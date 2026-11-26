@@ -902,15 +902,19 @@ def _sample_single_video_by_interval(
 
     probe = _probe_video(ffmpeg, video_path)
 
-    if start_time is None:
-        if clock is not None:
-            start_time = datetime.datetime.fromtimestamp(
-                clock.to_unix_time(0.0), tz=datetime.timezone.utc
-            )
-        else:
-            start_time = _track_file_start_time(
-                video_path, geotag_options, video_sync
-            ) or _extract_video_start_time(video_path, probe, telemetry_points)
+    # A GPS clock stamps the frames from its own start, as distance samples
+    # are stamped and GPX sync places a GPX, whatever --video_start_time says:
+    # that is for the videos without a GPS clock, which a batch of videos may
+    # mix with videos that have one (warned of below)
+    given_start_time = start_time
+    if clock is not None:
+        start_time = datetime.datetime.fromtimestamp(
+            clock.to_unix_time(0.0), tz=datetime.timezone.utc
+        )
+    elif start_time is None:
+        start_time = _track_file_start_time(
+            video_path, geotag_options, video_sync
+        ) or _extract_video_start_time(video_path, probe, telemetry_points)
         if start_time is None:
             raise exceptions.MapillaryVideoError(
                 f"Unable to extract video start time from {video_path}"
@@ -924,6 +928,14 @@ def _sample_single_video_by_interval(
     # The gaps of a track placed from a file, outside it (see track_gaps())
     track_gaps_: list[tuple[geo.Point, geo.Point]] = []
     track_from_file = track_read is not None and _placed_from_a_file(track_read[1])
+    # GPX sync, which placed the track of a file on the video along the same
+    # clock, warned of it already
+    if clock is not None and given_start_time is not None and not track_from_file:
+        LOG.warning(
+            "Ignoring --video_start_time %s for %s, which has a GPS clock of its own",
+            build_capture_time(given_start_time),
+            video_path.name,
+        )
     if track_read is not None and track_from_file:
         track = _start_at_the_first_sample(video_path, *track_read)
         track_gaps_ = track_gaps(track.points, constants.MAX_GPX_GAP_SECONDS, rate)

@@ -324,6 +324,7 @@ class TestSampleTimelapseByInterval:
             self._sample(tmpdir), self.GPS_START_TIME, seconds_per_sample=20
         )
         assert "--video_duration_ratio" not in caplog.text
+        assert "--video_start_time" not in caplog.text
 
     def _capture_times(self, samples: T.Sequence[Path]) -> list[float]:
         """In seconds from GPS_START_TIME"""
@@ -380,13 +381,32 @@ class TestSampleTimelapseByInterval:
             [2 * idx * 8 / 7 for idx in range(len(capture_times))], abs=0.001
         )
 
-    def test_from_the_given_start_time(self, tmpdir, setup_mock, timelapse_telemetry):
-        video_start_time = "2020_08_10_14_37_05_023"
-        _validate_interval(
-            self._sample(tmpdir, video_start_time=video_start_time),
-            description.parse_capture_time(video_start_time),
-            seconds_per_sample=20,
+    def test_the_gps_clock_wins_over_the_start_time(
+        self, tmpdir, setup_mock, timelapse_telemetry, caplog
+    ):
+        """
+        As in distance sampling: the start time is for the videos without a
+        GPS clock, which a batch of videos may mix with videos that have one
+        """
+        with caplog.at_level(logging.WARNING):
+            samples = self._sample(tmpdir, video_start_time="2020_08_10_14_37_05_023")
+
+        _validate_interval(samples, self.GPS_START_TIME, seconds_per_sample=20)
+        assert caplog.text.count("Ignoring --video_start_time") == 1
+        assert (
+            "Ignoring --video_start_time 2020_08_10_14_37_05_023 for hello.mp4, "
+            "which has a GPS clock of its own" in caplog.text
         )
+
+    def test_the_start_time_stamps_a_video_without_a_gps_clock(
+        self, tmpdir, setup_mock, caplog
+    ):
+        video_start_time = "2020_08_10_14_37_05_023"
+        with caplog.at_level(logging.WARNING):
+            samples = self._sample(tmpdir, video_start_time=video_start_time)
+
+        _validate_interval(samples, description.parse_capture_time(video_start_time))
+        assert "Ignoring --video_start_time" not in caplog.text
 
     def test_the_gps_clock_wins_over_the_duration_ratio(
         self, tmpdir, setup_mock, timelapse_telemetry, caplog
@@ -870,6 +890,49 @@ class TestSampleNoisyTimelapseByInterval:
             self.GPS_START_TIME,
             seconds_per_sample=20,
         )
+
+    def test_the_clock_that_syncs_the_gpx_wins_over_the_start_time(
+        self, tmpdir, setup_mock, monkeypatch, caplog
+    ):
+        """
+        Stamped from a start time 8 minutes before the GPX, the samples would
+        all fall outside it, where the geotagging stage locates them
+        """
+        self._mock_noisy_telemetry(monkeypatch, self.GPS_START_TIME.timestamp())
+        gpx = self._write_gpx(Path(tmpdir) / "track.gpx", self.GPS_START_TIME)
+
+        with caplog.at_level(logging.WARNING):
+            samples = self._sample(
+                tmpdir,
+                geotag_source=["gpx"],
+                geotag_source_path=gpx,
+                video_start_time="2021_08_10_06_30_06_000",
+            )
+
+        _validate_interval(samples, self.GPS_START_TIME, seconds_per_sample=20)
+        assert caplog.text.count("Ignoring --video_start_time") == 1
+        assert (
+            "Ignoring --video_start_time 2021_08_10_06_30_06_000 for hello.mp4, "
+            "which has a GPS clock of its own" in caplog.text
+        )
+
+    def test_the_start_time_is_warned_of_once_where_gpx_sync_places_the_gpx(
+        self, tmpdir, setup_mock, monkeypatch, caplog
+    ):
+        """GPX sync of --video_geotag_source warns of it itself"""
+        self._mock_noisy_telemetry(monkeypatch, self.GPS_START_TIME.timestamp())
+        gpx = self._write_gpx(Path(tmpdir) / "track.gpx", self.GPS_START_TIME)
+
+        with caplog.at_level(logging.WARNING):
+            samples = self._sample(
+                tmpdir,
+                video_geotag_source=["gpx"],
+                geotag_source_path=gpx,
+                video_start_time="2021_08_10_06_30_06_000",
+            )
+
+        _validate_interval(samples, self.GPS_START_TIME, seconds_per_sample=20)
+        assert caplog.text.count("Ignoring --video_start_time") == 1
 
     def test_started_with_the_gpx_at_the_pace_of_the_clock(
         self, tmpdir, setup_mock, monkeypatch
