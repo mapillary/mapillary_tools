@@ -188,6 +188,7 @@ def test_upload_skips_files_deleted_after_process(
 
     for path in [video_without_gps, deleted_image]:
         assert f"Skipping {path}: import file or directory not found" in result.stderr
+    assert "Skipped 2 import paths not found" in result.stderr
     uploads = extract_all_uploaded_descs(Path(setup_upload))
     assert sorted(
         desc["MAPFilename"] if desc["filetype"] == "image" else desc["filetype"]
@@ -207,3 +208,6 @@ def test_upload_skips_files_deleted_after_process(
             text=True,
         )
     assert ex.value.returncode == 3, ex.value.stderr
+    # The error names both
+    assert str(video_without_gps) in ex.value.stderr
+    assert str(deleted_image) in ex.value.stderr
