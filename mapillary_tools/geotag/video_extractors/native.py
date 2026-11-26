@@ -19,6 +19,7 @@ from ... import (
     exceptions,
     geo,
     novatek_parser,
+    seventymai_log_parser,
     telemetry,
     types,
     utils,
@@ -150,6 +151,28 @@ class NovatekVideoExtractor(BaseVideoExtractor):
         )
 
 
+class SeventymaiLogVideoExtractor(BaseVideoExtractor):
+    """
+    Reads the GPS log that 70mai dashcams write beside their clips
+    """
+
+    @override
+    def extract(self) -> types.VideoMetadata:
+        points = seventymai_log_parser.extract_points(self.video_path)
+
+        if not points:
+            raise exceptions.MapillaryVideoGPSNotFoundError(
+                "No GPS data found from the video"
+            )
+
+        return types.VideoMetadata(
+            filename=self.video_path,
+            filesize=utils.get_file_size(self.video_path),
+            filetype=types.FileType.VIDEO,
+            points=T.cast(T.List[geo.Point], points),
+        )
+
+
 class NativeVideoExtractor(BaseVideoExtractor):
     def __init__(
         self,
@@ -215,6 +238,14 @@ class NativeVideoExtractor(BaseVideoExtractor):
 
         if ft is None or types.FileType.VIDEO in ft:
             extractor = NovatekVideoExtractor(self.video_path)
+            try:
+                return extractor.extract()
+            except exceptions.MapillaryVideoGPSNotFoundError:
+                pass
+
+        # A video without GPS of its own may be a 70mai clip with a GPS log beside it
+        if ft is None or types.FileType.VIDEO in ft:
+            extractor = SeventymaiLogVideoExtractor(self.video_path)
             try:
                 return extractor.extract()
             except exceptions.MapillaryVideoGPSNotFoundError:

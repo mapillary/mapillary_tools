@@ -215,7 +215,7 @@ Repeat the option or separate sources with commas. The default is `native`, then
 
 | Source                          | Images                                                     | Videos                                                                         |
 | ------------------------------- | ---------------------------------------------------------- | ------------------------------------------------------------------------------ |
-| `native`                        | EXIF                                                       | The GPS of the video: GoPro (GPMF), CAMM, BlackVue, and Novatek-based dashcams |
+| `native`                        | EXIF                                                       | The GPS of the video: GoPro (GPMF), CAMM, BlackVue, and Novatek-based dashcams; for a 70mai dashcam, its GPS log (`GPSData*.txt`) in the folder of the video |
 | `exif`                          | EXIF                                                       | Cannot read videos                                                             |
 | `exiftool_runtime` (`exiftool`) | Runs ExifTool on the image                                 | Runs ExifTool on the video                                                     |
 | `exiftool_xml`                  | Reads the output of `exiftool -X`, by default `%g.xml` beside the file | The same                                                           |
