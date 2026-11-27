@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import logging
 import sys
 import typing as T
 from pathlib import Path
@@ -27,6 +28,49 @@ from ...camm import camm_parser
 from ...gpmf import gpmf_gps_filter, gpmf_parser
 from ...mp4 import construct_mp4_parser, simple_mp4_parser
 from .base import BaseVideoExtractor
+
+
+LOG = logging.getLogger(__name__)
+
+
+def _gopro_make_and_model(fp: T.BinaryIO) -> tuple[str, str]:
+    gopro_info = gpmf_parser.extract_gopro_info(fp)
+    if gopro_info is None:
+        return "", ""
+    return gopro_info.make, gopro_info.model
+
+
+def _blackvue_make_and_model(fp: T.BinaryIO) -> tuple[str, str]:
+    if not blackvue_parser.is_blackvue(fp):
+        return "", ""
+    return "BlackVue", blackvue_parser.extract_camera_model(fp)
+
+
+def extract_make_and_model(video_path: Path) -> tuple[str | None, str | None]:
+    """
+    Read the camera make and model that a video records, whether or not its GPS
+    can be used: from the GoPro telemetry, the BlackVue copyright box or the
+    user data box. None for any that it does not record. Never raises: the
+    camera is only named, and a video whose records cannot be read is
+    geotagged all the same
+    """
+    for extract in [
+        _gopro_make_and_model,
+        _blackvue_make_and_model,
+        camm_parser.extract_camera_make_and_model,
+    ]:
+        try:
+            with video_path.open("rb") as fp:
+                make, model = extract(fp)
+        except Exception as ex:
+            LOG.debug(
+                "Failed to read the camera make and model of %s: %s", video_path, ex
+            )
+            continue
+        if make or model:
+            return make or None, model or None
+
+    return None, None
 
 
 class GoProVideoExtractor(BaseVideoExtractor):
@@ -142,11 +186,15 @@ class NovatekVideoExtractor(BaseVideoExtractor):
                 "No GPS data found from the video"
             )
 
+        make, model = extract_make_and_model(self.video_path)
+
         return types.VideoMetadata(
             filename=self.video_path,
             filesize=utils.get_file_size(self.video_path),
             filetype=types.FileType.VIDEO,
             points=T.cast(T.List[geo.Point], points),
+            make=make,
+            model=model,
         )
 
 
