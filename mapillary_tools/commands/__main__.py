@@ -189,6 +189,11 @@ def main():
         LOG.info("Interrupted by user...")
         sys.exit(130)
 
+    except Exception as ex:
+        # Log the traceback without --verbose too: it is what a bug report needs
+        LOG.error("Unexpected error: %s: %s", ex.__class__.__name__, ex, exc_info=ex)
+        sys.exit(1)
+
 
 if __name__ == "__main__":
     main()
