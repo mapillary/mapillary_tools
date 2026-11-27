@@ -171,6 +171,42 @@ class MapillaryOutsideGPXTrackError(MapillaryGeoTaggingError):
         )
 
 
+class MapillaryGPXIgnoredWarning(MapillaryProcessWarning):
+    """
+    The GPX or NMEA track given for a video missed it (MapillaryOutsideGPXTrackError),
+    and a later geotag source (**source**), such as the video's own GPS, geotagged
+    it instead: the track was ignored. The times are those of the error, capture
+    times, under the same names.
+    """
+
+    def __init__(
+        self,
+        message: str,
+        source: str,
+        image_time: str,
+        gpx_start_time: str,
+        gpx_end_time: str,
+    ):
+        super().__init__(message)
+        self.source = source
+        self.image_time = image_time
+        self.gpx_start_time = gpx_start_time
+        self.gpx_end_time = gpx_end_time
+
+    def __reduce__(self):
+        # Pickle with every argument, as the other warnings
+        return (
+            self.__class__,
+            (
+                self.args[0],
+                self.source,
+                self.image_time,
+                self.gpx_start_time,
+                self.gpx_end_time,
+            ),
+        )
+
+
 class MapillaryDuplicationError(MapillaryDescriptionError):
     def __init__(
         self,

@@ -298,6 +298,36 @@ class TestGeotagVideosFromNMEA:
         assert isinstance(metadata, types.VideoMetadata)
         assert metadata.points
 
+    def test_a_track_that_misses_the_video_is_named_when_ignored(self, tmp_path):
+        """The video's own GPS geotags it instead, with a warning about the track"""
+        # A day after the video
+        nmea = _write_nmea(
+            tmp_path / "track.nmea",
+            seconds=20,
+            start=START + datetime.timedelta(days=1),
+        )
+
+        [metadata] = factory.process(
+            [GPS_VIDEO],
+            [
+                SourceOption(
+                    SourceType.NMEA,
+                    source_path=SourcePathOption(source_path=nmea),
+                    num_processes=0,
+                ),
+                SourceOption(SourceType.NATIVE, num_processes=0),
+            ],
+        )
+
+        assert isinstance(metadata, types.VideoMetadata)
+        [ignored] = metadata.warnings
+        assert isinstance(ignored, exceptions.MapillaryGPXIgnoredWarning)
+        assert str(ignored).startswith(f"The NMEA track in {nmea} ")
+        assert str(ignored).endswith(
+            ". Ignored the NMEA track, and geotagged the video from its own GPS "
+            "track (the native source) instead"
+        )
+
 
 class TestNMEAFileReadOnce:
     def _videos(self, tmp_path: Path, count: int) -> list[Path]:

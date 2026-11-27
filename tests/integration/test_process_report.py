@@ -302,3 +302,40 @@ def test_process_report_has_no_warnings_for_a_video_without_any(
     _, report = _run_process_with_report([video_path], output_dir)
 
     assert report["warnings"] == []
+
+
+def test_process_report_warns_of_a_gpx_ignored_for_the_video_gps(
+    setup_data: py.path.local,
+):
+    """
+    The GPX track misses the video, recorded years before it, and the video's
+    own GPS geotags it instead: the report says the track was ignored
+    """
+    video_path = Path(str(setup_data.join("gopro_data", "max-360mode.mp4")))
+    # Recorded on 2025-03-14, the video on 2019-11-18
+    gpx_path = setup_data.join("gpx", "sf_30km_h.gpx")
+    output_dir = Path(str(setup_data.join("..")))
+
+    descs, report = _run_process_with_report(
+        [video_path],
+        output_dir,
+        *["--geotag_source", "gpx", "--geotag_source_path", str(gpx_path)],
+        *["--geotag_source", "native"],
+    )
+
+    [desc] = descs
+    assert "error" not in desc
+    [warning] = report["warnings"]
+    assert warning["filename"] == str(video_path.resolve())
+    assert warning["type"] == "MapillaryGPXIgnoredWarning"
+    assert f"The GPX track in {gpx_path} " in warning["message"]
+    assert warning["message"].endswith(
+        ". Ignored the GPX track, and geotagged the video from its own GPS track "
+        "(the native source) instead"
+    )
+    assert warning["vars"] == {
+        "source": "native",
+        "image_time": "2019_11_18_23_44_43_613",
+        "gpx_start_time": "2025_03_14_07_00_00_000",
+        "gpx_end_time": "2025_03_14_07_01_33_624",
+    }

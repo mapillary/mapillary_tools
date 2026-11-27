@@ -202,3 +202,30 @@ def test_warnings_survive_a_worker_process(tmp_path: Path):
     assert isinstance(warning, exceptions.MapillaryGPXAlignmentWarning)
     assert str(warning) == "align"
     assert vars(warning) == vars(metadata.warnings[0])
+
+
+def test_a_gpx_ignored_warning_is_reported_with_its_times(tmp_path: Path):
+    ignored = exceptions.MapillaryGPXIgnoredWarning(
+        "ignored",
+        source="native",
+        image_time="2023_01_17_10_00_00_000",
+        gpx_start_time="2024_12_09_10_00_00_000",
+        gpx_end_time="2024_12_09_10_05_00_000",
+    )
+    metadata = _video(tmp_path / "clip.360", ignored)
+
+    [warning] = process_report.build_process_warnings(
+        [pickle.loads(pickle.dumps(metadata))]
+    )
+
+    assert warning == {
+        "filename": str((tmp_path / "clip.360").resolve()),
+        "type": "MapillaryGPXIgnoredWarning",
+        "message": "ignored",
+        "vars": {
+            "source": "native",
+            "image_time": "2023_01_17_10_00_00_000",
+            "gpx_start_time": "2024_12_09_10_00_00_000",
+            "gpx_end_time": "2024_12_09_10_05_00_000",
+        },
+    }

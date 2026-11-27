@@ -288,10 +288,10 @@ def process(
     # overturn it by reading the same bad data differently
     rejected_gps_paths: set[Path] = set()
 
-    # Paths whose GPX track missed them, with the source that rejected them, to
-    # warn about if a later source geotags them instead, and to report if none
-    # does
-    gpx_rejections: dict[Path, tuple[SourceOption, types.ErrorMetadata]] = {}
+    # Paths whose GPX track missed them, with each source that rejected them,
+    # in order, to warn about every track if a later source geotags them
+    # instead, and to report the last miss if none does
+    gpx_rejections: dict[Path, list[tuple[SourceOption, types.ErrorMetadata]]] = {}
 
     # Videos let through to sources that cannot geotag videos (e.g. exif), with
     # those sources, to report if no other source geotags them or fails to
@@ -367,7 +367,9 @@ def process(
             ):
                 # Leave what it is for the next geotag process
                 if isinstance(metadata.error, exceptions.MapillaryOutsideGPXTrackError):
-                    gpx_rejections[metadata.filename] = (option, metadata)
+                    gpx_rejections.setdefault(metadata.filename, []).append(
+                        (option, metadata)
+                    )
                 if isinstance(
                     metadata.error,
                     (
@@ -387,11 +389,11 @@ def process(
                 final_metadatas.append(metadata)
                 reprocessable_paths.remove(metadata.filename)
                 pending_errors.pop(metadata.filename, None)
-                rejection = gpx_rejections.pop(metadata.filename, None)
+                rejections = gpx_rejections.pop(metadata.filename, [])
                 if not isinstance(metadata, types.ErrorMetadata):
                     if sources is not None:
                         sources[metadata.filename] = option
-                    if rejection is not None:
+                    for rejection in rejections:
                         rescued.append((metadata, *rejection))
 
         _warn_geotagged_despite_gpx(rescued, option)
@@ -401,12 +403,12 @@ def process(
             break
 
     # Of a file that a GPX track missed, and that no later source geotagged,
-    # report the miss: why the track given for it was not used says more than
+    # report the last miss: why the track given for it was not used says more than
     # the later sources failing too, such as "GPS is too noisy" for a video
     # whose GPS the track was given to replace
-    for path, (_, gpx_miss) in gpx_rejections.items():
+    for path, misses in gpx_rejections.items():
         if path in pending_errors:
-            pending_errors[path] = gpx_miss
+            pending_errors[path] = misses[-1][1]
 
     final_metadatas.extend(pending_errors.values())
 
@@ -656,16 +658,20 @@ def _warn_geotagged_despite_gpx(
     """
     Warn about the files whose GPX track missed them, but which the source
     **option** geotagged instead, so that a GPX that does not belong to them
-    does not go unnoticed: one warning per video, and one per GPX source for
-    images, of which a GPX can miss many.
+    does not go unnoticed: one warning per video for each track that missed
+    it, which the process report lists too, and one per GPX source for images,
+    of which a GPX can miss many.
     """
     images_by_gpx_option: dict[int, tuple[SourceOption, list[Path]]] = {}
 
     for metadata, gpx_option, rejection in rescued:
         if isinstance(metadata, types.VideoMetadata):
-            LOG.warning(
-                f"{rejection.error}. Geotagged it from the {option.source.value} source instead"
+            assert isinstance(rejection.error, exceptions.MapillaryOutsideGPXTrackError)
+            warning = _gpx_ignored_warning(
+                metadata.filename, rejection.error, gpx_option, option
             )
+            LOG.warning(warning)
+            metadata.warnings.append(warning)
         else:
             images_by_gpx_option.setdefault(id(gpx_option), (gpx_option, []))[1].append(
                 metadata.filename
@@ -683,6 +689,36 @@ def _warn_geotagged_despite_gpx(
             f"Geotagged {them} from the {option.source.value} source instead"
         )
         LOG.debug("Images outside %s: %s", gpx_track, [p.name for p in image_paths])
+
+
+def _gpx_ignored_warning(
+    video_path: Path,
+    miss: exceptions.MapillaryOutsideGPXTrackError,
+    gpx_option: SourceOption,
+    option: SourceOption,
+) -> exceptions.MapillaryGPXIgnoredWarning:
+    """
+    The warning for the video **video_path**, which the track of the source
+    **gpx_option** missed (**miss**), and the source **option** geotagged
+    instead: what the miss says, then what was used in place of the track
+    """
+    geotag = _build_video_geotag(option)
+    if isinstance(geotag, geotag_videos_from_gpx.GeotagVideosFromGPX):
+        # Another track file (GeotagVideosFromNMEA is one too)
+        used = (
+            f"the {geotag.extractor_class.file_format} track in "
+            f"{geotag.source_path.resolve(video_path)}"
+        )
+    else:
+        used = f"its own GPS track (the {option.source.value} source)"
+    track = gpx_option.source.value.upper()
+    return exceptions.MapillaryGPXIgnoredWarning(
+        f"{miss}. Ignored the {track} track, and geotagged the video from {used} instead",
+        source=option.source.value,
+        image_time=miss.image_time,
+        gpx_start_time=miss.gpx_start_time,
+        gpx_end_time=miss.gpx_end_time,
+    )
 
 
 def _video_types_asked_for(
