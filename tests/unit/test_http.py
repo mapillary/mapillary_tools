@@ -6,7 +6,7 @@
 from unittest.mock import MagicMock
 
 import requests
-from mapillary_tools import http
+from mapillary_tools import api_v4, http, VERSION
 
 
 class TestTruncate:
@@ -139,3 +139,29 @@ class TestTruncateResponseContent:
         assert isinstance(result, bytes)
         assert b"\n" not in result
         assert b"\\n" in result
+
+
+class TestUserAgent:
+    # mapillary_tools version, then the default User-Agent of requests
+    EXPECTED = f"mapillary_tools/{VERSION} python-requests/{requests.__version__}"
+
+    def _sent_user_agent(self, session: requests.Session) -> str:
+        prepared = session.prepare_request(
+            requests.Request(
+                "POST", "https://rupload.facebook.com/x", headers={"Offset": "0"}
+            )
+        )
+        return prepared.headers["User-Agent"]
+
+    def test_user_agent(self):
+        assert http.user_agent() == self.EXPECTED
+
+    def test_sessions_send_it(self):
+        assert self._sent_user_agent(http.Session()) == self.EXPECTED
+
+        user_session = api_v4.create_user_session("user_token")
+        assert self._sent_user_agent(user_session) == self.EXPECTED
+        assert user_session.headers["Authorization"] == "OAuth user_token"
+
+        client_session = api_v4.create_client_session()
+        assert self._sent_user_agent(client_session) == self.EXPECTED
