@@ -29,6 +29,7 @@ For the full list of options of the version you have installed, run `mapillary_t
 - [authenticate](#authenticate)
 - [check_upload_history](#check_upload_history)
 - [zip](#zip)
+- [install_exiftool](#install_exiftool)
 - [Exit codes](#exit-codes)
 - [Environment variables](#environment-variables)
 
@@ -45,6 +46,7 @@ For the full list of options of the version you have installed, run `mapillary_t
 | `authenticate`             | Adds, updates or deletes user profiles, and saves or deletes organization names.                   |
 | `check_upload_history`     | Tells whether processed files were already uploaded from this computer.                            |
 | `zip`                      | Writes processed image sequences into zip files, to upload later.                                  |
+| `install_exiftool`         | Installs the latest ExifTool for mapillary_tools to run.                                           |
 
 Two options go before the command name: `--version`, and `--verbose` for debug logs, as in
 `mapillary_tools --verbose process MY_CAPTURE_DIR`. After the command name, `--verbose` is rejected.
@@ -322,13 +324,19 @@ How a track is lined up with a video:
 
 ### ExifTool
 
-[ExifTool](https://exiftool.org/) reads GPS from many cameras that `native` does not. It is optional: install it
-and put it on the `PATH`, or set `MAPILLARY_TOOLS_EXIFTOOL_PATH`.
+[ExifTool](https://exiftool.org/) reads GPS from many cameras that `native` does not. mapillary_tools installs
+it: the first time it needs ExifTool, it downloads the latest release from exiftool.org into the user data folder.
+Each version of mapillary_tools installs its own, so upgrading mapillary_tools upgrades ExifTool too.
+
+- Set `MAPILLARY_TOOLS_EXIFTOOL_PATH` to run another ExifTool, such as `exiftool` to run the one on the `PATH`.
+- Set `MAPILLARY_TOOLS_EXIFTOOL_AUTO_INSTALL=NO` to never download ExifTool: mapillary_tools then runs the one on
+  the `PATH`, unless it was installed with `install_exiftool`.
+- Outside Windows, ExifTool runs with Perl, which must be on the `PATH`.
 
 Gotchas:
 
-- Without ExifTool, files that `native` cannot read fail with `MapillaryExiftoolNotFoundError`, which may hide
-  that they have no GPS at all.
+- Without ExifTool (offline the first time, or without Perl), files that `native` cannot read fail with
+  `MapillaryExiftoolNotFoundError`, which may hide that they have no GPS at all.
 - GPS points that ExifTool reads with a time more than an hour (`MAPILLARY_TOOLS_MAX_GPX_GAP_SECONDS`) from the
   rest of the track, such as a stale first fix of a dashcam, are left out with a warning.
 
@@ -530,6 +538,16 @@ mapillary_tools zip MY_IMAGE_DIR MY_ZIPS
 mapillary_tools upload MY_ZIPS --desc_path MY_IMAGE_DIR/mapillary_image_description.json
 ```
 
+## install_exiftool
+
+```sh
+mapillary_tools install_exiftool [--force]
+```
+
+Installs the ExifTool that `process` runs (see [ExifTool](#exiftool)) now, rather than the first time it is needed,
+and prints the path of the executable. Nothing is downloaded if this version of mapillary_tools installed it
+already, unless `--force` is given, which installs the latest release again.
+
 ## Exit codes
 
 | Code | Meaning                                                                       |
@@ -541,7 +559,7 @@ mapillary_tools upload MY_ZIPS --desc_path MY_IMAGE_DIR/mapillary_image_descript
 | 4    | The description file is not valid JSON                                        |
 | 6    | Some files failed to process                                                  |
 | 7    | Some videos failed to sample                                                  |
-| 8    | FFmpeg not found                                                              |
+| 8    | FFmpeg not found, or ExifTool failed to install                               |
 | 12   | Connection error during upload                                                |
 | 13   | Upload timed out                                                              |
 | 14   | Not authorized: log in again with `authenticate`                              |
@@ -556,7 +574,9 @@ mapillary_tools upload MY_ZIPS --desc_path MY_IMAGE_DIR/mapillary_image_descript
 | ------------------------------------------ | ----------------------------- | ------------------------------------------------------------ |
 | `MAPILLARY_CONFIG_PATH`                    | a file in `~/.config/mapillary/configs/` | The config file with the profiles: a file path, not a folder. |
 | `MAPILLARY_TOOLS_PROMPT_DISABLED`          | `NO`                          | `YES` to never prompt, and fail instead.                     |
-| `MAPILLARY_TOOLS_EXIFTOOL_PATH`            | `exiftool`                    | The ExifTool executable.                                     |
+| `MAPILLARY_TOOLS_EXIFTOOL_PATH`            | the ExifTool installed        | The ExifTool executable. See [ExifTool](#exiftool).          |
+| `MAPILLARY_TOOLS_EXIFTOOL_AUTO_INSTALL`    | `YES`                         | `NO` to never download ExifTool.                             |
+| `MAPILLARY_TOOLS_EXIFTOOL_INSTALL_DIR`     | in the user data folder       | Where ExifTool is installed.                                 |
 | `MAPILLARY_TOOLS_FFMPEG_PATH`, `MAPILLARY_TOOLS_FFPROBE_PATH` | `ffmpeg`, `ffprobe` | The FFmpeg executables.                                  |
 | `MAPILLARY_TOOLS_MAX_GPX_GAP_SECONDS`      | 3600                          | The longest gap in a GPX or NMEA track that files can be placed in, and how far from the rest of a track ExifTool points can be. |
 | `MAPILLARY_UPLOAD_HISTORY_PATH`            | in the user data folder       | Where the upload history is kept.                            |

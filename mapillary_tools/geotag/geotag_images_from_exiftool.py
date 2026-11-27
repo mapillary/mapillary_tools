@@ -16,7 +16,7 @@ if sys.version_info >= (3, 12):
 else:
     from typing_extensions import override
 
-from .. import constants, exceptions, exiftool_read, types, utils
+from .. import exceptions, exiftool_install, exiftool_read, types, utils
 from ..exiftool_runner import ExiftoolRunner
 from . import options
 from .base import GeotagImagesFromGeneric
@@ -71,10 +71,7 @@ class GeotagImagesFromExifToolRunner(GeotagImagesFromGeneric):
     def _generate_image_extractors(
         self, image_paths: T.Sequence[Path]
     ) -> T.Sequence[ImageExifToolExtractor | types.ErrorMetadata]:
-        if constants.EXIFTOOL_PATH is None:
-            runner = ExiftoolRunner()
-        else:
-            runner = ExiftoolRunner(constants.EXIFTOOL_PATH)
+        runner = ExiftoolRunner(exiftool_install.find_exiftool())
 
         LOG.debug(
             "Extracting XML from %d images with ExifTool command: %s",

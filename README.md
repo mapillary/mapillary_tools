@@ -105,8 +105,9 @@ mapillary_tools supports videos (.mp4, .360) that contain any of the following t
   - [DR900X Plus](https://shop.blackvue.com/product/dr900x-2ch-plus/)
 - Novatek-based dashcams, such as Viofo, Vantrue and Anker Roav dashcams
 
-Other videos can be geotagged from the GPS that [ExifTool](https://exiftool.org/) reads, if it is installed,
-or from a GPX or NMEA track recorded along with them (see [Geotagging with GPX](#geotagging-with-gpx)).
+Other videos can be geotagged from the GPS that [ExifTool](https://exiftool.org/) reads (mapillary_tools installs
+the latest ExifTool the first time it needs it), or from a GPX or NMEA track recorded along with them (see
+[Geotagging with GPX](#geotagging-with-gpx)).
 
 # Installation
 
@@ -431,7 +432,7 @@ mapillary_tools video_process MY_VIDEO.mp4 \
 
 As experimental features, mapillary_tools can now:
 * Geotag videos from tracks recorded in GPX and NMEA files
-* Invoke `exiftool` internally, if available on the system. `exiftool` can extract geolocation data from a wide
+* Invoke `exiftool` internally. `exiftool` can extract geolocation data from a wide
 range of video formats, allowing us to support more cameras with less trouble for the end user.
 * Try several geotagging sources sequentially, until proper data is found.
 
@@ -471,9 +472,11 @@ BlackVue and others. No pattern: it reads the video itself
 * `exiftool_runtime`: execute exiftool on the video file. Pattern: `%f`
 
 Notes:
-* `exiftool_runtime` only works if exiftool is installed on the system. You can find it at https://exiftool.org/ or through
-your software manager. If exiftool is installed, but is not in the default execution path, it is
-possible to specify its location by setting the environment variable `MAPILLARY_TOOLS_EXIFTOOL_PATH`.
+* For `exiftool_runtime`, mapillary_tools downloads the latest ExifTool from https://exiftool.org/ the first time it
+needs it (or with `mapillary_tools install_exiftool`), once for each version of mapillary_tools. Outside Windows,
+ExifTool needs Perl. To run another exiftool, such as the one installed by your software manager, set the environment
+variable `MAPILLARY_TOOLS_EXIFTOOL_PATH` to its location (`exiftool` for the one on the `PATH`), and set
+`MAPILLARY_TOOLS_EXIFTOOL_AUTO_INSTALL=NO` to never download it.
 * Patterns are case-sensitive or not depending on the file system: `%g.gpx` matches both `basename.gpx` and
 `basename.GPX` on Windows and, by default, on macOS, but not on Linux.
 * If both `--video_geotag_source` and `--geotag_source` are specified, the `--video_geotag_source` sources are tried

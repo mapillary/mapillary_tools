@@ -17,6 +17,7 @@ from ..utils import configure_logger, get_app_name
 from . import (
     authenticate,
     check_upload_history,
+    install_exiftool,
     process,
     process_and_upload,
     sample_video,
@@ -36,6 +37,7 @@ mapillary_tools_commands = [
     process_and_upload,
     video_process_and_upload,
     zip,
+    install_exiftool,
 ]
 
 

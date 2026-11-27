@@ -54,6 +54,10 @@ class MapillaryExiftoolNotFoundError(MapillaryUserError):
     exit_code = 8
 
 
+class MapillaryExiftoolInstallError(MapillaryUserError):
+    exit_code = 8
+
+
 class MapillaryGeoTaggingError(MapillaryDescriptionError):
     pass
 
