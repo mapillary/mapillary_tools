@@ -31,7 +31,7 @@ from ...mp4.mp4_sample_parser import MovieBoxParser
 from ...serializer.description import build_capture_time
 from .. import options, utils as geotag_utils
 from .base import BaseVideoExtractor
-from .native import NativeVideoExtractor
+from .native import extract_make_and_model, NativeVideoExtractor
 
 
 LOG = logging.getLogger(__name__)
@@ -247,11 +247,15 @@ class GPXVideoExtractor(BaseVideoExtractor):
             self._check_coverage(gpx_points, gpx_unix_times, [], start_clock, rate)
             if self.clip_to_video:
                 gpx_points = self._clip_to_video(gpx_points, start_clock, rate)
+            # The camera that the video names is no less known without its GPS
+            make, model = extract_make_and_model(self.video_path)
             return types.VideoMetadata(
                 filename=self.video_path,
                 filesize=utils.get_file_size(self.video_path),
                 filetype=types.FileType.VIDEO,
                 points=gpx_points,
+                make=make,
+                model=model,
                 warnings=list(self.warnings),
             )
 

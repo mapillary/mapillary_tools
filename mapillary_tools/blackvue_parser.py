@@ -65,19 +65,24 @@ def extract_blackvue_info(fp: T.BinaryIO) -> BlackVueInfo | None:
             # Rounding needed to avoid floating point precision issues
             p.time = round(p.time - recording_start_time, 3)
 
-    # Camera model
+    return BlackVueInfo(model=extract_camera_model(fp), gps=points)
+
+
+def extract_camera_model(fp: T.BinaryIO) -> str:
+    """
+    Read the camera model from the copyright box, whether or not the video has
+    a GPS log. Empty if not found
+    """
+    fp.seek(0)
     try:
         cprt_bytes = sparser.parse_mp4_data_first(fp, [b"free", b"cprt"])
     except sparser.ParsingError:
-        cprt_bytes = None
-        model = ""
+        return ""
 
     if cprt_bytes is None:
-        model = ""
-    else:
-        model = _extract_camera_model_from_cprt(cprt_bytes)
+        return ""
 
-    return BlackVueInfo(model=model, gps=points)
+    return _extract_camera_model_from_cprt(cprt_bytes)
 
 
 def is_blackvue(fp: T.BinaryIO) -> bool:
