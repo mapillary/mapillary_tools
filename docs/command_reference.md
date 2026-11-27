@@ -206,12 +206,13 @@ Gotchas:
 ### --geotag_source
 
 Sources are tried in order. A file that a source finds no GPS for, places outside its track, or cannot read
-because ExifTool or an XML file is missing, goes to the next source. If none geotags it, it gets the error of the
+because ExifTool or an XML file is missing, goes to the next source. A video that a GPX or NMEA track missed, but a
+later source geotags, such as its own GPS, gets a `MapillaryGPXIgnoredWarning` for each track that missed it: the
+miss, that the track was ignored, and what geotagged the video (for images, only a warning is logged). If no source
+geotags a file, it gets the error of the
 last one that tried, with two exceptions: if a GPX or NMEA track missed the file, that miss is reported
 (`MapillaryOutsideGPXTrackError`, which says by how much); and the rejection of a video's own GPS is kept over a
-later "GPX file not found". A video that a GPX or NMEA track missed, but a later source geotags, such as its own
-GPS, gets a `MapillaryGPXIgnoredWarning` instead: the miss, that the track was ignored, and what geotagged the
-video (for images, only a warning is logged). Other errors end the search:
+later "GPX file not found". Other errors end the search:
 a track file that is not valid, or has no time that can be read, fails the files it was to geotag, even if a
 later source could have. A video whose own GPS is rejected as empty or noisy goes on only to `gpx` and `nmea` sources.
 Repeat the option or separate sources with commas. The default is `native`, then `exiftool_runtime`.

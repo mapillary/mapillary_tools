@@ -585,6 +585,58 @@ class TestFallThrough:
         assert isinstance(metadata, types.VideoMetadata)
         assert metadata.warnings == []
 
+    def _two_tracks_that_miss(self, tmp_path: Path) -> list[Path]:
+        """Two GPX tracks, 2 and 3 hours after the video"""
+        return [
+            _write_gpx(tmp_path / "first.gpx", A_UNIX_TIME + 2 * 3600, 10),
+            _write_gpx(tmp_path / "second.gpx", A_UNIX_TIME + 3 * 3600, 10),
+        ]
+
+    def _gpx_options(self, gpx_paths: T.Sequence[Path]) -> list[SourceOption]:
+        return [
+            SourceOption(
+                SourceType.GPX,
+                num_processes=0,
+                source_path=SourcePathOption(source_path=gpx_path),
+            )
+            for gpx_path in gpx_paths
+        ]
+
+    def test_a_video_that_two_tracks_miss_is_warned_of_each(self, tmp_path, caplog):
+        video_path = _write_camm_mp4(tmp_path / "video.mp4", _video_track())
+        gpx_paths = self._two_tracks_that_miss(tmp_path)
+        options = [
+            *self._gpx_options(gpx_paths),
+            SourceOption(SourceType.NATIVE, num_processes=0),
+        ]
+
+        with caplog.at_level(logging.WARNING):
+            [metadata] = factory.process([video_path], options)
+
+        assert isinstance(metadata, types.VideoMetadata)
+        # One warning for each track, in the order of the sources
+        first, second = metadata.warnings
+        assert [str(first), str(second)] == _warnings(caplog)
+        for ignored, gpx_path, hours in zip(
+            (first, second), gpx_paths, ("2.0 hours", "3.0 hours")
+        ):
+            assert isinstance(ignored, exceptions.MapillaryGPXIgnoredWarning)
+            assert str(ignored).startswith(f"The GPX track in {gpx_path} ")
+            assert f"by {hours}" in str(ignored)
+            assert ignored.source == "native"
+
+    def test_the_last_miss_is_reported_if_no_later_source_geotags_the_video(
+        self, tmp_path
+    ):
+        video_path = _write_camm_mp4(tmp_path / "video.mp4", _video_track())
+        gpx_paths = self._two_tracks_that_miss(tmp_path)
+
+        [metadata] = factory.process([video_path], self._gpx_options(gpx_paths))
+
+        assert isinstance(metadata, types.ErrorMetadata)
+        assert isinstance(metadata.error, exceptions.MapillaryOutsideGPXTrackError)
+        assert str(metadata.error).startswith(f"The GPX track in {gpx_paths[1]} ")
+
     def test_the_miss_is_reported_if_no_later_source_geotags_the_video(self, tmp_path):
         video_path = _write_camm_mp4(tmp_path / "video.mp4", _video_track())
         gpx_path = _write_gpx(tmp_path / "track.gpx", A_UNIX_TIME + 2 * 3600, 10)
