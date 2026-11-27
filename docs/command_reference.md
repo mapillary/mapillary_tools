@@ -379,7 +379,8 @@ Gotchas:
 - An interrupted upload resumes where it stopped the next time you upload the same files.
 - `--organization_key` takes a numeric ID. Organization names are 2 to 32 letters, digits, `-` and `_`, starting
   with a letter, and are case-sensitive. Saving a name again with another ID replaces it.
-- An image that fails to upload fails its whole sequence. The other sequences, videos and zip files carry on, and
+- An image that fails to upload fails its whole sequence. A file that fails to read, such as one on a drive that was
+  removed, fails the same way, also while it is uploaded. The other sequences, videos and zip files carry on, and
   the command still exits with code 0: check the upload summary. Connection errors, time-outs, authorization
   errors, other HTTP errors and unexpected API responses stop the command (exit codes 12, 13, 14, 16 and 17).
 - Uploading a folder of zip files also needs a description file: pass the one of the zipped images with

@@ -134,10 +134,15 @@ def upload(
 
     # The real uploading happens sequentially here
     try:
-        for _, result in results:
+        for key, result in results:
             if result.error is not None:
                 upload_error = _continue_or_fail(result.error)
-                log_exception(upload_error)
+                if isinstance(upload_error, OSError) and upload_error.filename is None:
+                    # Unlike an error opening a file, an error reading it does
+                    # not name the file
+                    log_exception(upload_error, upload_name=_upload_name(key))
+                else:
+                    log_exception(upload_error)
                 upload_errors.append(upload_error)
             else:
                 upload_successes += 1
@@ -281,7 +286,7 @@ def zip_images(import_path: Path, zip_dir: Path, desc_path: str | None = None):
     uploader.ZipUploader.zip_images(image_metadatas, zip_dir)
 
 
-def log_exception(ex: Exception) -> None:
+def log_exception(ex: Exception, upload_name: str | None = None) -> None:
     if LOG.isEnabledFor(logging.DEBUG):
         exc_info = ex
     else:
@@ -298,6 +303,8 @@ def log_exception(ex: Exception) -> None:
             f"{exc_name}: {ex}: {http.readable_http_response(ex.response)}",
             exc_info=exc_info,
         )
+    elif upload_name is not None:
+        LOG.error(f"{exc_name}: {upload_name}: {ex}", exc_info=exc_info)
     else:
         LOG.error(f"{exc_name}: {ex}", exc_info=exc_info)
 
@@ -786,6 +793,19 @@ def _gen_upload_everything(
     yield from uploader.ZipUploader.upload_zipfiles(mly_uploader, candidates.zip_paths)
 
 
+def _upload_name(key: str | types.VideoMetadata | Path) -> str:
+    """
+    The name of an upload of _gen_upload_everything by its key, as
+    Uploader._upload_name names it: the sequence UUID, or the video or zip file
+    """
+    if isinstance(key, types.VideoMetadata):
+        return key.filename.name
+    elif isinstance(key, Path):
+        return key.name
+    else:
+        return f"sequence_{key}"
+
+
 def _normalize_import_paths(import_path: Path | T.Sequence[Path]) -> list[Path]:
     import_paths: list[Path]
 
@@ -840,6 +860,16 @@ def _continue_or_fail(ex: Exception) -> Exception:
                 api_v4.extract_auth_error_message(ex.response)
             ) from ex
         raise ex
+
+    # Certain files could not be read, such as files on a drive that was
+    # removed. Other OSErrors stop the upload: the exceptions of requests not
+    # handled above (such as ChunkedEncodingError), and the connection errors
+    # and time-outs that requests did not wrap, which come from elsewhere, such
+    # as ETIMEDOUT reading a network drive or EPIPE writing to a closed stderr
+    if isinstance(ex, OSError) and not isinstance(
+        ex, (requests.RequestException, ConnectionError, TimeoutError)
+    ):
+        return ex
 
     raise ex
 

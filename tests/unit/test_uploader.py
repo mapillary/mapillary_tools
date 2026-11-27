@@ -4,14 +4,28 @@
 # LICENSE file in the root directory of this source tree.
 
 import dataclasses
+import errno
+import json
+import logging
+import shutil
+import threading
 import typing as T
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from unittest.mock import patch
 
 import py.path
 import pytest
 import requests
-from mapillary_tools import api_v4, geo, types, upload, uploader
+from mapillary_tools import (
+    api_v4,
+    constants,
+    geo,
+    types,
+    upload,
+    upload_api_v4,
+    uploader,
+)
 from mapillary_tools.mp4 import construct_mp4_parser as cparser
 from mapillary_tools.serializer import description
 
@@ -350,6 +364,212 @@ def test_upload_continues_after_points_too_far_apart(
         dry_run=True,
     )
     assert "GPSPointsTooFarApartError: a_bad.mp4" in caplog.text
+
+
+def test_upload_continues_after_a_file_fails_to_read(
+    tmpdir: py.path.local, setup_upload: py.path.local, caplog, monkeypatch
+):
+    caplog.set_level(logging.INFO)
+    video_dir = Path(tmpdir.mkdir("videos"))
+    metadatas = []
+    for name in ["a_unreadable.mp4", "b_good.mp4"]:
+        _write_empty_mp4(video_dir / name, 60000)
+        metadatas.append(
+            types.VideoMetadata(
+                video_dir / name,
+                types.FileType.VIDEO,
+                points=[
+                    geo.Point(time=0.0, lat=1, lon=1, alt=None, angle=None),
+                    geo.Point(time=1.0, lat=1.0001, lon=1, alt=None, angle=None),
+                ],
+            )
+        )
+
+    transform_mp4 = uploader.simple_mp4_builder.transform_mp4
+
+    def _transform_mp4(src_fp, sample_generator):
+        # As reading a file on a drive that was removed fails on Windows
+        if Path(src_fp.name).name == "a_unreadable.mp4":
+            raise OSError(errno.EINVAL, "Invalid argument")
+        return transform_mp4(src_fp, sample_generator)
+
+    monkeypatch.setattr(uploader.simple_mp4_builder, "transform_mp4", _transform_mp4)
+
+    upload.upload(
+        video_dir,
+        {"user_upload_token": "YOUR_USER_ACCESS_TOKEN"},
+        num_upload_workers=1,
+        _metadatas_from_process=metadatas,
+        reupload=True,
+        dry_run=True,
+    )
+    # The error does not name the file, so the log does
+    assert "OSError: a_unreadable.mp4: [Errno 22] Invalid argument" in caplog.text
+    assert "1 uploads failed due to OSError" in caplog.text
+    assert "1 video uploaded" in caplog.text
+
+
+@pytest.fixture
+def upload_service(monkeypatch: pytest.MonkeyPatch):
+    """
+    Serve the upload service locally, and return the sizes of the uploads
+    received in full
+    """
+    received: list[int] = []
+
+    class Handler(BaseHTTPRequestHandler):
+        protocol_version = "HTTP/1.1"
+
+        def do_GET(self):
+            self._reply({"offset": 0})
+
+        def do_POST(self):
+            # requests sends a stream in chunks
+            size = 0
+            while True:
+                try:
+                    chunk_size = int(self.rfile.readline().strip(), 16)
+                except ValueError:
+                    # The client stopped sending
+                    self.close_connection = True
+                    return
+                size += len(self.rfile.read(chunk_size))
+                self.rfile.readline()
+                if chunk_size == 0:
+                    break
+            received.append(size)
+            self._reply({"h": f"file_handle_{len(received)}"})
+
+        def _reply(self, body: dict) -> None:
+            data = json.dumps(body).encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
+
+        def log_message(self, format, *args):
+            pass
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    monkeypatch.setattr(
+        upload_api_v4,
+        "MAPILLARY_UPLOAD_ENDPOINT",
+        f"http://127.0.0.1:{server.server_port}/upload",
+    )
+    yield received
+    server.shutdown()
+    server.server_close()
+    thread.join()
+
+
+def test_file_fails_to_read_while_uploaded(
+    tmpdir: py.path.local, upload_service: list[int], monkeypatch
+):
+    video_dir = Path(tmpdir.mkdir("videos"))
+    shutil.copy("tests/data/videos/sample-5s.mp4", video_dir / "a.mp4")
+    shutil.copy("tests/data/videos/sample-5s_h265.mp4", video_dir / "b.mp4")
+    metadatas = [
+        types.VideoMetadata(
+            video_dir / name,
+            types.FileType.VIDEO,
+            points=[
+                geo.Point(time=0.0, lat=1, lon=1, alt=None, angle=None),
+                geo.Point(time=1.0, lat=1.0001, lon=1, alt=None, angle=None),
+            ],
+        )
+        for name in ["a.mp4", "b.mp4"]
+    ]
+
+    uploading = threading.Event()
+
+    class DriveRemovedWhileUploading:
+        """A file whose reads fail once it is uploaded, as when the drive is removed"""
+
+        def __init__(self, fp):
+            self._fp = fp
+
+        def read(self, size: int = -1) -> bytes:
+            if uploading.is_set():
+                raise OSError(errno.EIO, "Input/output error")
+            return self._fp.read(size)
+
+        def __getattr__(self, name):
+            return getattr(self._fp, name)
+
+    transform_mp4 = uploader.simple_mp4_builder.transform_mp4
+
+    def _transform_mp4(src_fp, sample_generator):
+        if Path(src_fp.name).name == "a.mp4":
+            src_fp = DriveRemovedWhileUploading(src_fp)
+        return transform_mp4(src_fp, sample_generator)
+
+    upload_shifted_chunks = upload_api_v4.UploadService.upload_shifted_chunks
+
+    def _upload_shifted_chunks(self, *args, **kwargs):
+        # After the file was read for its session key
+        uploading.set()
+        return upload_shifted_chunks(self, *args, **kwargs)
+
+    monkeypatch.setattr(uploader.simple_mp4_builder, "transform_mp4", _transform_mp4)
+    monkeypatch.setattr(
+        upload_api_v4.UploadService, "upload_shifted_chunks", _upload_shifted_chunks
+    )
+    # Fail at once instead of retrying 200 times, if it is retried
+    monkeypatch.setattr(constants, "MAX_UPLOAD_RETRIES", 0)
+
+    emitter = uploader.EventEmitter()
+    retries = []
+    emitter.on("upload_retrying")(lambda payload: retries.append(payload))
+    mly_uploader = uploader.Uploader(
+        uploader.UploadOptions(
+            {"user_upload_token": "YOUR_USER_ACCESS_TOKEN"}, nofinish=True
+        ),
+        emitter=emitter,
+    )
+
+    [(a, a_result), (b, b_result)] = list(
+        uploader.VideoUploader.upload_videos(mly_uploader, metadatas)
+    )
+
+    # Not taken for a connection error, and not retried
+    assert a.filename.name == "a.mp4"
+    assert isinstance(a_result.error, uploader.FileReadError)
+    assert str(a_result.error) == "a.mp4: [Errno 5] Input/output error"
+    assert upload._continue_or_fail(a_result.error) is a_result.error
+    assert not retries
+    # The next one is uploaded
+    assert b.filename.name == "b.mp4"
+    assert b_result.error is None
+    assert len(upload_service) == 1
+
+
+@pytest.mark.parametrize(
+    "ex",
+    [
+        OSError(errno.EINVAL, "Invalid argument"),
+        OSError(errno.EIO, "Input/output error"),
+        FileNotFoundError(errno.ENOENT, "No such file or directory"),
+        PermissionError(errno.EACCES, "Permission denied"),
+    ],
+)
+def test_file_errors_fail_only_their_file(ex: OSError):
+    assert upload._continue_or_fail(ex) is ex
+
+
+@pytest.mark.parametrize(
+    "ex",
+    [
+        ConnectionResetError(errno.ECONNRESET, "Connection reset by peer"),
+        TimeoutError("timed out"),
+        requests.exceptions.ChunkedEncodingError("Connection broken"),
+    ],
+)
+def test_connection_errors_stop_the_upload(ex: OSError):
+    with pytest.raises(type(ex)):
+        upload._continue_or_fail(ex)
 
 
 def test_upload_zip_with_emitter(
