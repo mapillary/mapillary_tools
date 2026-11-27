@@ -104,6 +104,7 @@ mapillary_tools supports videos (.mp4, .360) that contain any of the following t
   - [DR900S-1CH](https://shop.blackvue.com/product/dr900x-1ch-plus/)
   - [DR900X Plus](https://shop.blackvue.com/product/dr900x-2ch-plus/)
 - Novatek-based dashcams, such as Viofo, Vantrue and Anker Roav dashcams
+- 70mai dashcams, from the GPS log (`GPSData000001.txt`) that they write beside the videos: keep it in the same folder
 
 Other videos can be geotagged from the GPS that [ExifTool](https://exiftool.org/) reads, if it is installed,
 or from a GPX or NMEA track recorded along with them (see [Geotagging with GPX](#geotagging-with-gpx)).
