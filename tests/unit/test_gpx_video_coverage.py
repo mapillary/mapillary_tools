@@ -527,7 +527,63 @@ class TestFallThrough:
         assert [p.time for p in metadata.points] == [float(t) for t in range(11)]
         [warning] = _warnings(caplog)
         assert "misses the video" in warning and "by 2.0 hours" in warning
-        assert warning.endswith("Geotagged it from the native source instead")
+        assert warning.endswith(
+            ". Ignored the GPX track, and geotagged the video from its own GPS "
+            "track (the native source) instead"
+        )
+        # The same warning is given to the video, for the process report
+        [ignored] = metadata.warnings
+        assert isinstance(ignored, exceptions.MapillaryGPXIgnoredWarning)
+        assert str(ignored) == warning
+        assert vars(ignored) == {
+            "source": "native",
+            "image_time": "2026_08_12_08_26_27_979",
+            "gpx_start_time": "2026_08_12_10_26_27_979",
+            "gpx_end_time": "2026_08_12_10_26_37_979",
+        }
+
+    def test_a_video_that_another_track_geotags_names_it(self, tmp_path):
+        video_path = _write_camm_mp4(tmp_path / "video.mp4", _video_track())
+        missing_gpx = _write_gpx(tmp_path / "other.gpx", A_UNIX_TIME + 2 * 3600, 10)
+        # The track beside the video, by the default pattern of the gpx source
+        _write_gpx(tmp_path / "video.gpx", A_UNIX_TIME, 10)
+        options = [
+            SourceOption(
+                SourceType.GPX,
+                num_processes=0,
+                source_path=SourcePathOption(source_path=missing_gpx),
+            ),
+            SourceOption(SourceType.GPX, num_processes=0),
+        ]
+
+        [metadata] = factory.process([video_path], options)
+
+        assert isinstance(metadata, types.VideoMetadata)
+        [ignored] = metadata.warnings
+        assert isinstance(ignored, exceptions.MapillaryGPXIgnoredWarning)
+        assert str(ignored).startswith(f"The GPX track in {missing_gpx} ")
+        assert str(ignored).endswith(
+            ". Ignored the GPX track, and geotagged the video from the GPX track "
+            f"in {tmp_path / 'video.gpx'} instead"
+        )
+        assert ignored.source == "gpx"
+
+    def test_a_video_that_its_track_geotags_has_no_such_warning(self, tmp_path):
+        video_path = _write_camm_mp4(tmp_path / "video.mp4", _video_track())
+        gpx_path = _write_gpx(tmp_path / "track.gpx", A_UNIX_TIME, 10)
+        options = [
+            SourceOption(
+                SourceType.GPX,
+                num_processes=0,
+                source_path=SourcePathOption(source_path=gpx_path),
+            ),
+            SourceOption(SourceType.NATIVE, num_processes=0),
+        ]
+
+        [metadata] = factory.process([video_path], options)
+
+        assert isinstance(metadata, types.VideoMetadata)
+        assert metadata.warnings == []
 
     def test_the_miss_is_reported_if_no_later_source_geotags_the_video(self, tmp_path):
         video_path = _write_camm_mp4(tmp_path / "video.mp4", _video_track())

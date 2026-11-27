@@ -178,7 +178,8 @@ The process report (version 1) has `discovered_file_count`, `processed_file_coun
 extension, counted before processing: including those that fail, and those that `--filetypes` leaves out),
 `skipped_file_count`, `skipped_files` with the name, category, reason code and extension of each unsupported file,
 and `warnings`: one entry for each warning about a file that was still geotagged, with its `filename`, `type`,
-`message` and `vars` (such as the durations of a `MapillaryGPXAlignmentWarning`). An unsupported file named on the
+`message` and `vars` (such as the durations of a `MapillaryGPXAlignmentWarning`, or the times of a
+`MapillaryGPXIgnoredWarning`, see [Geotag sources](#geotag-sources)). An unsupported file named on the
 command line is always reported. Only `process` and `process_and_upload` list warnings. The report is written before
 processing starts, and again with the warnings once geotagging has run. It holds absolute file names, so treat it
 as private.
@@ -208,7 +209,9 @@ Sources are tried in order. A file that a source finds no GPS for, places outsid
 because ExifTool or an XML file is missing, goes to the next source. If none geotags it, it gets the error of the
 last one that tried, with two exceptions: if a GPX or NMEA track missed the file, that miss is reported
 (`MapillaryOutsideGPXTrackError`, which says by how much); and the rejection of a video's own GPS is kept over a
-later "GPX file not found". Other errors end the search:
+later "GPX file not found". A video that a GPX or NMEA track missed, but a later source geotags, such as its own
+GPS, gets a `MapillaryGPXIgnoredWarning` instead: the miss, that the track was ignored, and what geotagged the
+video (for images, only a warning is logged). Other errors end the search:
 a track file that is not valid, or has no time that can be read, fails the files it was to geotag, even if a
 later source could have. A video whose own GPS is rejected as empty or noisy goes on only to `gpx` and `nmea` sources.
 Repeat the option or separate sources with commas. The default is `native`, then `exiftool_runtime`.

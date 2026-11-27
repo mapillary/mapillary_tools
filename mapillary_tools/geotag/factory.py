@@ -656,16 +656,19 @@ def _warn_geotagged_despite_gpx(
     """
     Warn about the files whose GPX track missed them, but which the source
     **option** geotagged instead, so that a GPX that does not belong to them
-    does not go unnoticed: one warning per video, and one per GPX source for
-    images, of which a GPX can miss many.
+    does not go unnoticed: one warning per video, which the process report
+    lists too, and one per GPX source for images, of which a GPX can miss many.
     """
     images_by_gpx_option: dict[int, tuple[SourceOption, list[Path]]] = {}
 
     for metadata, gpx_option, rejection in rescued:
         if isinstance(metadata, types.VideoMetadata):
-            LOG.warning(
-                f"{rejection.error}. Geotagged it from the {option.source.value} source instead"
+            assert isinstance(rejection.error, exceptions.MapillaryOutsideGPXTrackError)
+            warning = _gpx_ignored_warning(
+                metadata.filename, rejection.error, gpx_option, option
             )
+            LOG.warning(warning)
+            metadata.warnings.append(warning)
         else:
             images_by_gpx_option.setdefault(id(gpx_option), (gpx_option, []))[1].append(
                 metadata.filename
@@ -683,6 +686,36 @@ def _warn_geotagged_despite_gpx(
             f"Geotagged {them} from the {option.source.value} source instead"
         )
         LOG.debug("Images outside %s: %s", gpx_track, [p.name for p in image_paths])
+
+
+def _gpx_ignored_warning(
+    video_path: Path,
+    miss: exceptions.MapillaryOutsideGPXTrackError,
+    gpx_option: SourceOption,
+    option: SourceOption,
+) -> exceptions.MapillaryGPXIgnoredWarning:
+    """
+    The warning for the video **video_path**, which the track of the source
+    **gpx_option** missed (**miss**), and the source **option** geotagged
+    instead: what the miss says, then what was used in place of the track
+    """
+    geotag = _build_video_geotag(option)
+    if isinstance(geotag, geotag_videos_from_gpx.GeotagVideosFromGPX):
+        # Another track file (GeotagVideosFromNMEA is one too)
+        used = (
+            f"the {geotag.extractor_class.file_format} track in "
+            f"{geotag.source_path.resolve(video_path)}"
+        )
+    else:
+        used = f"its own GPS track (the {option.source.value} source)"
+    track = gpx_option.source.value.upper()
+    return exceptions.MapillaryGPXIgnoredWarning(
+        f"{miss}. Ignored the {track} track, and geotagged the video from {used} instead",
+        source=option.source.value,
+        image_time=miss.image_time,
+        gpx_start_time=miss.gpx_start_time,
+        gpx_end_time=miss.gpx_end_time,
+    )
 
 
 def _video_types_asked_for(
