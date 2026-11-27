@@ -16,7 +16,7 @@ if sys.version_info >= (3, 12):
 else:
     from typing_extensions import override
 
-from .. import constants, exceptions, exiftool_read, types
+from .. import exceptions, exiftool_install, exiftool_read, types
 from ..exiftool_runner import ExiftoolRunner
 from . import options
 from .base import GeotagVideosFromGeneric
@@ -163,10 +163,7 @@ class GeotagVideosFromExifToolRunner(GeotagVideosFromGeneric):
 
         # Not -fast, which skips the trailer that holds the GPS of an Insta360
         # original
-        if constants.EXIFTOOL_PATH is None:
-            runner = ExiftoolRunner(fast=False)
-        else:
-            runner = ExiftoolRunner(constants.EXIFTOOL_PATH, fast=False)
+        runner = ExiftoolRunner(exiftool_install.find_exiftool(), fast=False)
 
         LOG.debug(
             "Extracting XML from %d videos with ExifTool command: %s",

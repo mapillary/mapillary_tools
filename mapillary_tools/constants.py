@@ -99,7 +99,18 @@ VIDEO_SAMPLE_DISTANCE = float(os.getenv(_ENV_PREFIX + "VIDEO_SAMPLE_DISTANCE", 3
 VIDEO_DURATION_RATIO = float(os.getenv(_ENV_PREFIX + "VIDEO_DURATION_RATIO", 1))
 FFPROBE_PATH: str = os.getenv(_ENV_PREFIX + "FFPROBE_PATH", "ffprobe")
 FFMPEG_PATH: str = os.getenv(_ENV_PREFIX + "FFMPEG_PATH", "ffmpeg")
-EXIFTOOL_PATH: str = os.getenv(_ENV_PREFIX + "EXIFTOOL_PATH", "exiftool")
+# The ExifTool to run. If not set, mapillary_tools runs the ExifTool it installed
+# (see exiftool_install.py)
+EXIFTOOL_PATH: str | None = os.getenv(_ENV_PREFIX + "EXIFTOOL_PATH") or None
+# Where mapillary_tools installs ExifTool
+EXIFTOOL_INSTALL_DIR: str = os.getenv(
+    _ENV_PREFIX + "EXIFTOOL_INSTALL_DIR", os.path.join(USER_DATA_DIR, "exiftool")
+)
+# NO to never download ExifTool, but run the exiftool on the PATH unless
+# mapillary_tools installed one (with the install_exiftool command)
+EXIFTOOL_AUTO_INSTALL: bool = _yes_or_no(
+    os.getenv(_ENV_PREFIX + "EXIFTOOL_AUTO_INSTALL", "YES")
+)
 IMAGE_DESCRIPTION_FILENAME = os.getenv(
     _ENV_PREFIX + "IMAGE_DESCRIPTION_FILENAME", "mapillary_image_description.json"
 )
