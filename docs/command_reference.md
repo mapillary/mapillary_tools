@@ -199,8 +199,10 @@ Gotchas:
 - The `--overwrite_*` options modify your original images.
 - An image with a GPS position of its own but no capture time that any source can read gets the earlier of its
   file modification and creation times (on Linux, the modification time), with a warning: a
-  `MapillaryFileTimeWarning` in the process report. File times can change when files are copied, so check such
-  images. An image placed on a GPX or NMEA track still fails without a capture time.
+  `MapillaryFileTimeWarning` in the process report. A downloaded, exported or copied file has the time of the copy,
+  and images written in one go get times within seconds of each other: a sequence of them is uploaded with the time
+  of the copy, or fails as too fast (`MapillaryCaptureSpeedTooFastError`). An image placed on a GPX or NMEA track
+  still fails without a capture time.
 - Images whose only date is a placeholder, or before 1970, fail. `native` also rejects EXIF GPS minutes or
   seconds above 60, but with ExifTool installed, the default `exiftool_runtime` fallback then geotags such an
   image at a wrong position, without a warning. Check images that `native` rejects.

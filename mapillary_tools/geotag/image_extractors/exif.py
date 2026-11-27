@@ -103,8 +103,10 @@ def _describe_file_time(
     ).isoformat(timespec="seconds")
     return exceptions.MapillaryFileTimeWarning(
         f"No capture time found in the metadata of the image {image_path}: using "
-        f"its file {file_time} time {time_str} instead. File times may change "
-        "when files are copied, so this may not be when the image was taken",
+        f"its file {file_time} time {time_str} instead. A downloaded, exported or "
+        "copied file has the time of the copy, and images written in one go get "
+        "times within seconds of each other, so a sequence of them is uploaded "
+        "with the time of the copy or fails as too fast",
         file_time=file_time,
         capture_time=build_capture_time(unix_time),
     )

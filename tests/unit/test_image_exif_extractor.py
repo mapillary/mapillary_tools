@@ -340,9 +340,11 @@ class TestFileTimeForImagesWithoutCaptureTime:
         }
         assert str(warning) == (
             f"No capture time found in the metadata of the image {image}: using "
-            "its file modification time 2024-05-01T10:00:00+00:00 instead. File "
-            "times may change when files are copied, so this may not be when "
-            "the image was taken"
+            "its file modification time 2024-05-01T10:00:00+00:00 instead. A "
+            "downloaded, exported or copied file has the time of the copy, and "
+            "images written in one go get times within seconds of each other, so "
+            "a sequence of them is uploaded with the time of the copy or fails as "
+            "too fast"
         )
 
     def test_exiftool(self, tmp_path: Path):
