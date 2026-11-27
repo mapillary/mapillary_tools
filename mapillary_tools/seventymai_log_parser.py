@@ -63,10 +63,10 @@ _CLIP_COLUMN = 9
 _MAX_MISSING_SECONDS = 8.0
 
 # Where the first run of the rows of a clip is in a log: right after "$V02" (or
-# after rows that name no clip), at the top of the log, or after rows of another
-# clip
+# after rows that name no clip), where the camera started logging, or elsewhere:
+# after rows of another clip, or at the top of a log without "$V02", which
+# continues a log
 _AFTER_HEADER = "header"
-_AT_TOP = "top"
 _AFTER_CLIP = "clip"
 
 # The fixes may span a few seconds more than the clip, as the camera may repeat
@@ -102,17 +102,14 @@ def extract_points(video_path: Path) -> list[telemetry.GPSPoint] | None:
     # camera wrote after it started logging
     rows: list[_Row] = []
     first_logged: bool | None = None
-    for log_idx, log_path in enumerate(log_paths):
+    for log_path in log_paths:
         try:
             clip_rows, begins = _read_clip_rows(log_path, video_path.stem.casefold())
         except OSError as ex:
             LOG.warning("Unable to read the GPS log %s: %s", log_path, ex)
             continue
         if first_logged is None and begins is not None:
-            # The top of a later log continues the previous log
-            first_logged = begins == _AFTER_HEADER or (
-                begins == _AT_TOP and log_idx == 0
-            )
+            first_logged = begins == _AFTER_HEADER
         rows.extend(clip_rows)
 
     fix_indices = [idx for idx, row in enumerate(rows) if row.fix is not None]
@@ -233,7 +230,7 @@ def _index_log(
         offset = 0
         run_name: bytes | None = None
         run_start = 0
-        run_where = position = _AT_TOP
+        run_where = position = _AFTER_CLIP
         for line in fp:
             fields = line.split(b",", _CLIP_COLUMN + 1)
             name = fields[_CLIP_COLUMN] if _CLIP_COLUMN < len(fields) - 1 else None

@@ -147,12 +147,14 @@ def test_first_fix_came_late(tmp_path: Path, before: list[str]):
     assert _extract(video_path) == _expected(times, times[-1] - 60.0)
 
 
-def test_first_fix_came_late_at_the_top_of_the_first_log(tmp_path: Path):
+def test_short_clip_at_the_top_of_a_log_without_header(tmp_path: Path):
+    # A log without "$V02" continues one that is not there, such as one cut or
+    # rotated away, so its first rows don't tell when the camera got a fix
     video_path = _clip(tmp_path)
     times = [t for t in CLIP_TIMES if START + 20 <= t]
     _write(tmp_path, _rows(times), header=False)
 
-    assert _extract(video_path) == _expected(times, times[-1] - 60.0)
+    assert _extract(video_path) == _expected(times, times[0])
 
 
 def test_clip_ended_early(tmp_path: Path):
