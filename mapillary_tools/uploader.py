@@ -175,6 +175,13 @@ class GPSPointsTooFarApartError(SequenceError):
     """
 
 
+class FileReadError(SequenceError):
+    """
+    The file failed to read while it was uploaded, such as from a drive that
+    was removed
+    """
+
+
 # BELOW demonstrates the pseudocode for a typical upload workflow
 # and when upload events are emitted
 #################################################################
@@ -1055,9 +1062,19 @@ class Uploader:
     def _chunk_with_progress_emitted(
         self, stream: T.IO[bytes], progress: UploaderProgress
     ) -> T.Generator[bytes, None, None]:
-        for chunk in upload_api_v4.UploadService.chunkize_byte_stream(
+        chunks = upload_api_v4.UploadService.chunkize_byte_stream(
             stream, self.upload_options.chunk_size
-        ):
+        )
+        while True:
+            try:
+                chunk = next(chunks)
+            except StopIteration:
+                break
+            except OSError as ex:
+                # requests reads the chunks while it sends them, and would
+                # take an OSError raised here for a connection error to retry
+                raise FileReadError(f"{self._upload_name(progress)}: {ex}") from ex
+
             yield chunk
 
             progress["offset"] += len(chunk)
