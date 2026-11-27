@@ -16,7 +16,7 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 
 import pytest
-from mapillary_tools import novatek_parser
+from mapillary_tools import exceptions, novatek_parser, types
 from mapillary_tools.geotag.video_extractors.exiftool import VideoExifToolExtractor
 from mapillary_tools.geotag.video_extractors.gpx import GPXVideoExtractor
 from mapillary_tools.geotag.video_extractors.native import (
@@ -104,6 +104,43 @@ def _exiftool_element(make: str | None = None) -> ET.Element:
     return element
 
 
+def _gopro_exiftool_element(speeds: list[float]) -> ET.Element:
+    """
+    What ExifTool reads from a GoPro video remuxed without its user data box:
+    the GPS of its telemetry track, one point per sample, but no camera
+    """
+    samples = "".join(
+        f"""\
+ <Track2:SampleTime>{idx}</Track2:SampleTime>
+ <Track2:SampleDuration>1</Track2:SampleDuration>
+ <Track2:GPSMeasureMode>3</Track2:GPSMeasureMode>
+ <Track2:GPSDateTime>2019:11:18 23:44:{42 + idx:02d}.000</Track2:GPSDateTime>
+ <Track2:GPSHPositioningError>1.5</Track2:GPSHPositioningError>
+ <Track2:GPSLatitude>{48.17 + idx * 0.0001:.4f}</Track2:GPSLatitude>
+ <Track2:GPSLongitude>11.59</Track2:GPSLongitude>
+ <Track2:GPSAltitude>500</Track2:GPSAltitude>
+ <Track2:GPSSpeed>{speed}</Track2:GPSSpeed>
+"""
+        for idx, speed in enumerate(speeds)
+    )
+    xml = f"""\
+<?xml version='1.0' encoding='UTF-8'?>
+<rdf:RDF xmlns:rdf='http://www.w3.org/1999/02/22-rdf-syntax-ns#'>
+<rdf:Description rdf:about='/tmp/test.mp4'
+ xmlns:Track2='http://ns.exiftool.org/QuickTime/Track2/1.0/'>
+{samples}</rdf:Description>
+</rdf:RDF>
+"""
+    rdf_ns = "http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+    element = ET.fromstring(xml).find(f"{{{rdf_ns}}}Description")
+    assert element is not None
+    return element
+
+
+def _fail_to_read(*args, **kwargs):
+    raise ValueError("45827 is not a valid GPSFix")
+
+
 class TestExtractMakeAndModel:
     @pytest.mark.parametrize(
         "name, expected",
@@ -116,7 +153,7 @@ class TestExtractMakeAndModel:
         assert extract_make_and_model(GOPRO_DATA / name) == expected
 
     def test_blackvue_without_gps(self, tmp_path):
-        video = _blackvue_without_gps(tmp_path / "20190902_132329_NF.mp4")
+        video = _blackvue_without_gps(tmp_path / "blackvue.mp4")
         assert extract_make_and_model(video) == ("BlackVue", "DR900S-1CH")
 
     def test_user_data_box(self, tmp_path):
@@ -132,6 +169,17 @@ class TestExtractMakeAndModel:
         video.write_bytes(content)
         assert extract_make_and_model(video) == (None, None)
 
+    def test_record_that_fails_to_read(self, tmp_path, monkeypatch):
+        """
+        Any error reading a record, not only a parsing error, leaves the
+        camera to the next record
+        """
+        monkeypatch.setattr(gpmf_parser, "extract_gopro_info", _fail_to_read)
+        video = _video_with_udta(tmp_path / "v.mp4", b"Labpano", b"Pilot One")
+
+        assert extract_make_and_model(video) == ("Labpano", "Pilot One")
+        assert extract_make_and_model(SAMPLE_VIDEO) == (None, None)
+
 
 class TestGPXOverVideoWithoutGPS:
     def test_gopro_without_gps(self, tmp_path, monkeypatch):
@@ -141,7 +189,7 @@ class TestGPXOverVideoWithoutGPS:
         """
         info = gpmf_parser.GoProInfo(gps=[], make="GoPro", model="HERO12 Black")
         monkeypatch.setattr(gpmf_parser, "extract_gopro_info", lambda *a, **kw: info)
-        video = tmp_path / "GX014387.MP4"
+        video = tmp_path / "gopro.mp4"
         video.write_bytes(b"not a real mp4")
 
         metadata = GPXVideoExtractor(video, _gpx(tmp_path / "track.gpx")).extract()
@@ -150,7 +198,7 @@ class TestGPXOverVideoWithoutGPS:
         assert (metadata.make, metadata.model) == ("GoPro", "HERO12 Black")
 
     def test_blackvue_without_gps(self, tmp_path):
-        video = _blackvue_without_gps(tmp_path / "20190902_132329_NF.mp4")
+        video = _blackvue_without_gps(tmp_path / "blackvue.mp4")
 
         metadata = GPXVideoExtractor(video, _gpx(tmp_path / "track.gpx")).extract()
 
@@ -166,7 +214,7 @@ class TestGPXOverVideoWithoutGPS:
 
 class TestExifToolExtractor:
     def test_falls_back_to_the_video(self, tmp_path):
-        video = _blackvue_without_gps(tmp_path / "20190902_132329_NF.mp4")
+        video = _blackvue_without_gps(tmp_path / "blackvue.mp4")
 
         metadata = VideoExifToolExtractor(video, _exiftool_element()).extract()
 
@@ -174,13 +222,45 @@ class TestExifToolExtractor:
         assert (metadata.make, metadata.model) == ("BlackVue", "DR900S-1CH")
 
     def test_exiftool_make_wins(self, tmp_path):
-        video = _blackvue_without_gps(tmp_path / "20190902_132329_NF.mp4")
+        video = _blackvue_without_gps(tmp_path / "blackvue.mp4")
 
         metadata = VideoExifToolExtractor(
             video, _exiftool_element("Pittasoft")
         ).extract()
 
         assert (metadata.make, metadata.model) == ("Pittasoft", None)
+
+    def test_camera_that_fails_to_read(self, tmp_path, monkeypatch):
+        """A video whose records fail to read is geotagged all the same"""
+        monkeypatch.setattr(gpmf_parser, "extract_gopro_info", _fail_to_read)
+        video = _write_video(tmp_path / "v.mp4", _box(b"moov", _mvhd()))
+
+        metadata = VideoExifToolExtractor(video, _exiftool_element()).extract()
+
+        assert len(metadata.points) == 2
+        assert (metadata.make, metadata.model) == (None, None)
+
+    def test_gopro_that_exiftool_does_not_name(self):
+        """
+        The camera found in the video only names it: the GPS that ExifTool
+        read is not handled as a GoPro's, as ExifTool did not name one
+        """
+        video = GOPRO_DATA / "max-360mode.mp4"
+
+        metadata = VideoExifToolExtractor(
+            video, _gopro_exiftool_element([3.6, 7.2])
+        ).extract()
+
+        assert (metadata.make, metadata.model) == ("GoPro", "GoPro Max")
+        assert metadata.filetype is types.FileType.VIDEO
+        # Not converted from km/h as ExifTool's GoPro speeds are
+        assert [p.ground_speed for p in metadata.points] == [3.6, 7.2]
+
+    def test_gopro_that_exiftool_does_not_name_without_gps(self):
+        video = GOPRO_DATA / "max-360mode.mp4"
+
+        with pytest.raises(exceptions.MapillaryVideoGPSNotFoundError):
+            VideoExifToolExtractor(video, _gopro_exiftool_element([])).extract()
 
 
 class TestNovatekExtractor:

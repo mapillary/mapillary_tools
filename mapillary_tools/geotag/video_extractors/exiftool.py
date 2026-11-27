@@ -42,13 +42,15 @@ class VideoExifToolExtractor(BaseVideoExtractor):
 
         make = exif.extract_make()
         model = exif.extract_model()
-        if make is None and model is None:
-            # ExifTool does not read every camera's own records, such as the
-            # copyright box of BlackVue
-            make, model = extract_make_and_model(self.video_path)
         camera_uuid = exif.extract_camera_uuid()
 
         is_gopro = make is not None and make.upper() in ["GOPRO"]
+
+        if make is None and model is None:
+            # ExifTool does not read every camera's own records, such as the
+            # copyright box of BlackVue. They only name the camera: the GPS
+            # that ExifTool read is handled as before, e.g. not as a GoPro's
+            make, model = extract_make_and_model(self.video_path)
 
         points = exif.extract_gps_track()
 

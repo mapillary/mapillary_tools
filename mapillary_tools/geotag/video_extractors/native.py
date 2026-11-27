@@ -5,11 +5,10 @@
 
 from __future__ import annotations
 
+import logging
 import sys
 import typing as T
 from pathlib import Path
-
-import construct as C
 
 if sys.version_info >= (3, 12):
     from typing import override
@@ -31,6 +30,9 @@ from ...mp4 import construct_mp4_parser, simple_mp4_parser
 from .base import BaseVideoExtractor
 
 
+LOG = logging.getLogger(__name__)
+
+
 def _gopro_make_and_model(fp: T.BinaryIO) -> tuple[str, str]:
     gopro_info = gpmf_parser.extract_gopro_info(fp)
     if gopro_info is None:
@@ -48,25 +50,25 @@ def extract_make_and_model(video_path: Path) -> tuple[str | None, str | None]:
     """
     Read the camera make and model that a video records, whether or not its GPS
     can be used: from the GoPro telemetry, the BlackVue copyright box or the
-    user data box. None for any that it does not record
+    user data box. None for any that it does not record. Never raises: the
+    camera is only named, and a video whose records cannot be read is
+    geotagged all the same
     """
-    with video_path.open("rb") as fp:
-        for extract in [
-            _gopro_make_and_model,
-            _blackvue_make_and_model,
-            camm_parser.extract_camera_make_and_model,
-        ]:
-            fp.seek(0)
-            try:
+    for extract in [
+        _gopro_make_and_model,
+        _blackvue_make_and_model,
+        camm_parser.extract_camera_make_and_model,
+    ]:
+        try:
+            with video_path.open("rb") as fp:
                 make, model = extract(fp)
-            except (
-                simple_mp4_parser.ParsingError,
-                construct_mp4_parser.BoxNotFoundError,
-                C.ConstructError,
-            ):
-                continue
-            if make or model:
-                return make or None, model or None
+        except Exception as ex:
+            LOG.debug(
+                "Failed to read the camera make and model of %s: %s", video_path, ex
+            )
+            continue
+        if make or model:
+            return make or None, model or None
 
     return None, None
 
