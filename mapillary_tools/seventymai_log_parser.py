@@ -25,9 +25,12 @@ row of the clip within about a second of its start, and the last within a few
 seconds of its end: it writes a row every 1 to 1.5 seconds, and repeats a stale fix
 while its GPS stalls, for up to 5 seconds. So the first fix of the clip is taken as
 its start. A camera that is switched on records before it has a fix: its first fix
-comes seconds, at times minutes, into the clip. Then it writes rows without a fix
-before it, or the fixes span much less than the clip, and the last fix of the clip
-is taken as its end instead.
+comes seconds, at times minutes, into the clip. Then the last fix of the clip is
+taken as its end instead, if the camera wrote rows without a fix that name the clip
+before its first fix, or if the clip is the first that the camera logged after it
+started logging ("$V02") and its fixes span much less than the clip. Any other clip
+whose fixes span much less ended early, as the camera stopped recording it: the
+next line of the log is "$V02".
 """
 
 from __future__ import annotations
@@ -53,11 +56,18 @@ _LOG_NAME_SUFFIX = ".txt"
 _NUM_COLUMNS = 13
 _CLIP_COLUMN = 9
 
-# The fixes of a clip that the camera recorded with a fix from its start span
-# all of it but for a stall of its GPS at the start or the end, up to 6 seconds
-# in the logs seen. Those of a clip whose first fix came late, as when the
-# camera was switched on, span at least 9 seconds less
+# The fixes of the first clip that the camera logged after it started logging
+# span all of it but for a stall of its GPS, up to 6 seconds in the logs seen,
+# if it had a fix from the start of the clip. If its first fix came late, as
+# when the camera was switched on, they span at least 9 seconds less
 _MAX_MISSING_SECONDS = 8.0
+
+# Where the first run of the rows of a clip is in a log: right after "$V02" (or
+# after rows that name no clip), at the top of the log, or after rows of another
+# clip
+_AFTER_HEADER = "header"
+_AT_TOP = "top"
+_AFTER_CLIP = "clip"
 
 # The fixes may span a few seconds more than the clip, as the camera may repeat
 # the last fix of the previous clip as the first of the next. More than this,
@@ -88,13 +98,22 @@ def extract_points(video_path: Path) -> list[telemetry.GPSPoint] | None:
         return None
 
     # The rows of the clip in the order the camera wrote them, which may be
-    # continued in the next log
+    # continued in the next log, and whether they are the first rows that the
+    # camera wrote after it started logging
     rows: list[_Row] = []
-    for log_path in log_paths:
+    first_logged: bool | None = None
+    for log_idx, log_path in enumerate(log_paths):
         try:
-            rows.extend(_read_clip_rows(log_path, video_path.stem.casefold()))
+            clip_rows, begins = _read_clip_rows(log_path, video_path.stem.casefold())
         except OSError as ex:
             LOG.warning("Unable to read the GPS log %s: %s", log_path, ex)
+            continue
+        if first_logged is None and begins is not None:
+            # The top of a later log continues the previous log
+            first_logged = begins == _AFTER_HEADER or (
+                begins == _AT_TOP and log_idx == 0
+            )
+        rows.extend(clip_rows)
 
     fix_indices = [idx for idx, row in enumerate(rows) if row.fix is not None]
     if not fix_indices:
@@ -133,7 +152,7 @@ def extract_points(video_path: Path) -> list[telemetry.GPSPoint] | None:
         return None
 
     if no_fix_at_start or (
-        not no_fix_at_end and _MAX_MISSING_SECONDS < duration - span
+        first_logged and not no_fix_at_end and _MAX_MISSING_SECONDS < duration - span
     ):
         # The camera got its first fix after it started recording the clip
         start_time = float(times[-1]) - duration
@@ -176,55 +195,62 @@ def _find_log_paths(folder: Path, mtime_ns: int) -> list[Path]:
     return [folder / name for name in sorted(names, key=str.casefold)]
 
 
-def _read_clip_rows(log_path: Path, key: str) -> list[_Row]:
+def _read_clip_rows(log_path: Path, key: str) -> tuple[list[_Row], str | None]:
+    """
+    The rows of the clip in the log, and where their first run is in it (see
+    _AFTER_HEADER), or None if the log has no rows of the clip
+    """
     stat = log_path.stat()
     index = _index_log(log_path, stat.st_size, stat.st_mtime_ns)
-    ranges = index.get(key)
-    if not ranges:
-        return []
+    runs = index.get(key)
+    if not runs:
+        return [], None
 
     rows: list[_Row] = []
     with log_path.open("rb") as fp:
-        for start, end in ranges:
+        for start, end, _ in runs:
             fp.seek(start)
             for line in fp.read(end - start).splitlines():
                 row = _parse_row(line)
                 if row is not None:
                     rows.append(row)
-    return rows
+    return rows, runs[0][2]
 
 
 @functools.lru_cache(maxsize=16)
 def _index_log(
     log_path: Path, size: int, mtime_ns: int
-) -> dict[str, list[tuple[int, int]]]:
+) -> dict[str, list[tuple[int, int, str]]]:
     """
-    Index the log by clip: the byte ranges of the runs of lines that name each clip.
-    A log may be tens of MB and is read by every clip it covers, so it is read once.
-    The size and the modification time of the log are part of the cache key
+    Index the log by clip: the byte ranges of the runs of lines that name each
+    clip, and where each run is (see _AFTER_HEADER). A log may be tens of MB and
+    is read by every clip it covers, so it is read once. The size and the
+    modification time of the log are part of the cache key
     """
-    index: dict[str, list[tuple[int, int]]] = {}
-
-    def _add_run(name: bytes | None, start: int, end: int) -> None:
-        if name is None:
-            return
-        key = _clip_key(name)
-        if key is not None:
-            index.setdefault(key, []).append((start, end))
+    index: dict[str, list[tuple[int, int, str]]] = {}
 
     with log_path.open("rb") as fp:
         offset = 0
         run_name: bytes | None = None
         run_start = 0
+        run_where = position = _AT_TOP
         for line in fp:
             fields = line.split(b",", _CLIP_COLUMN + 1)
             name = fields[_CLIP_COLUMN] if _CLIP_COLUMN < len(fields) - 1 else None
             if name != run_name:
-                _add_run(run_name, run_start, offset)
+                key = None if run_name is None else _clip_key(run_name)
+                if key is not None:
+                    index.setdefault(key, []).append((run_start, offset, run_where))
+                    position = _AFTER_CLIP
                 run_name = name
                 run_start = offset
+                run_where = position
+            if line.startswith(b"$"):
+                position = _AFTER_HEADER
             offset += len(line)
-        _add_run(run_name, run_start, offset)
+        key = None if run_name is None else _clip_key(run_name)
+        if key is not None:
+            index.setdefault(key, []).append((run_start, offset, run_where))
 
     return index
 

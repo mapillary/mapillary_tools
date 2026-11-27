@@ -62,8 +62,16 @@ def _no_fix_row(clip: str = CLIP) -> str:
     return f"1609430400,V,0.000000,0.000000,0,0,0.00,0.00,0.00,{clip},0,0,0"
 
 
-def _write(folder: Path, lines: list[str], name: str = "GPSData000001.txt") -> None:
-    folder.joinpath(name).write_text("\n".join(["$V02", *lines]) + "\n")
+def _write(
+    folder: Path,
+    lines: list[str],
+    name: str = "GPSData000001.txt",
+    header: bool = True,
+) -> None:
+    # The camera writes "$V02" each time it starts logging
+    folder.joinpath(name).write_text(
+        "\n".join(["$V02", *lines] if header else lines) + "\n"
+    )
 
 
 def _clip(folder: Path, name: str = CLIP, duration: float = 60.0) -> Path:
@@ -118,15 +126,80 @@ def test_clip_recorded_with_a_fix(tmp_path: Path):
     assert metadata.make is None and metadata.model is None
 
 
-def test_first_fix_came_late(tmp_path: Path):
+@pytest.mark.parametrize(
+    "before",
+    [
+        [],
+        # Rows that name no clip, nor are rows of the log
+        ["0,V, 0.000000,      nan,-1,45,0,0,0,0,0,0,0", "1717236800,A,47.3"],
+        # The camera logged another recording before
+        [*_rows(range(START - 3600, START - 3540, 2), PREVIOUS_CLIP), "$V02"],
+    ],
+)
+def test_first_fix_came_late(tmp_path: Path, before: list[str]):
     # A camera that is switched on records before it has a fix, and some
     # write no rows until then
     video_path = _clip(tmp_path)
     times = [t for t in CLIP_TIMES if START + 20 <= t]
-    _write(tmp_path, _rows(times))
+    _write(tmp_path, [*before, *_rows(times)])
 
     # The last fix marks the end of the clip
     assert _extract(video_path) == _expected(times, times[-1] - 60.0)
+
+
+def test_first_fix_came_late_at_the_top_of_the_first_log(tmp_path: Path):
+    video_path = _clip(tmp_path)
+    times = [t for t in CLIP_TIMES if START + 20 <= t]
+    _write(tmp_path, _rows(times), header=False)
+
+    assert _extract(video_path) == _expected(times, times[-1] - 60.0)
+
+
+def test_clip_ended_early(tmp_path: Path):
+    # The camera stopped recording, and logging, 20 seconds into the clip.
+    # Its fixes span much less than the clip, but the camera had a fix when it
+    # started the clip: it logged the previous one
+    video_path = _clip(tmp_path)
+    times = [t for t in CLIP_TIMES if t <= START + 20]
+    _write(
+        tmp_path,
+        [
+            *_rows(range(START - 60, START, 2), PREVIOUS_CLIP),
+            *_rows(times),
+            "$V02",
+            *_rows(range(START + 100, START + 160, 2), NEXT_CLIP),
+        ],
+    )
+
+    # The first fix marks the start of the clip
+    assert _extract(video_path) == _expected(times, times[0])
+
+
+def test_clip_logged_across_a_restart_of_the_log(tmp_path: Path):
+    # Where its rows start tells whether the camera had a fix at its start
+    video_path = _clip(tmp_path)
+    times = [t for t in CLIP_TIMES if t <= START + 10 or START + 30 <= t <= START + 40]
+    _write(
+        tmp_path,
+        [
+            *_rows(range(START - 60, START, 2), PREVIOUS_CLIP),
+            *_rows(t for t in times if t <= START + 10),
+            "$V02",
+            *_rows(t for t in times if START + 30 <= t),
+        ],
+    )
+
+    assert _extract(video_path) == _expected(times, times[0])
+
+
+def test_short_clip_at_the_top_of_the_next_log(tmp_path: Path):
+    # The next log continues the previous one, without "$V02"
+    video_path = _clip(tmp_path)
+    times = [t for t in CLIP_TIMES if t <= START + 20]
+    _write(tmp_path, _rows(range(START - 60, START, 2), PREVIOUS_CLIP))
+    _write(tmp_path, _rows(times), name="GPSData000002.txt", header=False)
+
+    assert _extract(video_path) == _expected(times, times[0])
 
 
 def test_first_fix_came_a_few_seconds_late(tmp_path: Path):
