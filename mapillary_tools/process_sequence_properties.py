@@ -384,9 +384,17 @@ def _check_sequences_by_limits(
         too_fast = len(sequence) >= 2 and avg_speed_kmh > max_capture_speed_kmh
 
         if too_fast:
-            error = exceptions.MapillaryCaptureSpeedTooFastError(
-                f"Capture speed {avg_speed_kmh:.3f} km/h exceeds max allowed {max_capture_speed_kmh:.3f} km/h",
-            )
+            message = f"Capture speed {avg_speed_kmh:.3f} km/h exceeds max allowed {max_capture_speed_kmh:.3f} km/h"
+            file_timed = sum(1 for image in sequence if _has_file_time(image))
+            if file_timed:
+                message += (
+                    f". The capture times of {file_timed} of the {len(sequence)} "
+                    "images are their file times (--use_file_time_as_capture_time), "
+                    "which are usually when the files were exported, downloaded or "
+                    "copied, not when the images were taken. Write the real capture "
+                    "times into the images instead"
+                )
+            error = exceptions.MapillaryCaptureSpeedTooFastError(message)
             LOG.error(f"{_sequence_name(sequence)}: {error}")
             for image in sequence:
                 output_errors.append(
@@ -404,6 +412,17 @@ def _check_sequences_by_limits(
     )
 
     return output_sequences, output_errors
+
+
+def _has_file_time(image: types.ImageMetadata) -> bool:
+    """
+    Whether the image got its file time as its capture time (see
+    MapillaryFileTimeWarning)
+    """
+    return any(
+        isinstance(warning, exceptions.MapillaryFileTimeWarning)
+        for warning in image.warnings
+    )
 
 
 def _sequence_name(sequence: T.Sequence[types.ImageMetadata]) -> str:

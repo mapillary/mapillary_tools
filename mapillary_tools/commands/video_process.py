@@ -24,7 +24,7 @@ class Command:
 
     def add_basic_arguments(self, parser):
         SampleCommand().add_basic_arguments(parser)
-        ProcessCommand().add_basic_arguments(parser)
+        ProcessCommand().add_basic_arguments(parser, video_frames=True)
 
     def run(self, args: dict):
         sample_error: exceptions.MapillaryVideoSampleError | None = None

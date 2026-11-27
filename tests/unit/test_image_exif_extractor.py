@@ -314,18 +314,59 @@ def _gps_element(**tags: str) -> ET.Element:
     )
 
 
+NO_CAPTURE_TIME = (
+    "Unable to extract timestamp from the image: it has a GPS position but no "
+    "capture time. Write the capture time into the image (with ExifTool, for "
+    "example), or use --use_file_time_as_capture_time if the time of the file is "
+    "when the image was taken"
+)
+
+
+class TestNoCaptureTimeByDefault:
+    """
+    An image with a GPS position but no capture time fails, unless the file
+    time is asked for: the error says how to fix it
+    """
+
+    def test_exif(self, tmp_path: Path):
+        image = _write_image_with_dates(tmp_path / "image.jpg", {})
+
+        with pytest.raises(exceptions.MapillaryGeoTaggingError) as info:
+            ImageEXIFExtractor(image).extract()
+
+        assert str(info.value) == NO_CAPTURE_TIME
+
+    def test_exiftool(self, tmp_path: Path):
+        image = tmp_path / "image.jpg"
+        image.write_bytes(b"")
+
+        with pytest.raises(exceptions.MapillaryGeoTaggingError) as info:
+            ImageExifToolExtractor(image, _gps_element()).extract()
+
+        assert str(info.value) == NO_CAPTURE_TIME
+
+    def test_an_image_on_a_track_is_not_told_to_use_the_file_time(self, tmp_path: Path):
+        image = _write_image_with_dates(tmp_path / "image.jpg", {})
+
+        with pytest.raises(exceptions.MapillaryGeoTaggingError) as info:
+            ImageEXIFExtractor(image, skip_lonlat_error=True).extract()
+
+        assert str(info.value) == "Unable to extract timestamp from the image"
+
+
 class TestFileTimeForImagesWithoutCaptureTime:
     """
-    An image with a GPS position but no capture time in its metadata gets the
-    earlier of its file modification and creation times, with a warning, but
-    not where the capture time places it on a track
+    Asked for (--use_file_time_as_capture_time), an image with a GPS position
+    but no capture time in its metadata gets the earlier of its file
+    modification and creation times, with a warning, but not where the capture
+    time places it on a track
     """
 
     def test_exif(self, tmp_path: Path):
         image = _write_image_with_dates(tmp_path / "image.jpg", {})
         os.utime(image, (FILE_TIME, FILE_TIME))
 
-        metadata = ImageEXIFExtractor(image).extract()
+        metadata = ImageEXIFExtractor(image, use_file_time=True).extract()
 
         # On every platform: a creation time is that of the file just written,
         # or moved back to the modification time set (macOS)
@@ -352,7 +393,9 @@ class TestFileTimeForImagesWithoutCaptureTime:
         image.write_bytes(b"")
         os.utime(image, (FILE_TIME, FILE_TIME))
 
-        metadata = ImageExifToolExtractor(image, _gps_element()).extract()
+        metadata = ImageExifToolExtractor(
+            image, _gps_element(), use_file_time=True
+        ).extract()
 
         assert metadata.time == FILE_TIME
         assert metadata.lat == pytest.approx(24.5601)
@@ -365,7 +408,9 @@ class TestFileTimeForImagesWithoutCaptureTime:
         os.utime(image, (FILE_TIME, FILE_TIME))
 
         with pytest.raises(exceptions.MapillaryGeoTaggingError) as info:
-            ImageEXIFExtractor(image, skip_lonlat_error=True).extract()
+            ImageEXIFExtractor(
+                image, skip_lonlat_error=True, use_file_time=True
+            ).extract()
 
         assert str(info.value) == "Unable to extract timestamp from the image"
 
@@ -375,7 +420,7 @@ class TestFileTimeForImagesWithoutCaptureTime:
         os.utime(image, (FILE_TIME, FILE_TIME))
 
         with pytest.raises(exceptions.MapillaryGeoTaggingError) as info:
-            ImageEXIFExtractor(image).extract()
+            ImageEXIFExtractor(image, use_file_time=True).extract()
 
         assert str(info.value) == (
             "Unable to extract GPS Longitude or GPS Latitude from the image"
@@ -388,7 +433,7 @@ class TestFileTimeForImagesWithoutCaptureTime:
         os.utime(image, (FILE_TIME, FILE_TIME))
 
         with pytest.raises(exceptions.MapillaryGeoTaggingError) as info:
-            ImageEXIFExtractor(image).extract()
+            ImageEXIFExtractor(image, use_file_time=True).extract()
 
         assert str(info.value).endswith("invalid capture time 0001-01-01 00:00:00")
 
@@ -398,7 +443,7 @@ class TestFileTimeForImagesWithoutCaptureTime:
         )
         os.utime(image, (FILE_TIME, FILE_TIME))
 
-        metadata = ImageEXIFExtractor(image).extract()
+        metadata = ImageEXIFExtractor(image, use_file_time=True).extract()
 
         assert metadata.time == datetime.datetime(2020, 1, 2, 3, 4, 5).timestamp()
         assert metadata.warnings == []
@@ -408,7 +453,7 @@ class TestFileTimeForImagesWithoutCaptureTime:
         image = tmp_path / "image.jpg"
 
         with pytest.raises(exceptions.MapillaryGeoTaggingError) as info:
-            ImageExifToolExtractor(image, _gps_element()).extract()
+            ImageExifToolExtractor(image, _gps_element(), use_file_time=True).extract()
 
         assert str(info.value) == "Unable to extract timestamp from the image"
 
@@ -421,7 +466,7 @@ class TestFileTimeForImagesWithoutCaptureTime:
         later = time.time() + 24 * 3600
         os.utime(image, (later, later))
 
-        metadata = ImageEXIFExtractor(image).extract()
+        metadata = ImageEXIFExtractor(image, use_file_time=True).extract()
 
         assert metadata.time == os.stat(image).st_birthtime
         assert metadata.time < later

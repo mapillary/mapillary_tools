@@ -5,7 +5,8 @@
 
 """
 An image with a GPS position but no capture time in its metadata gets its file
-time from geotag/factory.process, if no source reads a capture time for it
+time from geotag/factory.process, if asked for (--use_file_time_as_capture_time)
+and no source reads a capture time for it
 """
 
 from __future__ import annotations
@@ -77,10 +78,16 @@ def _write_xml(xml_path: Path, image: Path, date_time_original: str | None) -> P
     return xml_path
 
 
-def _xml_source(xml_path: Path) -> SourceOption:
+def _xml_source(xml_path: Path, use_file_time: bool = True) -> SourceOption:
     return SourceOption(
-        SourceType.EXIFTOOL_XML, source_path=SourcePathOption(source_path=xml_path)
+        SourceType.EXIFTOOL_XML,
+        source_path=SourcePathOption(source_path=xml_path),
+        use_file_time=use_file_time,
     )
+
+
+def _native(use_file_time: bool = True) -> SourceOption:
+    return SourceOption(SourceType.NATIVE, use_file_time=use_file_time)
 
 
 def _gpx_source() -> SourceOption:
@@ -100,7 +107,7 @@ def test_the_file_time_is_given_with_a_warning(tmp_path: Path, caplog):
     image = _write_image(tmp_path / "image.jpg")
 
     with caplog.at_level(logging.WARNING):
-        [metadata] = factory.process([image], [SourceOption(SourceType.NATIVE)])
+        [metadata] = factory.process([image], [_native()])
 
     assert isinstance(metadata, types.ImageMetadata)
     assert metadata.time == FILE_TIME
@@ -120,9 +127,7 @@ def test_a_later_source_that_reads_a_capture_time_wins(tmp_path: Path, caplog):
     xml_path = _write_xml(tmp_path / "image.xml", image, "2020:01:02 03:04:05")
 
     with caplog.at_level(logging.WARNING):
-        [metadata] = factory.process(
-            [image], [SourceOption(SourceType.NATIVE), _xml_source(xml_path)]
-        )
+        [metadata] = factory.process([image], [_native(), _xml_source(xml_path)])
 
     assert isinstance(metadata, types.ImageMetadata)
     # A naive capture time is in the local time zone
@@ -138,9 +143,7 @@ def test_one_warning_when_every_source_gives_the_file_time(tmp_path: Path, caplo
     xml_source = _xml_source(xml_path)
 
     with caplog.at_level(logging.WARNING):
-        [metadata] = factory.process(
-            [image], [SourceOption(SourceType.NATIVE), xml_source], sources=sources
-        )
+        [metadata] = factory.process([image], [_native(), xml_source], sources=sources)
 
     assert isinstance(metadata, types.ImageMetadata)
     assert metadata.time == FILE_TIME
@@ -158,8 +161,8 @@ def test_the_file_time_is_kept_when_exiftool_is_missing(
         [metadata] = factory.process(
             [image],
             [
-                SourceOption(SourceType.NATIVE),
-                SourceOption(SourceType.EXIFTOOL_RUNTIME),
+                _native(),
+                SourceOption(SourceType.EXIFTOOL_RUNTIME, use_file_time=True),
             ],
         )
 
@@ -182,9 +185,27 @@ def test_an_image_placed_on_a_gpx_track_still_fails(tmp_path: Path, gps: bool):
 def test_an_image_without_gps_still_fails(tmp_path: Path):
     image = _write_image(tmp_path / "image.jpg", gps=False)
 
-    [metadata] = factory.process(
-        [image], [SourceOption(SourceType.NATIVE), _gpx_source()]
-    )
+    [metadata] = factory.process([image], [_native(), _gpx_source()])
 
     assert isinstance(metadata, types.ErrorMetadata)
     assert str(metadata.error) == "Unable to extract timestamp from the image"
+
+
+def test_the_image_fails_unless_the_file_time_is_asked_for(tmp_path: Path, caplog):
+    image = _write_image(tmp_path / "image.jpg")
+    xml_path = _write_xml(tmp_path / "image.xml", image, None)
+
+    with caplog.at_level(logging.WARNING):
+        [metadata] = factory.process(
+            [image],
+            [_native(use_file_time=False), _xml_source(xml_path, use_file_time=False)],
+        )
+
+    assert isinstance(metadata, types.ErrorMetadata)
+    assert isinstance(metadata.error, exceptions.MapillaryGeoTaggingError)
+    assert str(metadata.error).startswith(
+        "Unable to extract timestamp from the image: it has a GPS position but no "
+        "capture time."
+    )
+    assert "--use_file_time_as_capture_time" in str(metadata.error)
+    assert _file_time_warnings(caplog) == []

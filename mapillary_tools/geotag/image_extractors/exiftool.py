@@ -14,8 +14,10 @@ from .exif import ImageEXIFExtractor
 
 
 class ImageExifToolExtractor(ImageEXIFExtractor):
-    def __init__(self, image_path: Path, element: ET.Element):
-        super().__init__(image_path)
+    def __init__(
+        self, image_path: Path, element: ET.Element, use_file_time: bool = False
+    ):
+        super().__init__(image_path, use_file_time=use_file_time)
         self.element = element
 
     @contextlib.contextmanager

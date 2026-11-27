@@ -308,15 +308,8 @@ def test_process_report_has_no_warnings_for_a_video_without_any(
     assert report["warnings"] == []
 
 
-def test_process_report_warns_of_an_image_given_its_file_time(
-    tmpdir: py.path.local,
-):
-    """
-    An image with a GPS position but no capture time gets the earlier of its
-    file times as its capture time, and a warning in the report
-    """
-    root = Path(str(tmpdir))
-    image_path = root / "images" / "no_capture_time.jpg"
+def _write_image_without_capture_time(image_path: Path) -> Path:
+    """A JPEG with a GPS position and no date, modified 2024-05-01T10:00:00Z"""
     image_path.parent.mkdir()
     img = Image.new("RGB", (4, 4), (0, 0, 0))
     exif = img.getexif()
@@ -326,10 +319,44 @@ def test_process_report_warns_of_an_image_given_its_file_time(
     gps[GPS.GPSLongitudeRef] = "W"
     gps[GPS.GPSLongitude] = (IFDRational(81), IFDRational(48), IFDRational(2772, 100))
     img.save(image_path, format="JPEG", exif=exif)
-    # 2024-05-01T10:00:00Z
     os.utime(image_path, (1714557600, 1714557600))
+    return image_path
+
+
+def test_process_fails_an_image_without_capture_time_by_default(
+    tmpdir: py.path.local,
+):
+    root = Path(str(tmpdir))
+    image_path = _write_image_without_capture_time(root / "images" / "image.jpg")
 
     descs, report = _run_process_with_report([image_path.parent], root)
+
+    [desc] = descs
+    assert desc["error"]["type"] == "MapillaryGeoTaggingError"
+    assert desc["error"]["message"].startswith(
+        "Unable to extract timestamp from the image: it has a GPS position but no "
+        "capture time."
+    )
+    assert "--use_file_time_as_capture_time" in desc["error"]["message"]
+    assert report["warnings"] == []
+
+
+def test_process_report_warns_of_an_image_given_its_file_time(
+    tmpdir: py.path.local,
+):
+    """
+    With --use_file_time_as_capture_time, an image with a GPS position but no
+    capture time gets the earlier of its file times as its capture time, and a
+    warning in the report
+    """
+    root = Path(str(tmpdir))
+    image_path = _write_image_without_capture_time(
+        root / "images" / "no_capture_time.jpg"
+    )
+
+    descs, report = _run_process_with_report(
+        [image_path.parent], root, "--use_file_time_as_capture_time"
+    )
 
     [desc] = descs
     assert "error" not in desc

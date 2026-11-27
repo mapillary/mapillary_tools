@@ -870,18 +870,19 @@ def _build_image_geotag(option: SourceOption) -> base.GeotagImagesFromGeneric | 
 
     if option.source in [SourceType.EXIF, SourceType.NATIVE]:
         return geotag_images_from_exif.GeotagImagesFromEXIF(
-            num_processes=option.num_processes
+            num_processes=option.num_processes, use_file_time=option.use_file_time
         )
 
     if option.source is SourceType.EXIFTOOL_RUNTIME:
         return geotag_images_from_exiftool.GeotagImagesFromExifToolRunner(
-            num_processes=option.num_processes
+            num_processes=option.num_processes, use_file_time=option.use_file_time
         )
 
     elif option.source is SourceType.EXIFTOOL_XML:
         return geotag_images_from_exiftool.GeotagImagesFromExifToolWithSamples(
             source_path=_exiftool_xml_source_path(option),
             num_processes=option.num_processes,
+            use_file_time=option.use_file_time,
         )
 
     elif option.source is SourceType.GPX:

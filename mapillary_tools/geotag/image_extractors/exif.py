@@ -120,16 +120,23 @@ class ImageEXIFExtractor(BaseImageExtractor):
     (0, 0), for a geotag source that positions it by its capture time (on a
     GPX track, say) instead.
 
-    An image with a position but no capture time is extracted with the earlier
-    of its file modification and creation times, and a MapillaryFileTimeWarning
-    that says so: process() keeps it only if no other geotag source geotags the
-    image. Not with **skip_lonlat_error**, where the capture time positions the
+    With **use_file_time** (--use_file_time_as_capture_time), an image with a
+    position but no capture time is extracted with the earlier of its file
+    modification and creation times, and a MapillaryFileTimeWarning that says
+    so: process() keeps it only if no other geotag source geotags the image.
+    Never with **skip_lonlat_error**, where the capture time positions the
     image, and a file time would position it wrongly, without a word.
     """
 
-    def __init__(self, image_path: Path, skip_lonlat_error: bool = False):
+    def __init__(
+        self,
+        image_path: Path,
+        skip_lonlat_error: bool = False,
+        use_file_time: bool = False,
+    ):
         super().__init__(image_path)
         self.skip_lonlat_error = skip_lonlat_error
+        self.use_file_time = use_file_time
 
     @contextlib.contextmanager
     def _exif_context(self) -> T.Generator[exif_read.ExifReadABC, None, None]:
@@ -161,7 +168,19 @@ class ImageEXIFExtractor(BaseImageExtractor):
                 if exif.rejected_capture_time is not None:
                     # Say which date was no capture time, as for the only one
                     raise _invalid_capture_time(exif.rejected_capture_time)
-                file_time = None if self.skip_lonlat_error else self._file_time()
+                if self.skip_lonlat_error:
+                    raise exceptions.MapillaryGeoTaggingError(
+                        "Unable to extract timestamp from the image"
+                    )
+                if not self.use_file_time:
+                    raise exceptions.MapillaryGeoTaggingError(
+                        "Unable to extract timestamp from the image: it has a GPS "
+                        "position but no capture time. Write the capture time into "
+                        "the image (with ExifTool, for example), or use "
+                        "--use_file_time_as_capture_time if the time of the file is "
+                        "when the image was taken"
+                    )
+                file_time = self._file_time()
                 if file_time is None:
                     raise exceptions.MapillaryGeoTaggingError(
                         "Unable to extract timestamp from the image"

@@ -22,8 +22,15 @@ LOG = logging.getLogger(__name__)
 
 
 class GeotagImagesFromEXIF(GeotagImagesFromGeneric):
+    def __init__(self, num_processes: int | None = None, use_file_time: bool = False):
+        super().__init__(num_processes=num_processes)
+        self.use_file_time = use_file_time
+
     @override
     def _generate_image_extractors(
         self, image_paths: T.Sequence[Path]
     ) -> T.Sequence[ImageEXIFExtractor]:
-        return [ImageEXIFExtractor(path) for path in image_paths]
+        return [
+            ImageEXIFExtractor(path, use_file_time=self.use_file_time)
+            for path in image_paths
+        ]
