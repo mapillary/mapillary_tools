@@ -329,7 +329,11 @@ def test_process_fails_an_image_without_capture_time_by_default(
     root = Path(str(tmpdir))
     image_path = _write_image_without_capture_time(root / "images" / "image.jpg")
 
-    descs, report = _run_process_with_report([image_path.parent], root)
+    # Without ExifTool installed, the default exiftool_runtime source, tried
+    # last, would report that instead
+    descs, report = _run_process_with_report(
+        [image_path.parent], root, "--geotag_source", "native"
+    )
 
     [desc] = descs
     assert desc["error"]["type"] == "MapillaryGeoTaggingError"
