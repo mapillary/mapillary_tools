@@ -19,6 +19,8 @@ else:
 import requests
 from requests.adapters import HTTPAdapter
 
+from . import VERSION
+
 
 LOG = logging.getLogger(__name__)
 
@@ -52,6 +54,14 @@ class HTTPSystemCertsAdapter(HTTPAdapter):
         conn.ca_certs = None
 
 
+def user_agent() -> str:
+    """
+    The User-Agent of mapillary_tools requests: its version and the version of
+    requests, e.g. "mapillary_tools/0.15.2 python-requests/2.32.5"
+    """
+    return f"mapillary_tools/{VERSION} {requests.utils.default_user_agent()}"
+
+
 class Session(requests.Session):
     # NOTE: This is a global flag that affects all Session instances
     USE_SYSTEM_CERTS: T.ClassVar[bool] = False
@@ -60,6 +70,12 @@ class Session(requests.Session):
     disable_logging_response: bool = False
     # Avoid mounting twice
     _mounted: bool = False
+
+    def __init__(self) -> None:
+        super().__init__()
+        # Replaces the default python-requests/x.y.z, so that the server
+        # can tell which mapillary_tools version sent a request
+        self.headers["User-Agent"] = user_agent()
 
     @override
     def request(self, method: str | bytes, url: str | bytes, *args, **kwargs):
