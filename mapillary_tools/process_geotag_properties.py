@@ -86,6 +86,7 @@ def process_geotag_properties(
     interpolation_offset_time: float = 0.0,
     num_processes: int | None = None,
     skip_subfolders=False,
+    use_file_time_as_capture_time: bool = False,
 ) -> list[types.MetadataOrError]:
     import_paths = _normalize_import_paths(import_path)
 
@@ -150,6 +151,7 @@ def process_geotag_properties(
     for option in options:
         option.filetypes = types.combine_filetype_filters(option.filetypes, filetypes)
         option.num_processes = num_processes
+        option.use_file_time = use_file_time_as_capture_time
         if option.interpolation is None:
             option.interpolation = InterpolationOption(
                 offset_time=interpolation_offset_time,

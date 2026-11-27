@@ -143,6 +143,28 @@ class MapillaryGPXAlignmentWarning(MapillaryProcessWarning):
         )
 
 
+class MapillaryFileTimeWarning(MapillaryProcessWarning):
+    """
+    An image with a GPS position but no capture time in its metadata was given
+    the earlier of its file modification and creation times as its capture
+    time. file_time says which one ("modification" or "creation"), and
+    capture_time is that time as a capture time.
+    """
+
+    def __init__(self, message: str, file_time: str, capture_time: str):
+        super().__init__(message)
+        self.file_time = file_time
+        self.capture_time = capture_time
+
+    def __reduce__(self):
+        # Pickle with every argument, so that the warning survives the trip
+        # back from a worker process (image geotagging warns in one)
+        return (
+            self.__class__,
+            (self.args[0], self.file_time, self.capture_time),
+        )
+
+
 class MapillaryGPXVideoStartUnknownError(MapillaryDescriptionError):
     """
     Nothing says how a GPX track lines up with a video without a GPS clock:

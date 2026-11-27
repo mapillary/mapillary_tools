@@ -153,6 +153,7 @@ give an `--overwrite_*` option.
 | `--interpolation_use_gpx_start_time`   |                               | Place the first image, or the start of a video, at the first point of the track.                    |
 | `--offset_time SECONDS`                | 0                             | Seconds added to image capture times after geotagging. Does not move images.                        |
 | `--offset_angle DEGREES`               | 0                             | Degrees added to image directions.                                                                  |
+| `--use_file_time_as_capture_time`      |                               | Give an image with a GPS position but no capture time the earlier of its file modification and creation times. See the gotchas below. |
 | `--interpolate_directions`             |                               | Point each image at the next one, instead of using the direction from EXIF.                         |
 | `--cutoff_time`, `--cutoff_distance`   | 60 s, 100 m                   | Where to split sequences.                                                                           |
 | `--duplicate_distance`, `--duplicate_angle` | 0.1 m, 5°                | When an image counts as a duplicate of the one before it. `--duplicate_angle 360` ignores direction. |
@@ -178,7 +179,8 @@ The process report (version 1) has `discovered_file_count`, `processed_file_coun
 extension, counted before processing: including those that fail, and those that `--filetypes` leaves out),
 `skipped_file_count`, `skipped_files` with the name, category, reason code and extension of each unsupported file,
 and `warnings`: one entry for each warning about a file that was still geotagged, with its `filename`, `type`,
-`message` and `vars` (such as the durations of a `MapillaryGPXAlignmentWarning`). An unsupported file named on the
+`message` and `vars` (such as the durations of a `MapillaryGPXAlignmentWarning`, or the `file_time` and
+`capture_time` of a `MapillaryFileTimeWarning`). An unsupported file named on the
 command line is always reported. Only `process` and `process_and_upload` list warnings. The report is written before
 processing starts, and again with the warnings once geotagging has run. It holds absolute file names, so treat it
 as private.
@@ -196,6 +198,13 @@ Gotchas:
   change the capture time that is uploaded: to fix a camera clock against a GPX, use
   `--interpolation_offset_time` alone.
 - The `--overwrite_*` options modify your original images.
+- An image with a GPS position of its own but no capture time that any source can read fails, with a message that
+  says how to fix it. With `--use_file_time_as_capture_time`, it gets the earlier of its file modification and
+  creation times instead (on Linux, the modification time), with a warning: a `MapillaryFileTimeWarning` in the
+  process report. A downloaded, exported or copied file has the time of the copy, and images written in one go get
+  times within seconds of each other: a sequence of them is uploaded with the time of the copy, or fails as too fast
+  (`MapillaryCaptureSpeedTooFastError`, which then says that the times are file times). An image placed on a GPX or
+  NMEA track still fails without a capture time.
 - Images whose only date is a placeholder, or before 1970, fail. `native` also rejects EXIF GPS minutes or
   seconds above 60, but with ExifTool installed, the default `exiftool_runtime` fallback then geotags such an
   image at a wrong position, without a warning. Check images that `native` rejects.
@@ -425,7 +434,8 @@ Gotchas:
 mapillary_tools video_process VIDEO_IMPORT_PATH [IMPORT_PATH] [OPTIONS]
 ```
 
-Runs [`sample_video`](#sample_video), then [`process`](#process) on the frames, and takes the options of both.
+Runs [`sample_video`](#sample_video), then [`process`](#process) on the frames, and takes the options of both,
+but `--use_file_time_as_capture_time`: the frames get their times from the video.
 The description file goes into `IMPORT_PATH` by default.
 
 ```sh

@@ -65,6 +65,12 @@ class SourceOption:
     # not in the JSON schema
     named_video_type: types.FileType | None = None
 
+    # Whether an image with a GPS position but no capture time gets its file
+    # time (--use_file_time_as_capture_time). Read by the sources that read the
+    # position of an image from the image itself. Set by
+    # process_geotag_properties, and not in the JSON schema
+    use_file_time: bool = False
+
     @classmethod
     def from_dict(cls, data: dict[str, T.Any]) -> SourceOption:
         validate_option(data)

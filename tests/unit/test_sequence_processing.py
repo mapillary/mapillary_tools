@@ -1365,3 +1365,51 @@ def test_zigzag_backwards_walk_multiple_deviations(tmpdir: py.path.local):
     assert preserved_filenames == expected_preserved, (
         f"Expected preserved: {expected_preserved}, got: {preserved_filenames}"
     )
+
+
+def _file_time_warning() -> exceptions.MapillaryFileTimeWarning:
+    return exceptions.MapillaryFileTimeWarning(
+        "no capture time",
+        file_time="modification",
+        capture_time="1970_01_01_00_00_00_000",
+    )
+
+
+@pytest.mark.parametrize("file_timed", [0, 1, 2])
+def test_capture_speed_error_says_when_times_are_file_times(
+    tmpdir: py.path.local, file_timed: int
+):
+    """
+    Images given their file times (--use_file_time_as_capture_time) that are
+    too fast for their positions: the error says where the times came from,
+    and only then
+    """
+    sequence = [
+        _make_image_metadata(
+            Path(tmpdir) / f"image{i}.jpg",
+            1.0,
+            1.0 + i * 0.01,
+            i,
+            filesize=1,
+            warnings=[_file_time_warning()] if i < file_timed else [],
+        )
+        for i in range(2)
+    ]
+
+    metadatas = psp.process_sequence_properties(sequence)
+
+    errors = [m.error for m in metadatas if isinstance(m, types.ErrorMetadata)]
+    assert len(errors) == 2
+    for error in errors:
+        assert isinstance(error, exceptions.MapillaryCaptureSpeedTooFastError)
+        assert str(error).startswith("Capture speed ")
+        if file_timed:
+            assert str(error).endswith(
+                f"km/h. The capture times of {file_timed} of the 2 images are their "
+                "file times (--use_file_time_as_capture_time), which are usually "
+                "when the files were exported, downloaded or copied, not when the "
+                "images were taken. Write the real capture times into the images "
+                "instead"
+            )
+        else:
+            assert str(error).endswith(" km/h")

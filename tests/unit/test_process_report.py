@@ -202,3 +202,51 @@ def test_warnings_survive_a_worker_process(tmp_path: Path):
     assert isinstance(warning, exceptions.MapillaryGPXAlignmentWarning)
     assert str(warning) == "align"
     assert vars(warning) == vars(metadata.warnings[0])
+
+
+def _file_time_warning(message: str) -> exceptions.MapillaryFileTimeWarning:
+    return exceptions.MapillaryFileTimeWarning(
+        message, file_time="modification", capture_time="2024_05_01_10_00_00_000"
+    )
+
+
+def _image(path: Path, *warnings: exceptions.MapillaryProcessWarning):
+    return types.ImageMetadata(
+        time=1714557600.0,
+        lat=24.5601,
+        lon=-81.8077,
+        alt=None,
+        angle=None,
+        filename=path,
+        warnings=list(warnings),
+    )
+
+
+def test_image_warnings_are_listed(tmp_path: Path):
+    metadatas: list[types.MetadataOrError] = [
+        _image(tmp_path / "b.jpg"),
+        _image(tmp_path / "a.jpg", _file_time_warning("no capture time")),
+    ]
+
+    assert process_report.build_process_warnings(metadatas) == [
+        {
+            "filename": str((tmp_path / "a.jpg").resolve()),
+            "type": "MapillaryFileTimeWarning",
+            "message": "no capture time",
+            "vars": {
+                "file_time": "modification",
+                "capture_time": "2024_05_01_10_00_00_000",
+            },
+        }
+    ]
+
+
+def test_image_warnings_survive_a_worker_process(tmp_path: Path):
+    """Images are geotagged in worker processes, which pickle their metadata"""
+    metadata = _image(tmp_path / "a.jpg", _file_time_warning("no capture time"))
+
+    [warning] = pickle.loads(pickle.dumps(metadata)).warnings
+
+    assert isinstance(warning, exceptions.MapillaryFileTimeWarning)
+    assert str(warning) == "no capture time"
+    assert vars(warning) == vars(metadata.warnings[0])

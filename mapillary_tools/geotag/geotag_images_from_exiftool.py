@@ -29,14 +29,21 @@ LOG = logging.getLogger(__name__)
 
 class GeotagImagesFromExifToolXML(GeotagImagesFromGeneric):
     def __init__(
-        self, source_path: options.SourcePathOption, num_processes: int | None = None
+        self,
+        source_path: options.SourcePathOption,
+        num_processes: int | None = None,
+        use_file_time: bool = False,
     ):
         self.source_path = source_path
+        self.use_file_time = use_file_time
         super().__init__(num_processes=num_processes)
 
     @classmethod
     def build_image_extractors(
-        cls, rdf_by_path: dict[str, ET.Element], image_paths: T.Iterable[Path]
+        cls,
+        rdf_by_path: dict[str, ET.Element],
+        image_paths: T.Iterable[Path],
+        use_file_time: bool = False,
     ) -> list[ImageExifToolExtractor | types.ErrorMetadata]:
         results: list[ImageExifToolExtractor | types.ErrorMetadata] = []
 
@@ -52,7 +59,9 @@ class GeotagImagesFromExifToolXML(GeotagImagesFromGeneric):
                     )
                 )
             else:
-                results.append(ImageExifToolExtractor(path, rdf))
+                results.append(
+                    ImageExifToolExtractor(path, rdf, use_file_time=use_file_time)
+                )
 
         return results
 
@@ -63,10 +72,16 @@ class GeotagImagesFromExifToolXML(GeotagImagesFromGeneric):
         rdf_by_path = GeotagVideosFromExifToolXML.find_rdf_by_path(
             self.source_path, image_paths
         )
-        return self.build_image_extractors(rdf_by_path, image_paths)
+        return self.build_image_extractors(
+            rdf_by_path, image_paths, use_file_time=self.use_file_time
+        )
 
 
 class GeotagImagesFromExifToolRunner(GeotagImagesFromGeneric):
+    def __init__(self, num_processes: int | None = None, use_file_time: bool = False):
+        super().__init__(num_processes=num_processes)
+        self.use_file_time = use_file_time
+
     @override
     def _generate_image_extractors(
         self, image_paths: T.Sequence[Path]
@@ -107,7 +122,7 @@ class GeotagImagesFromExifToolRunner(GeotagImagesFromGeneric):
             )
 
         return GeotagImagesFromExifToolXML.build_image_extractors(
-            rdf_by_path, image_paths
+            rdf_by_path, image_paths, use_file_time=self.use_file_time
         )
 
 
@@ -117,10 +132,12 @@ class GeotagImagesFromExifToolWithSamples(GeotagImagesFromGeneric):
         source_path: options.SourcePathOption,
         offset_time: float = 0.0,
         num_processes: int | None = None,
+        use_file_time: bool = False,
     ):
         super().__init__(num_processes=num_processes)
         self.source_path = source_path
         self.offset_time = offset_time
+        self.use_file_time = use_file_time
 
     def geotag_samples(
         self, image_paths: T.Sequence[Path]
@@ -203,7 +220,9 @@ class GeotagImagesFromExifToolWithSamples(GeotagImagesFromGeneric):
         non_sample_paths = [path for path in image_paths if path not in sample_paths]
 
         non_sample_metadata_or_errors = GeotagImagesFromExifToolXML(
-            self.source_path, num_processes=self.num_processes
+            self.source_path,
+            num_processes=self.num_processes,
+            use_file_time=self.use_file_time,
         ).to_description(non_sample_paths)
 
         return sample_metadata_or_errors + non_sample_metadata_or_errors

@@ -29,7 +29,14 @@ class Command:
     name = "process"
     help = "process images and videos"
 
-    def add_basic_arguments(self, parser: argparse.ArgumentParser):
+    def add_basic_arguments(
+        self, parser: argparse.ArgumentParser, video_frames: bool = False
+    ):
+        """
+        The options of process. For **video_frames** (video_process), without
+        --use_file_time_as_capture_time: the frames get their times from the
+        video
+        """
         geotag_gpx_based_sources: list[str] = [
             SourceType.GPX.value,
             SourceType.NMEA.value,
@@ -175,6 +182,14 @@ class Command:
             help="Time offset, in seconds, that will be added to your image timestamps after geotagging/interpolation. [default: %(default)s]",
             required=False,
         )
+        if not video_frames:
+            group_geotagging.add_argument(
+                "--use_file_time_as_capture_time",
+                help="For an image that has a GPS position but no capture time in its metadata, use the earlier of its file modification and creation times (only the modification time on Linux) as its capture time, with a warning. A downloaded, exported or copied file has the time of the copy, which is not when the image was taken: use this only if the file times are when the images were taken. Images placed on a GPX or NMEA track still need a capture time.",
+                action="store_true",
+                default=False,
+                required=False,
+            )
         group_geotagging.add_argument(
             "--num_processes",
             help="The number of processes for processing the data concurrently. A non-positive number (N<=0) will disable multiprocessing (useful for debugging). [default: the number of CPUs]",

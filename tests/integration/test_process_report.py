@@ -4,11 +4,15 @@
 # LICENSE file in the root directory of this source tree.
 
 import json
+import os
 import subprocess
 from pathlib import Path
 
 import py.path
 import pytest
+from PIL import Image
+from PIL.ExifTags import GPS, IFD
+from PIL.TiffImagePlugin import IFDRational
 
 from .fixtures import run_command, setup_data
 
@@ -302,3 +306,70 @@ def test_process_report_has_no_warnings_for_a_video_without_any(
     _, report = _run_process_with_report([video_path], output_dir)
 
     assert report["warnings"] == []
+
+
+def _write_image_without_capture_time(image_path: Path) -> Path:
+    """A JPEG with a GPS position and no date, modified 2024-05-01T10:00:00Z"""
+    image_path.parent.mkdir()
+    img = Image.new("RGB", (4, 4), (0, 0, 0))
+    exif = img.getexif()
+    gps = exif.get_ifd(IFD.GPSInfo)
+    gps[GPS.GPSLatitudeRef] = "N"
+    gps[GPS.GPSLatitude] = (IFDRational(24), IFDRational(33), IFDRational(3636, 100))
+    gps[GPS.GPSLongitudeRef] = "W"
+    gps[GPS.GPSLongitude] = (IFDRational(81), IFDRational(48), IFDRational(2772, 100))
+    img.save(image_path, format="JPEG", exif=exif)
+    os.utime(image_path, (1714557600, 1714557600))
+    return image_path
+
+
+def test_process_fails_an_image_without_capture_time_by_default(
+    tmpdir: py.path.local,
+):
+    root = Path(str(tmpdir))
+    image_path = _write_image_without_capture_time(root / "images" / "image.jpg")
+
+    # Without ExifTool installed, the default exiftool_runtime source, tried
+    # last, would report that instead
+    descs, report = _run_process_with_report(
+        [image_path.parent], root, "--geotag_source", "native"
+    )
+
+    [desc] = descs
+    assert desc["error"]["type"] == "MapillaryGeoTaggingError"
+    assert desc["error"]["message"].startswith(
+        "Unable to extract timestamp from the image: it has a GPS position but no "
+        "capture time."
+    )
+    assert "--use_file_time_as_capture_time" in desc["error"]["message"]
+    assert report["warnings"] == []
+
+
+def test_process_report_warns_of_an_image_given_its_file_time(
+    tmpdir: py.path.local,
+):
+    """
+    With --use_file_time_as_capture_time, an image with a GPS position but no
+    capture time gets the earlier of its file times as its capture time, and a
+    warning in the report
+    """
+    root = Path(str(tmpdir))
+    image_path = _write_image_without_capture_time(
+        root / "images" / "no_capture_time.jpg"
+    )
+
+    descs, report = _run_process_with_report(
+        [image_path.parent], root, "--use_file_time_as_capture_time"
+    )
+
+    [desc] = descs
+    assert "error" not in desc
+    assert desc["MAPCaptureTime"] == "2024_05_01_10_00_00_000"
+    assert desc["MAPLatitude"] == pytest.approx(24.5601)
+    [warning] = report["warnings"]
+    assert warning["filename"] == str(image_path.resolve())
+    assert warning["type"] == "MapillaryFileTimeWarning"
+    assert warning["vars"] == {
+        "file_time": "modification",
+        "capture_time": "2024_05_01_10_00_00_000",
+    }
