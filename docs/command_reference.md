@@ -535,7 +535,7 @@ mapillary_tools upload MY_ZIPS --desc_path MY_IMAGE_DIR/mapillary_image_descript
 | Code | Meaning                                                                       |
 | ---- | ----------------------------------------------------------------------------- |
 | 0    | Success, including when errors were skipped with `--skip_*_errors`. `upload` also exits 0 when some files failed to upload |
-| 1    | Unexpected error                                                              |
+| 1    | Unexpected error, logged with its traceback                                   |
 | 2    | Invalid option or option value                                                |
 | 3    | Import path or description file not found                                     |
 | 4    | The description file is not valid JSON                                        |
